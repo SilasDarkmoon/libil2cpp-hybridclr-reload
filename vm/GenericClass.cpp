@@ -189,9 +189,18 @@ namespace vm
         }
         if (!gclass->cached_class)
         {
-            // Il2CppClass is a fixed-length structure; its vtable has a fixed capacity of IL2CPP_MAX_VTABLE_SLOT_COUNT.
-            Il2CppClass* klass = (Il2CppClass*)MetadataCalloc(1, sizeof(Il2CppClass));
+            // Il2CppClass uses a fixed-length layout (IL2CPP_MAX_VTABLE_SLOT_COUNT inline vtable slots) for types
+            // whose vtable fits, otherwise a variable-length allocation of (vtable_count + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT)
+            // slots. ComputeVTableAllocatedSlotCount returns the allocated slot count and logs the variable case.
+            const uint32_t vtableCount = definition->vtable_count;
+            const uint32_t vtableAllocated = il2cpp::vm::Class::ComputeVTableAllocatedSlotCount(vtableCount, definition->namespaze, definition->name);
+            const size_t extraVTableBytes = (vtableAllocated > IL2CPP_MAX_VTABLE_SLOT_COUNT)
+                ? (vtableAllocated - IL2CPP_MAX_VTABLE_SLOT_COUNT) * sizeof(VirtualInvokeData)
+                : 0;
+            Il2CppClass* klass = (Il2CppClass*)MetadataCalloc(1, sizeof(Il2CppClass) + extraVTableBytes);
             klass->klass = klass;
+            klass->vtable_count = (uint16_t)vtableCount;
+            klass->vtable_allocated_count = (uint16_t)vtableAllocated;
 
             klass->name = definition->name;
             klass->namespaze = definition->namespaze;

@@ -61,22 +61,22 @@ namespace vm
 {
     const int Class::IgnoreNumberOfArguments = -1;
 
-    uint16_t Class::ClampVTableSlotCount(uint32_t vtableCount, const char* namespaze, const char* name)
+    uint32_t Class::ComputeVTableAllocatedSlotCount(uint32_t vtableCount, const char* namespaze, const char* name)
     {
-        if (vtableCount > IL2CPP_MAX_VTABLE_SLOT_COUNT)
+        if (vtableCount + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT > IL2CPP_MAX_VTABLE_SLOT_COUNT)
         {
+            const uint32_t allocated = vtableCount + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT;
             const char* ns = (namespaze && namespaze[0]) ? namespaze : "";
             const char* nm = name ? name : "<unknown>";
-            il2cpp::utils::Logging::Write("Error: vtable of type '%s%s%s' has %u slots which exceeds the fixed capacity %d. The extra %u slots are discarded and vtable_count is clamped to %d.",
+            il2cpp::utils::Logging::Write("Info: vtable of type '%s%s%s' has %u slots which exceeds the fixed capacity %d; using the variable-length Il2CppClass layout with %u allocated slots.",
                 ns,
                 (namespaze && namespaze[0]) ? "." : "",
                 nm,
                 (unsigned int)vtableCount,
                 (int)IL2CPP_MAX_VTABLE_SLOT_COUNT,
-                (unsigned int)(vtableCount - IL2CPP_MAX_VTABLE_SLOT_COUNT),
-                (int)IL2CPP_MAX_VTABLE_SLOT_COUNT);
+                (unsigned int)allocated);
 
-            // Also dump the overflow info to a file so it can be inspected after the run.
+            // Also dump the info to a file so it can be inspected after the run.
             // Preferred location is Unity's Application.temporaryCachePath. Since libil2cpp (C++) cannot
             // read that managed property directly, the managed side may publish it via the
             // UNITY_TEMPORARY_CACHE_PATH environment variable (e.g. Environment.SetEnvironmentVariable
@@ -100,18 +100,18 @@ namespace vm
             FILE* fp = fopen(filePath.c_str(), "a");
             if (fp != NULL)
             {
-                fprintf(fp, "vtable overflow: type='%s.%s' slots=%u capacity=%d discarded=%u\n",
+                fprintf(fp, "vtable variable-layout: type='%s.%s' slots=%u capacity=%d allocated=%u\n",
                     ns,
                     nm,
                     (unsigned int)vtableCount,
                     (int)IL2CPP_MAX_VTABLE_SLOT_COUNT,
-                    (unsigned int)(vtableCount - IL2CPP_MAX_VTABLE_SLOT_COUNT));
+                    (unsigned int)allocated);
                 fclose(fp);
             }
 
-            return (uint16_t)IL2CPP_MAX_VTABLE_SLOT_COUNT;
+            return allocated;
         }
-        return (uint16_t)vtableCount;
+        return IL2CPP_MAX_VTABLE_SLOT_COUNT;
     }
 
     static il2cpp::utils::dynamic_array<Il2CppClass*> s_staticFieldData;
@@ -282,6 +282,8 @@ namespace vm
 
         Il2CppClass* klass = (Il2CppClass*)MetadataCalloc(1, sizeof(Il2CppClass));
         klass->klass = klass;
+        klass->vtable_count = 0;
+        klass->vtable_allocated_count = IL2CPP_MAX_VTABLE_SLOT_COUNT;
 
         Il2CppGenericParameterInfo paramInfo = MetadataCache::GetGenericParameterInfo(param);
 
@@ -1299,7 +1301,9 @@ namespace vm
 
             if (genericTypeDefinition->vtable_count > 0)
             {
-                klass->vtable_count = Class::ClampVTableSlotCount(genericTypeDefinition->vtable_count, klass->namespaze, klass->name);
+                // vtable_count and vtable_allocated_count were already set when the generic instance
+                // Il2CppClass was allocated in GenericClass::CreateClass; just keep vtable_count in sync.
+                klass->vtable_count = (uint16_t)genericTypeDefinition->vtable_count;
                 for (uint16_t i = 0; i < klass->vtable_count; i++)
                 {
                     const MethodInfo* method = MetadataCache::GetMethodInfoFromVTableSlot(genericTypeDefinition, i);
@@ -1920,6 +1924,8 @@ namespace vm
 
         pointerClass = (Il2CppClass*)MetadataCalloc(1, sizeof(Il2CppClass));
         pointerClass->klass = pointerClass;
+        pointerClass->vtable_count = 0;
+        pointerClass->vtable_allocated_count = IL2CPP_MAX_VTABLE_SLOT_COUNT;
 
         pointerClass->namespaze = elementClass->namespaze;
         pointerClass->name = il2cpp::utils::StringUtils::StringDuplicate(il2cpp::utils::StringUtils::Printf("%s*", elementClass->name).c_str());

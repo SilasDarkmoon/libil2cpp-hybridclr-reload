@@ -376,11 +376,16 @@ typedef struct Il2CppRuntimeInterfaceOffsetPair
 #pragma clang diagnostic ignored "-Winvalid-offsetof"
 #endif
 
-// Il2CppClass is a fixed-length structure now: its vtable is a fixed-size array
-// with IL2CPP_MAX_VTABLE_SLOT_COUNT slots instead of a variable-length trailing array.
-// If a type's vtable has more slots than this capacity, the extra slots are discarded
-// and vtable_count is clamped to this value (see Class::ClampVTableSlotCount).
-#define IL2CPP_MAX_VTABLE_SLOT_COUNT 512
+// Il2CppClass uses a fixed-length layout for types whose vtable fits within IL2CPP_MAX_VTABLE_SLOT_COUNT
+// slots: the inline vtable array below (IL2CPP_MAX_VTABLE_SLOT_COUNT slots) is the only vtable storage.
+// Types whose vtable needs more slots fall back to the original variable-length struct layout: the
+// allocation is extended with (vtable_count + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT - IL2CPP_MAX_VTABLE_SLOT_COUNT)
+// extra VirtualInvokeData slots beyond the inline array. IL2CPP_PRESERVED_VTABLE_SLOT_COUNT extra slots
+// are reserved so interface-offset vtable indices that slightly exceed vtable_count are still covered.
+// The actual number of allocated vtable slots is recorded in Il2CppClass::vtable_allocated_count
+// (see Class::ComputeVTableAllocatedSlotCount).
+#define IL2CPP_MAX_VTABLE_SLOT_COUNT 128
+#define IL2CPP_PRESERVED_VTABLE_SLOT_COUNT 16
 
 typedef struct Il2CppClass
 {
@@ -442,6 +447,7 @@ typedef struct Il2CppClass
     uint16_t event_count;
     uint16_t nested_type_count;
     uint16_t vtable_count; // lazily calculated for arrays, i.e. when rank > 0
+    uint16_t vtable_allocated_count; // actual number of vtable slots allocated for this Il2CppClass (>= vtable_count). Equals IL2CPP_MAX_VTABLE_SLOT_COUNT for the fixed layout, or (vtable_count + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT) for the variable-length layout.
     uint16_t interfaces_count;
     uint16_t interface_offsets_count; // lazily calculated for arrays, i.e. when rank > 0
 

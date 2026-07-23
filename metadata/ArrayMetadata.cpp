@@ -324,8 +324,8 @@ namespace metadata
                 klass->methods[offset++] = arrayMethod;
 
                 size_t vtableIndex = klass->interfaceOffsets[i].offset + iter->interfaceMethodDefinition->slot;
-                // Il2CppClass has a fixed vtable capacity; discard slots beyond the capacity to avoid overflow.
-                if (vtableIndex >= IL2CPP_MAX_VTABLE_SLOT_COUNT)
+                // Guard against writing beyond the actually allocated vtable slots to avoid overflow.
+                if (vtableIndex >= klass->vtable_allocated_count)
                     continue;
                 klass->vtable[vtableIndex].method = arrayMethod;
                 klass->vtable[vtableIndex].methodPtr = arrayMethod->virtualMethodPointer;
@@ -527,8 +527,15 @@ namespace metadata
 
         slots += interfaces.size() * (il2cpp_defaults.generic_ireadonlylist_class->method_count + il2cpp_defaults.generic_ireadonlycollection_class->method_count);
 
-        // Il2CppClass is a fixed-length structure; its vtable has a fixed capacity of IL2CPP_MAX_VTABLE_SLOT_COUNT.
-        Il2CppClass* klass = (Il2CppClass*)MetadataCalloc(1, sizeof(Il2CppClass));
+        // Il2CppClass uses a fixed-length layout (IL2CPP_MAX_VTABLE_SLOT_COUNT inline vtable slots) for types
+        // whose vtable fits, otherwise a variable-length allocation of (slots + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT)
+        // slots. ComputeVTableAllocatedSlotCount returns the allocated slot count and logs the variable case.
+        const uint32_t vtableCount = static_cast<uint32_t>(slots);
+        const uint32_t vtableAllocated = Class::ComputeVTableAllocatedSlotCount(vtableCount, elementClass->namespaze, elementClass->name);
+        const size_t extraVTableBytes = (vtableAllocated > IL2CPP_MAX_VTABLE_SLOT_COUNT)
+            ? (vtableAllocated - IL2CPP_MAX_VTABLE_SLOT_COUNT) * sizeof(VirtualInvokeData)
+            : 0;
+        Il2CppClass* klass = (Il2CppClass*)MetadataCalloc(1, sizeof(Il2CppClass) + extraVTableBytes);
         klass->klass = klass;
         klass->image = elementClass->image;
         // can share the const char* since it's immutable
@@ -542,7 +549,8 @@ namespace metadata
 
         klass->instance_size = Class::GetInstanceSize(arrayClass);
         klass->stack_slot_size = sizeof(void*);
-        klass->vtable_count = Class::ClampVTableSlotCount(static_cast<uint32_t>(slots), klass->namespaze, klass->name);
+        klass->vtable_count = (uint16_t)vtableCount;
+        klass->vtable_allocated_count = (uint16_t)vtableAllocated;
 
         // need this before we access the size or has_references
         Class::SetupFields(elementClass);

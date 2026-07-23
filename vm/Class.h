@@ -53,9 +53,14 @@ namespace vm
         static Il2CppClass* FromName(const Il2CppImage* image, const char* namespaze, const char *name);
         static Il2CppClass* FromSystemType(Il2CppReflectionType *type);
         static Il2CppClass* FromGenericParameter(Il2CppMetadataGenericParameterHandle param);
-        // Clamps a vtable slot count to the fixed capacity IL2CPP_MAX_VTABLE_SLOT_COUNT.
-        // If vtableCount exceeds the capacity, an error is logged and the extra slots are discarded.
-        static uint16_t ClampVTableSlotCount(uint32_t vtableCount, const char* namespaze, const char* name);
+        // Computes the number of vtable slots allocated for a class with the given vtable count.
+        // Returns IL2CPP_MAX_VTABLE_SLOT_COUNT when vtableCount + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT
+        // <= IL2CPP_MAX_VTABLE_SLOT_COUNT (fixed layout), otherwise vtableCount + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT
+        // (variable-length layout). When the variable-length layout is used, an informational message is
+        // written to the console and to the vtable overflow log file. The caller is responsible for
+        // allocating sizeof(Il2CppClass) + max(0, result - IL2CPP_MAX_VTABLE_SLOT_COUNT) * sizeof(VirtualInvokeData)
+        // bytes and for storing both vtable_count (= vtableCount) and vtable_allocated_count (= result).
+        static uint32_t ComputeVTableAllocatedSlotCount(uint32_t vtableCount, const char* namespaze, const char* name);
         static Il2CppClass* GetElementClass(Il2CppClass *klass);
         static const Il2CppType* GetEnumBaseType(Il2CppClass *klass);
         static const EventInfo* GetEvents(Il2CppClass *klass, void* *iter);

@@ -1624,8 +1624,17 @@ Il2CppClass* il2cpp::vm::GlobalMetadata::FromTypeDefinition(TypeDefinitionIndex 
         typeDefinition = typeDefinitions + index;
         typeDefinitionSizes = s_Il2CppMetadataRegistration->typeDefinitionsSizes[index];
     }
-    // Il2CppClass is a fixed-length structure; its vtable has a fixed capacity of IL2CPP_MAX_VTABLE_SLOT_COUNT.
-    Il2CppClass* typeInfo = (Il2CppClass*)IL2CPP_CALLOC(1, sizeof(Il2CppClass));
+    // Il2CppClass uses a fixed-length layout (IL2CPP_MAX_VTABLE_SLOT_COUNT inline vtable slots) for types
+    // whose vtable fits, otherwise a variable-length allocation of (vtable_count + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT)
+    // slots. ComputeVTableAllocatedSlotCount returns the allocated slot count and logs the variable case.
+    const uint32_t vtableCount = typeDefinition->vtable_count;
+    const uint32_t vtableAllocated = il2cpp::vm::Class::ComputeVTableAllocatedSlotCount(vtableCount,
+        il2cpp::vm::GlobalMetadata::GetStringFromIndex(typeDefinition->namespaceIndex),
+        il2cpp::vm::GlobalMetadata::GetStringFromIndex(typeDefinition->nameIndex));
+    const size_t extraVTableBytes = (vtableAllocated > IL2CPP_MAX_VTABLE_SLOT_COUNT)
+        ? (vtableAllocated - IL2CPP_MAX_VTABLE_SLOT_COUNT) * sizeof(VirtualInvokeData)
+        : 0;
+    Il2CppClass* typeInfo = (Il2CppClass*)IL2CPP_CALLOC(1, sizeof(Il2CppClass) + extraVTableBytes);
     typeInfo->klass = typeInfo;
     typeInfo->image = GetImageForTypeDefinitionIndex(index);
     typeInfo->name = il2cpp::vm::GlobalMetadata::GetStringFromIndex(typeDefinition->nameIndex);
@@ -1657,7 +1666,8 @@ Il2CppClass* il2cpp::vm::GlobalMetadata::FromTypeDefinition(TypeDefinitionIndex 
     typeInfo->field_count = typeDefinition->field_count;
     typeInfo->event_count = typeDefinition->event_count;
     typeInfo->nested_type_count = typeDefinition->nested_type_count;
-    typeInfo->vtable_count = il2cpp::vm::Class::ClampVTableSlotCount(typeDefinition->vtable_count, typeInfo->namespaze, typeInfo->name);
+    typeInfo->vtable_count = (uint16_t)vtableCount;
+    typeInfo->vtable_allocated_count = (uint16_t)vtableAllocated;
     typeInfo->interfaces_count = typeDefinition->interfaces_count;
     typeInfo->interface_offsets_count = typeDefinition->interface_offsets_count;
     typeInfo->token = typeDefinition->token;
