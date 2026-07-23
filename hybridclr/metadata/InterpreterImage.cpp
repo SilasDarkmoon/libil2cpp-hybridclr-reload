@@ -2918,7 +2918,8 @@ namespace metadata
 			// --- Update external pointers to new image/assembly ---
 			klass->image = _il2cppImage;
 			klass->typeMetadataHandle = reinterpret_cast<Il2CppMetadataTypeHandle>(&_typesDefines[i]);
-			klass->genericContainerHandle = GetGenericContainerByTypeDefinition(&_typesDefines[i]);
+			klass->genericContainerHandle = reinterpret_cast<Il2CppMetadataGenericContainerHandle>(
+				GetGenericContainerByTypeDefinition(&_typesDefines[i]));
 			klass->interopData = il2cpp::vm::MetadataCache::GetInteropDataForType(&klass->byval_arg);
 
 			// --- Update type identity ---
