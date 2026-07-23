@@ -384,8 +384,8 @@ typedef struct Il2CppRuntimeInterfaceOffsetPair
 // are reserved so interface-offset vtable indices that slightly exceed vtable_count are still covered.
 // The actual number of allocated vtable slots is recorded in Il2CppClass::vtable_allocated_count
 // (see Class::ComputeVTableAllocatedSlotCount).
-#define IL2CPP_MAX_VTABLE_SLOT_COUNT 128
-#define IL2CPP_PRESERVED_VTABLE_SLOT_COUNT 16
+#define IL2CPP_MAX_VTABLE_SLOT_COUNT 256
+#define IL2CPP_PRESERVED_VTABLE_SLOT_COUNT 32
 
 typedef struct Il2CppClass
 {
