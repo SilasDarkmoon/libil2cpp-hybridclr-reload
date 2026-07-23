@@ -12,6 +12,7 @@
 #include "os/Directory.h"
 #include "os/Environment.h"
 #include <cstdio>
+#include <ctime>
 #include "utils/Memory.h"
 #include "utils/StringUtils.h"
 #include "vm/Assembly.h"
@@ -68,7 +69,26 @@ namespace vm
             const uint32_t allocated = vtableCount + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT;
             const char* ns = (namespaze && namespaze[0]) ? namespaze : "";
             const char* nm = name ? name : "<unknown>";
-            il2cpp::utils::Logging::Write("Info: vtable of type '%s%s%s' has %u slots which exceeds the fixed capacity %d; using the variable-length Il2CppClass layout with %u allocated slots.",
+
+            // Build a UTC timestamp, e.g. "2026-07-23 14:05:09".
+            // gmtime is part of standard C and available on all platforms (Windows/iOS/Android).
+            // MSVC deprecates it in favor of gmtime_s, so we silence that specific warning locally;
+            // other compilers simply ignore the pragma.
+            std::time_t nowTime = std::time(NULL);
+            struct tm tmNow;
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
+            tmNow = *std::gmtime(&nowTime);
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+            char timeBuf[32];
+            std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &tmNow);
+
+            il2cpp::utils::Logging::Write("[%s] Info: vtable of type '%s%s%s' has %u slots which exceeds the fixed capacity %d; using the variable-length Il2CppClass layout with %u allocated slots.",
+                timeBuf,
                 ns,
                 (namespaze && namespaze[0]) ? "." : "",
                 nm,
@@ -100,7 +120,8 @@ namespace vm
             FILE* fp = fopen(filePath.c_str(), "a");
             if (fp != NULL)
             {
-                fprintf(fp, "vtable variable-layout: type='%s.%s' slots=%u capacity=%d allocated=%u\n",
+                fprintf(fp, "[%s] vtable variable-layout: type='%s.%s' slots=%u capacity=%d allocated=%u\n",
+                    timeBuf,
                     ns,
                     nm,
                     (unsigned int)vtableCount,
