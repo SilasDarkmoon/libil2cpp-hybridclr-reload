@@ -39,6 +39,7 @@
 #include "utils/InitOnce.h"
 #include "utils/StringUtils.h"
 #include "utils/HashUtils.h"
+#include "utils/Logging.h"
 #include <string>
 #include <memory.h>
 #include <algorithm>
@@ -56,6 +57,23 @@ namespace il2cpp
 namespace vm
 {
     const int Class::IgnoreNumberOfArguments = -1;
+
+    uint16_t Class::ClampVTableSlotCount(uint32_t vtableCount, const char* namespaze, const char* name)
+    {
+        if (vtableCount > IL2CPP_MAX_VTABLE_SLOT_COUNT)
+        {
+            il2cpp::utils::Logging::Write("Error: vtable of type '%s%s%s' has %u slots which exceeds the fixed capacity %d. The extra %u slots are discarded and vtable_count is clamped to %d.",
+                (namespaze && namespaze[0]) ? namespaze : "",
+                (namespaze && namespaze[0]) ? "." : "",
+                name ? name : "<unknown>",
+                (unsigned int)vtableCount,
+                (int)IL2CPP_MAX_VTABLE_SLOT_COUNT,
+                (unsigned int)(vtableCount - IL2CPP_MAX_VTABLE_SLOT_COUNT),
+                (int)IL2CPP_MAX_VTABLE_SLOT_COUNT);
+            return (uint16_t)IL2CPP_MAX_VTABLE_SLOT_COUNT;
+        }
+        return (uint16_t)vtableCount;
+    }
 
     static il2cpp::utils::dynamic_array<Il2CppClass*> s_staticFieldData;
     static int32_t s_FinalizerSlot = -1;
@@ -1242,8 +1260,8 @@ namespace vm
 
             if (genericTypeDefinition->vtable_count > 0)
             {
-                klass->vtable_count = genericTypeDefinition->vtable_count;
-                for (uint16_t i = 0; i < genericTypeDefinition->vtable_count; i++)
+                klass->vtable_count = Class::ClampVTableSlotCount(genericTypeDefinition->vtable_count, klass->namespaze, klass->name);
+                for (uint16_t i = 0; i < klass->vtable_count; i++)
                 {
                     const MethodInfo* method = MetadataCache::GetMethodInfoFromVTableSlot(genericTypeDefinition, i);
 

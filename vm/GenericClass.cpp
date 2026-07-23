@@ -189,7 +189,8 @@ namespace vm
         }
         if (!gclass->cached_class)
         {
-            Il2CppClass* klass = (Il2CppClass*)MetadataCalloc(1, sizeof(Il2CppClass) + (sizeof(VirtualInvokeData) * definition->vtable_count));
+            // Il2CppClass is a fixed-length structure; its vtable has a fixed capacity of IL2CPP_MAX_VTABLE_SLOT_COUNT.
+            Il2CppClass* klass = (Il2CppClass*)MetadataCalloc(1, sizeof(Il2CppClass));
             klass->klass = klass;
 
             klass->name = definition->name;

@@ -324,6 +324,9 @@ namespace metadata
                 klass->methods[offset++] = arrayMethod;
 
                 size_t vtableIndex = klass->interfaceOffsets[i].offset + iter->interfaceMethodDefinition->slot;
+                // Il2CppClass has a fixed vtable capacity; discard slots beyond the capacity to avoid overflow.
+                if (vtableIndex >= IL2CPP_MAX_VTABLE_SLOT_COUNT)
+                    continue;
                 klass->vtable[vtableIndex].method = arrayMethod;
                 klass->vtable[vtableIndex].methodPtr = arrayMethod->virtualMethodPointer;
             }
@@ -524,7 +527,8 @@ namespace metadata
 
         slots += interfaces.size() * (il2cpp_defaults.generic_ireadonlylist_class->method_count + il2cpp_defaults.generic_ireadonlycollection_class->method_count);
 
-        Il2CppClass* klass = (Il2CppClass*)MetadataCalloc(1, sizeof(Il2CppClass) + (slots * sizeof(VirtualInvokeData)));
+        // Il2CppClass is a fixed-length structure; its vtable has a fixed capacity of IL2CPP_MAX_VTABLE_SLOT_COUNT.
+        Il2CppClass* klass = (Il2CppClass*)MetadataCalloc(1, sizeof(Il2CppClass));
         klass->klass = klass;
         klass->image = elementClass->image;
         // can share the const char* since it's immutable
@@ -538,7 +542,7 @@ namespace metadata
 
         klass->instance_size = Class::GetInstanceSize(arrayClass);
         klass->stack_slot_size = sizeof(void*);
-        klass->vtable_count = static_cast<uint16_t>(slots);
+        klass->vtable_count = Class::ClampVTableSlotCount(static_cast<uint32_t>(slots), klass->namespaze, klass->name);
 
         // need this before we access the size or has_references
         Class::SetupFields(elementClass);

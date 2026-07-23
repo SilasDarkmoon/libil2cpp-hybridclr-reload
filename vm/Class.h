@@ -53,6 +53,9 @@ namespace vm
         static Il2CppClass* FromName(const Il2CppImage* image, const char* namespaze, const char *name);
         static Il2CppClass* FromSystemType(Il2CppReflectionType *type);
         static Il2CppClass* FromGenericParameter(Il2CppMetadataGenericParameterHandle param);
+        // Clamps a vtable slot count to the fixed capacity IL2CPP_MAX_VTABLE_SLOT_COUNT.
+        // If vtableCount exceeds the capacity, an error is logged and the extra slots are discarded.
+        static uint16_t ClampVTableSlotCount(uint32_t vtableCount, const char* namespaze, const char* name);
         static Il2CppClass* GetElementClass(Il2CppClass *klass);
         static const Il2CppType* GetEnumBaseType(Il2CppClass *klass);
         static const EventInfo* GetEvents(Il2CppClass *klass, void* *iter);

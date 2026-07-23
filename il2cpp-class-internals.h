@@ -376,6 +376,12 @@ typedef struct Il2CppRuntimeInterfaceOffsetPair
 #pragma clang diagnostic ignored "-Winvalid-offsetof"
 #endif
 
+// Il2CppClass is a fixed-length structure now: its vtable is a fixed-size array
+// with IL2CPP_MAX_VTABLE_SLOT_COUNT slots instead of a variable-length trailing array.
+// If a type's vtable has more slots than this capacity, the extra slots are discarded
+// and vtable_count is clamped to this value (see Class::ClampVTableSlotCount).
+#define IL2CPP_MAX_VTABLE_SLOT_COUNT 128
+
 typedef struct Il2CppClass
 {
     // The following fields are always valid for a Il2CppClass structure
@@ -463,7 +469,7 @@ typedef struct Il2CppClass
     uint8_t is_import_or_windows_runtime : 1;
     uint8_t is_vtable_initialized : 1;
     uint8_t is_byref_like : 1;
-    VirtualInvokeData vtable[IL2CPP_ZERO_LEN_ARRAY];
+    VirtualInvokeData vtable[IL2CPP_MAX_VTABLE_SLOT_COUNT];
 } Il2CppClass;
 
 #if IL2CPP_COMPILER_MSVC

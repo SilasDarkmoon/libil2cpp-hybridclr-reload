@@ -1624,7 +1624,8 @@ Il2CppClass* il2cpp::vm::GlobalMetadata::FromTypeDefinition(TypeDefinitionIndex 
         typeDefinition = typeDefinitions + index;
         typeDefinitionSizes = s_Il2CppMetadataRegistration->typeDefinitionsSizes[index];
     }
-    Il2CppClass* typeInfo = (Il2CppClass*)IL2CPP_CALLOC(1, sizeof(Il2CppClass) + (sizeof(VirtualInvokeData) * typeDefinition->vtable_count));
+    // Il2CppClass is a fixed-length structure; its vtable has a fixed capacity of IL2CPP_MAX_VTABLE_SLOT_COUNT.
+    Il2CppClass* typeInfo = (Il2CppClass*)IL2CPP_CALLOC(1, sizeof(Il2CppClass));
     typeInfo->klass = typeInfo;
     typeInfo->image = GetImageForTypeDefinitionIndex(index);
     typeInfo->name = il2cpp::vm::GlobalMetadata::GetStringFromIndex(typeDefinition->nameIndex);
@@ -1656,7 +1657,7 @@ Il2CppClass* il2cpp::vm::GlobalMetadata::FromTypeDefinition(TypeDefinitionIndex 
     typeInfo->field_count = typeDefinition->field_count;
     typeInfo->event_count = typeDefinition->event_count;
     typeInfo->nested_type_count = typeDefinition->nested_type_count;
-    typeInfo->vtable_count = typeDefinition->vtable_count;
+    typeInfo->vtable_count = il2cpp::vm::Class::ClampVTableSlotCount(typeDefinition->vtable_count, typeInfo->namespaze, typeInfo->name);
     typeInfo->interfaces_count = typeDefinition->interfaces_count;
     typeInfo->interface_offsets_count = typeDefinition->interface_offsets_count;
     typeInfo->token = typeDefinition->token;
