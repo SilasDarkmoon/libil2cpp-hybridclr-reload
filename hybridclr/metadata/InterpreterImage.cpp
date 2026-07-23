@@ -4,6 +4,9 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#include <string>
+#include <ctime>
+#include <cstdio>
 
 #include "il2cpp-class-internals.h"
 #include "vm/GlobalMetadata.h"
@@ -17,6 +20,11 @@
 #include "vm/MetadataAlloc.h"
 #include "vm/String.h"
 #include "vm/Reflection.h"
+#include "vm/Class.h"
+#include "vm/GenericClass.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
+#include "os/Atomic.h"
 #include "metadata/FieldLayout.h"
 #include "metadata/Il2CppTypeCompare.h"
 #include "metadata/GenericMetadata.h"
@@ -2574,6 +2582,434 @@ namespace metadata
 		}
 		}
 	}
+
+	// ==={{ AssemblyReloadReuse
+
+	// ---- helper: type-to-signature-string (no class loading) ----
+	std::string InterpreterImage::TypeToSigString(const Il2CppType* type)
+	{
+		if (!type)
+			return "?";
+
+		switch (type->type)
+		{
+		case IL2CPP_TYPE_VOID:      return "void";
+		case IL2CPP_TYPE_BOOLEAN:   return "bool";
+		case IL2CPP_TYPE_CHAR:      return "char";
+		case IL2CPP_TYPE_I1:        return "sbyte";
+		case IL2CPP_TYPE_U1:        return "byte";
+		case IL2CPP_TYPE_I2:        return "short";
+		case IL2CPP_TYPE_U2:        return "ushort";
+		case IL2CPP_TYPE_I4:        return "int";
+		case IL2CPP_TYPE_U4:        return "uint";
+		case IL2CPP_TYPE_I8:        return "long";
+		case IL2CPP_TYPE_U8:        return "ulong";
+		case IL2CPP_TYPE_R4:        return "float";
+		case IL2CPP_TYPE_R8:        return "double";
+		case IL2CPP_TYPE_STRING:    return "string";
+		case IL2CPP_TYPE_OBJECT:    return "object";
+		case IL2CPP_TYPE_CLASS:
+		case IL2CPP_TYPE_VALUETYPE:
+		{
+			const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)type->data.typeHandle;
+			if (!typeDef)
+				return "T_class";
+			std::string result;
+			if (IsInterpreterType(typeDef))
+			{
+				InterpreterImage* img = MetadataModule::GetImage(typeDef);
+				const char* ns = img->GetStringFromRawIndex(typeDef->namespaceIndex);
+				const char* nm = img->GetStringFromRawIndex(typeDef->nameIndex);
+				if (ns && *ns) { result = ns; result += "."; }
+				if (nm) result += nm;
+			}
+			else
+			{
+				const char* ns = il2cpp::vm::GlobalMetadata::GetStringFromIndex(typeDef->namespaceIndex);
+				const char* nm = il2cpp::vm::GlobalMetadata::GetStringFromIndex(typeDef->nameIndex);
+				if (ns && *ns) { result = ns; result += "."; }
+				if (nm) result += nm;
+			}
+			return result;
+		}
+		case IL2CPP_TYPE_GENERICINST:
+		{
+			const Il2CppGenericClass* gclass = type->data.generic_class;
+			if (!gclass || !gclass->type)
+				return "T_ginst";
+			std::string result = TypeToSigString(gclass->type);
+			result += "<";
+			const Il2CppGenericInst* inst = gclass->context.class_inst;
+			if (inst)
+			{
+				for (size_t i = 0; i < inst->type_argc; i++)
+				{
+					if (i > 0) result += ",";
+					result += TypeToSigString(inst->type_argv[i]);
+				}
+			}
+			result += ">";
+			return result;
+		}
+		case IL2CPP_TYPE_SZARRAY:
+			return TypeToSigString(type->data.type) + "[]";
+		case IL2CPP_TYPE_ARRAY:
+			return TypeToSigString(type->data.array->type) + "[]";
+		case IL2CPP_TYPE_PTR:
+			return TypeToSigString(type->data.type) + "*";
+		case IL2CPP_TYPE_BYREF:
+			return TypeToSigString(type->data.type) + "&";
+		case IL2CPP_TYPE_VAR:
+		case IL2CPP_TYPE_MVAR:
+		{
+			const Il2CppGenericParameter* param = (const Il2CppGenericParameter*)type->data.genericParameterHandle;
+			if (param && param->name)
+				return param->name;
+			return (type->type == IL2CPP_TYPE_VAR) ? "TVar" : "MVar";
+		}
+		default:
+			return "T" + std::to_string((int)type->type);
+		}
+	}
+
+	std::string InterpreterImage::BuildClassFullName(const Il2CppClass* klass)
+	{
+		if (!klass)
+			return "";
+		std::string result;
+		if (klass->declaringType)
+		{
+			result = BuildClassFullName(klass->declaringType);
+			result += "+";
+			result += klass->name ? klass->name : "";
+		}
+		else
+		{
+			if (klass->namespaze && *klass->namespaze)
+			{
+				result = klass->namespaze;
+				result += ".";
+			}
+			result += klass->name ? klass->name : "";
+		}
+		return result;
+	}
+
+	std::string InterpreterImage::BuildMethodSignatureKey(const Il2CppClass* klass, const MethodInfo* method)
+	{
+		std::string key = BuildClassFullName(klass);
+		key += ":";
+		key += method->name ? method->name : "";
+		key += "(";
+		for (uint8_t i = 0; i < method->parameters_count; i++)
+		{
+			if (i > 0) key += ",";
+			key += TypeToSigString(method->parameters[i]);
+		}
+		key += ")->";
+		key += TypeToSigString(method->return_type);
+		return key;
+	}
+
+	MethodInfo* InterpreterImage::TryReuseMethodFromMetadata(
+		const Il2CppClass* klass,
+		const char* methodName,
+		const Il2CppType* returnType,
+		const Il2CppType** parameters,
+		uint16_t paramCount)
+	{
+		std::string key = BuildClassFullName(klass);
+		key += ":";
+		key += methodName ? methodName : "";
+		key += "(";
+		for (uint16_t i = 0; i < paramCount; i++)
+		{
+			if (i > 0) key += ",";
+			key += TypeToSigString(parameters ? parameters[i] : nullptr);
+		}
+		key += ")->";
+		key += TypeToSigString(returnType);
+		return FindReusableMethod(key);
+	}
+
+	void InterpreterImage::CollectReusableObjects(InterpreterImage* oldImage)
+	{
+		if (!oldImage)
+			return;
+
+		_oldImageForReuse = oldImage->GetIl2CppImage();
+
+		// Collect non-generic Il2CppClass and MethodInfo objects from the old image.
+		for (size_t i = 0; i < oldImage->_classList.size(); i++)
+		{
+			Il2CppClass* klass = oldImage->_classList[i];
+			if (!klass)
+				continue;
+
+			std::string fullName = BuildClassFullName(klass);
+			if (fullName.empty())
+				continue;
+
+			// Only store the first occurrence (in case of duplicate names).
+			if (_reuseClassMap.find(fullName) == _reuseClassMap.end())
+			{
+				_reuseClassMap[fullName] = klass;
+			}
+
+			// Collect MethodInfo objects.
+			if (klass->methods)
+			{
+				for (uint16_t m = 0; m < klass->method_count; m++)
+				{
+					const MethodInfo* method = klass->methods[m];
+					if (!method)
+						continue;
+					std::string sigKey = BuildMethodSignatureKey(klass, method);
+					if (_reuseMethodMap.find(sigKey) == _reuseMethodMap.end())
+					{
+						_reuseMethodMap[sigKey] = const_cast<MethodInfo*>(method);
+					}
+				}
+			}
+		}
+	}
+
+	void InterpreterImage::RestoreReusedClasses()
+	{
+		// Iterate the new type-definition table; for each entry whose full name
+		// matches a reusable Il2CppClass, update the old object's external
+		// pointers to the new image, reset lazily-initialised fields, and store
+		// the pointer in _classList.
+		for (size_t i = 0; i < _typesDefines.size(); i++)
+		{
+			const Il2CppTypeDefinition& typeDef = _typesDefines[i];
+			const char* ns = GetStringFromRawIndex(typeDef.namespaceIndex);
+			const char* nm = GetStringFromRawIndex(typeDef.nameIndex);
+
+			// Build full name (handle nested types via declaringTypeIndex).
+			std::string fullName;
+			if (ns && *ns) { fullName = ns; fullName += "."; }
+			if (nm) fullName += nm;
+			// For nested types, prepend declaring type's full name.
+			// We resolve the declaring type from the new image's type definitions.
+			// The declaringTypeIndex in the new typeDef points to another typeDef
+			// in this image (or external).  For simplicity, we also try the
+			// declaringTypeIndex == kTypeIndexInvalid case (non-nested).
+			// Nested-type full names are built by traversing the declaring chain.
+			{
+				TypeDefinitionIndex declIdx = typeDef.declaringTypeIndex;
+				if (declIdx != kTypeIndexInvalid)
+				{
+					// Build the declaring type's full name recursively.
+					std::string declFullName;
+					TypeDefinitionIndex cur = declIdx;
+					while (cur != kTypeIndexInvalid)
+					{
+						const Il2CppTypeDefinition* curTypeDef = nullptr;
+						std::string curName;
+						if (IsInterpreterIndex(cur))
+						{
+							InterpreterImage* img = MetadataModule::GetImage(DecodeImageIndex(cur));
+							curTypeDef = img->GetTypeFromRawIndex(DecodeMetadataIndex(cur));
+							const char* curNs = img->GetStringFromRawIndex(curTypeDef->namespaceIndex);
+							const char* curNm = img->GetStringFromRawIndex(curTypeDef->nameIndex);
+							if (curNs && *curNs) { curName = curNs; curName += "."; }
+							if (curNm) curName += curNm;
+						}
+						else
+						{
+							curTypeDef = (const Il2CppTypeDefinition*)il2cpp::vm::GlobalMetadata::GetTypeHandleFromIndex(cur);
+							const char* curNs = il2cpp::vm::GlobalMetadata::GetStringFromIndex(curTypeDef->namespaceIndex);
+							const char* curNm = il2cpp::vm::GlobalMetadata::GetStringFromIndex(curTypeDef->nameIndex);
+							if (curNs && *curNs) { curName = curNs; curName += "."; }
+							if (curNm) curName += curNm;
+						}
+						if (declFullName.empty())
+							declFullName = curName;
+						else
+						{
+							declFullName = curName + "+" + declFullName;
+						}
+						cur = curTypeDef ? curTypeDef->declaringTypeIndex : kTypeIndexInvalid;
+					}
+					fullName = declFullName + "+" + fullName;
+				}
+			}
+
+			auto it = _reuseClassMap.find(fullName);
+			if (it == _reuseClassMap.end())
+				continue;
+
+			Il2CppClass* klass = it->second;
+			if (!klass)
+				continue;
+
+			// --- vtable compatibility check ---
+			uint16_t newVtableCount = (uint16_t)_typeDetails[i].vtableCount;
+			if (newVtableCount > klass->vtable_allocated_count)
+			{
+				// VTable too large for the existing allocation.
+				// Try in-place expansion (platform-specific).
+				bool expanded = false;
+#if defined(_MSC_VER) && defined(_WIN32)
+				// On MSVC/Windows, _expand tries to grow the block in-place
+				// without freeing it on failure.
+				{
+					const uint32_t newAllocated = newVtableCount + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT;
+					const size_t newSize = sizeof(Il2CppClass) +
+						(newAllocated > IL2CPP_MAX_VTABLE_SLOT_COUNT
+							? (newAllocated - IL2CPP_MAX_VTABLE_SLOT_COUNT) * sizeof(VirtualInvokeData)
+							: 0);
+					void* result = _expand(klass, newSize);
+					if (result == (void*)klass)
+					{
+						klass->vtable_allocated_count = (uint16_t)newAllocated;
+						expanded = true;
+					}
+				}
+#endif
+				if (!expanded)
+				{
+					// Log to console and file (same pattern as
+					// ComputeVTableAllocatedSlotCount in Class.cpp).
+					std::time_t nowTime = std::time(NULL);
+					struct tm tmNow;
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
+					tmNow = *std::gmtime(&nowTime);
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+					char timeBuf[32];
+					std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &tmNow);
+
+					const char* ns2 = (ns && *ns) ? ns : "";
+					const char* nm2 = nm ? nm : "<unknown>";
+
+					fprintf(stderr, "[%s] vtable-reuse-discard: type='%s.%s' new_slots=%u old_capacity=%u\n",
+						timeBuf, ns2, nm2, (unsigned)newVtableCount, (unsigned)klass->vtable_allocated_count);
+
+					// Also log to vtable_overflow.log (reuse the same file).
+					const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+					std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+					int createError = 0;
+					il2cpp::os::Directory::Create(dirStr, &createError);
+					std::string filePath = dirStr + "/vtable_overflow.log";
+					FILE* fp = fopen(filePath.c_str(), "a");
+					if (fp)
+					{
+						fprintf(fp, "[%s] vtable-reuse-discard: type='%s.%s' new_slots=%u old_capacity=%u\n",
+							timeBuf, ns2, nm2, (unsigned)newVtableCount, (unsigned)klass->vtable_allocated_count);
+						fclose(fp);
+					}
+				}
+					// Cannot reuse this class.
+					_reuseClassMap.erase(it);
+					continue;
+				}
+			}
+
+			// --- Update external pointers to new image/assembly ---
+			klass->image = _il2cppImage;
+			klass->typeMetadataHandle = reinterpret_cast<Il2CppMetadataTypeHandle>(&_typesDefines[i]);
+			klass->genericContainerHandle = GetGenericContainerByTypeDefinition(&_typesDefines[i]);
+			klass->interopData = il2cpp::vm::MetadataCache::GetInteropDataForType(&klass->byval_arg);
+
+			// --- Update type identity ---
+			klass->byval_arg = *GetIl2CppTypeFromRawTypeDefIndex((uint32_t)i);
+			klass->this_arg = klass->byval_arg;
+			klass->this_arg.byref = true;
+			klass->this_arg.valuetype = 0;
+
+			// --- Update counts from new type definition ---
+			klass->method_count = typeDef.method_count;
+			klass->property_count = typeDef.property_count;
+			klass->field_count = typeDef.field_count;
+			klass->event_count = typeDef.event_count;
+			klass->nested_type_count = typeDef.nested_type_count;
+			klass->vtable_count = newVtableCount;
+			klass->interfaces_count = typeDef.interfaces_count;
+			klass->interface_offsets_count = typeDef.interface_offsets_count;
+			klass->token = typeDef.token;
+			klass->flags = typeDef.flags;
+			klass->enumtype = (typeDef.bitfield >> (il2cpp::vm::kBitIsEnum - 1)) & 0x1;
+			klass->is_generic = typeDef.genericContainerIndex != kGenericContainerIndexInvalid;
+			klass->has_finalize = (typeDef.bitfield >> (il2cpp::vm::kBitHasFinalizer - 1)) & 0x1;
+			klass->has_cctor = (typeDef.bitfield >> (il2cpp::vm::kBitHasStaticConstructor - 1)) & 0x1;
+			klass->is_blittable = (typeDef.bitfield >> (il2cpp::vm::kBitIsBlittable - 1)) & 0x1;
+			klass->is_import_or_windows_runtime = (typeDef.bitfield >> (il2cpp::vm::kBitIsImportOrWindowsRuntime - 1)) & 0x1;
+			klass->is_byref_like = (typeDef.bitfield >> (il2cpp::vm::kBitIsByRefLike - 1)) & 0x1;
+			klass->packingSize = il2cpp::vm::GlobalMetadata::ConvertPackingSizeEnumToValue(
+				static_cast<il2cpp::vm::PackingSize>((typeDef.bitfield >> (il2cpp::vm::kPackingSize - 1)) & 0xF));
+			klass->name = nm;
+			klass->namespaze = ns;
+
+			// --- Update sizes ---
+			const Il2CppTypeDefinitionSizes* sizes = &_typeDetails[i].typeSizes;
+			klass->instance_size = sizes->instance_size;
+			klass->actualSize = sizes->instance_size;
+			klass->native_size = sizes->native_size;
+			klass->static_fields_size = sizes->static_fields_size;
+			klass->thread_static_fields_size = sizes->thread_static_fields_size;
+			klass->thread_static_fields_offset = -1;
+
+			// --- Reset lazily-initialised fields to null ---
+			// Do NOT fill them here to avoid introducing stale pointers.
+			klass->fields = nullptr;
+			klass->methods = nullptr;
+			klass->properties = nullptr;
+			klass->events = nullptr;
+			klass->nestedTypes = nullptr;
+			klass->implementedInterfaces = nullptr;
+			klass->interfaceOffsets = nullptr;
+			klass->static_fields = nullptr;
+			klass->rgctx_data = nullptr;
+			klass->typeHierarchy = nullptr;
+
+			// --- Reset init flags ---
+			klass->initialized = 0;
+			klass->initialized_and_no_error = 0;
+			klass->init_pending = 0;
+			klass->size_init_pending = 0;
+			klass->size_inited = 0;
+			klass->is_vtable_initialized = 0;
+			klass->cctor_started = 0;
+			klass->cctor_finished_or_no_cctor = !klass->has_cctor;
+			klass->initializationExceptionGCHandle = 0;
+			klass->unity_user_data = nullptr;
+
+			// --- Update parent / declaring type / element_class ---
+			// These will be resolved lazily by Class::Init, but we set them
+			// to null so they get re-resolved from the new type definition.
+			klass->parent = nullptr;
+			klass->declaringType = nullptr;
+			klass->element_class = klass->castClass = klass;
+			if (klass->enumtype)
+			{
+				if (typeDef.elementTypeIndex != kTypeIndexInvalid)
+					klass->element_class = klass->castClass = il2cpp::vm::Class::FromIl2CppType(
+						il2cpp::vm::GlobalMetadata::GetIl2CppTypeFromIndex(typeDef.elementTypeIndex));
+			}
+
+			// --- Store in _classList so GetTypeInfoFromTypeDefinitionRawIndex returns it ---
+			_classList[i] = klass;
+
+			// Remove from the reuse map (already reused).
+			_reuseClassMap.erase(it);
+		}
+
+		// --- Restore generic instance classes ---
+		// Iterate the generic-class cache (s_GenericClassSet) and update any
+		// cached Il2CppClass whose image still points to the old image.
+		if (_oldImageForReuse)
+		{
+			il2cpp::vm::GenericClass::RestoreCachedGenericClasses(_oldImageForReuse, _il2cppImage);
+		}
+	}
+
+	// ===}} AssemblyReloadReuse
 
 	void InterpreterImage::ReadMethodDefSig(BlobReader& reader, const Il2CppGenericContainer* klassGenericContainer, const Il2CppGenericContainer* methodGenericContainer, Il2CppMethodDefinition& methodDef, std::vector<ParamDetail>& paramArr)
 	{

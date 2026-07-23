@@ -191,16 +191,46 @@ namespace metadata
             image2 = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppImage))) Il2CppImage;
         }
 
-        image->InitBasic(image2);
-        image->BuildIl2CppAssembly(ass);
-        ass->image = image2;
+		image->InitBasic(image2);
+		image->BuildIl2CppAssembly(ass);
+		ass->image = image2;
 
-        image->BuildIl2CppImage(image2);
-        image2->name = ConcatNewString(ass->aname.name, ".dll");
-        image2->nameNoExt = ass->aname.name;
-        image2->assembly = ass;
+		image->BuildIl2CppImage(image2);
+		image2->name = ConcatNewString(ass->aname.name, ".dll");
+		image2->nameNoExt = ass->aname.name;
+		image2->assembly = ass;
 
-        image->InitRuntimeMetadatas();
+		// ==={{ AssemblyReloadReuse
+		// If reloading an assembly with the same name, collect reusable
+		// Il2CppClass / MethodInfo objects from the old image *before*
+		// InitRuntimeMetadatas so the reuse maps are ready.
+		if (oldAss != nullptr)
+		{
+			Il2CppImage* oldImage2 = oldAss->image;
+			if (oldImage2 && hybridclr::metadata::IsInterpreterImage(oldImage2))
+			{
+				hybridclr::metadata::InterpreterImage* oldInterpImage =
+					hybridclr::metadata::MetadataModule::GetImage(oldImage2);
+				if (oldInterpImage)
+				{
+					image->CollectReusableObjects(oldInterpImage);
+				}
+			}
+		}
+		// ===}} AssemblyReloadReuse
+
+		image->InitRuntimeMetadatas();
+
+		// ==={{ AssemblyReloadReuse
+		// After InitRuntimeMetadatas, restore reused Il2CppClass objects:
+		// update their external pointers to the new image/assembly and reset
+		// lazily-initialised fields.  This must happen before any class is
+		// accessed (e.g. before RunModuleInitializer).
+		if (image->HasReuseData())
+		{
+			image->RestoreReusedClasses();
+		}
+		// ===}} AssemblyReloadReuse
 
         if (oldAss != nullptr)
         {

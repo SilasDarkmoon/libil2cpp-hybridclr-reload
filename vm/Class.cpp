@@ -55,6 +55,8 @@
 #include "hybridclr/interpreter/Engine.h"
 #include "hybridclr/interpreter/Interpreter.h"
 #include "hybridclr/interpreter/InterpreterModule.h"
+#include "hybridclr/metadata/InterpreterImage.h"
+#include "hybridclr/metadata/MetadataModule.h"
 
 namespace il2cpp
 {
@@ -1197,11 +1199,102 @@ namespace vm
             MethodInfo* methods = (MethodInfo*)MetadataCalloc(klass->method_count, sizeof(MethodInfo));
             MethodInfo* newMethod = methods;
 
+            // ==={{ AssemblyReloadReuse
+            // If this is an interpreter class with a reuse map, try to match
+            // methods by signature and reuse old MethodInfo objects.
+            hybridclr::metadata::InterpreterImage* reuseImage = nullptr;
+            if (hybridclr::metadata::IsInterpreterType(klass))
+            {
+                reuseImage = hybridclr::metadata::MetadataModule::GetImage(klass);
+                if (reuseImage && !reuseImage->HasReuseData())
+                    reuseImage = nullptr;
+            }
+            // ===}} AssemblyReloadReuse
+
             MethodIndex end = klass->method_count;
 
             for (MethodIndex index = 0; index < end; ++index)
             {
                 Il2CppMetadataMethodInfo methodInfo = MetadataCache::GetMethodInfo(klass, index);
+
+                // ==={{ AssemblyReloadReuse
+                if (reuseImage)
+                {
+                    // Build parameter type array for signature lookup.
+                    const Il2CppType** paramTypes = nullptr;
+                    if (methodInfo.parameterCount > 0)
+                    {
+                        paramTypes = (const Il2CppType**)alloca(methodInfo.parameterCount * sizeof(Il2CppType*));
+                        for (uint16_t pi = 0; pi < methodInfo.parameterCount; pi++)
+                        {
+                            Il2CppMetadataParameterInfo paramInfo = MetadataCache::GetParameterInfo(klass, methodInfo.handle, pi);
+                            paramTypes[pi] = paramInfo.type;
+                        }
+                    }
+                    MethodInfo* reused = reuseImage->TryReuseMethodFromMetadata(
+                        klass, methodInfo.name, methodInfo.return_type,
+                        paramTypes, methodInfo.parameterCount);
+                    if (reused)
+                    {
+                        // Update the old MethodInfo's fields to point to new data.
+                        reused->name = methodInfo.name;
+                        reused->methodPointer = MetadataCache::GetMethodPointer(klass->image, methodInfo.token);
+
+                        if (klass->byval_arg.valuetype)
+                        {
+                            Il2CppMethodPointer adjustorThunk = MetadataCache::GetAdjustorThunk(klass->image, methodInfo.token);
+                            if (adjustorThunk != NULL)
+                                reused->virtualMethodPointer = adjustorThunk;
+                        }
+                        if (reused->virtualMethodPointer == NULL)
+                            reused->virtualMethodPointer = reused->methodPointer;
+
+                        reused->methodPointerCallByInterp = reused->methodPointer;
+                        reused->virtualMethodPointerCallByInterp = reused->virtualMethodPointer;
+                        reused->initInterpCallMethodPointer = true;
+                        reused->klass = klass;
+                        reused->return_type = methodInfo.return_type;
+                        reused->parameters_count = (uint8_t)methodInfo.parameterCount;
+
+                        // Always allocate a fresh parameters array for the
+                        // reused MethodInfo (old one may have wrong size).
+                        const Il2CppType** parameters = (const Il2CppType**)MetadataCalloc(methodInfo.parameterCount, sizeof(Il2CppType*));
+                        for (uint16_t paramIndex = 0; paramIndex < methodInfo.parameterCount; ++paramIndex)
+                        {
+                            Il2CppMetadataParameterInfo paramInfo = MetadataCache::GetParameterInfo(klass, methodInfo.handle, paramIndex);
+                            parameters[paramIndex] = paramInfo.type;
+                        }
+                        reused->parameters = parameters;
+
+                        reused->flags = methodInfo.flags;
+                        reused->iflags = methodInfo.iflags;
+                        reused->slot = methodInfo.slot;
+                        reused->is_inflated = false;
+                        reused->token = methodInfo.token;
+                        reused->methodMetadataHandle = methodInfo.handle;
+                        reused->genericContainerHandle = MetadataCache::GetGenericContainerFromMethod(methodInfo.handle);
+                        reused->is_generic = reused->genericContainerHandle ? 1 : 0;
+                        reused->has_full_generic_sharing_signature = false;
+
+                        if (reused->virtualMethodPointer)
+                        {
+                            reused->invoker_method = MetadataCache::GetMethodInvoker(klass->image, methodInfo.token);
+                        }
+                        else
+                        {
+                            reused->invoker_method = Runtime::GetMissingMethodInvoker();
+                            il2cpp::vm::Il2CppUnresolvedCallStubs stubs = MetadataCache::GetUnresovledCallStubs(reused);
+                            reused->methodPointer = stubs.methodPointer;
+                            reused->virtualMethodPointer = stubs.virtualMethodPointer;
+                        }
+
+                        reused->isInterpterImpl = hybridclr::interpreter::InterpreterModule::IsImplementsByInterpreter(reused);
+
+                        klass->methods[index] = reused;
+                        continue;  // Skip creating a new MethodInfo for this slot.
+                    }
+                }
+                // ===}} AssemblyReloadReuse
 
                 newMethod->name = methodInfo.name;
 

@@ -277,5 +277,48 @@ namespace vm
         return Type::IsEnum(gclass->type);
     }
 
+    // ==={{ AssemblyReloadReuse
+    void GenericClass::RestoreCachedGenericClasses(const Il2CppImage* oldImage, Il2CppImage* newImage)
+    {
+        os::FastAutoLock lock(&g_MetadataLock);
+        for (Il2CppGenericClass* gclass : s_GenericClassSet)
+        {
+            if (!gclass->cached_class)
+                continue;
+            Il2CppClass* klass = gclass->cached_class;
+            if (klass->image != oldImage)
+                continue;
+
+            // Update image pointer to the new image.
+            klass->image = newImage;
+
+            // Reset lazily-initialised fields to null so they get
+            // re-computed from the new metadata.
+            klass->fields = nullptr;
+            klass->methods = nullptr;
+            klass->properties = nullptr;
+            klass->events = nullptr;
+            klass->nestedTypes = nullptr;
+            klass->implementedInterfaces = nullptr;
+            klass->interfaceOffsets = nullptr;
+            klass->static_fields = nullptr;
+            klass->rgctx_data = nullptr;
+            klass->typeHierarchy = nullptr;
+
+            // Reset init flags.
+            klass->initialized = 0;
+            klass->initialized_and_no_error = 0;
+            klass->init_pending = 0;
+            klass->size_init_pending = 0;
+            klass->size_inited = 0;
+            klass->is_vtable_initialized = 0;
+            klass->cctor_started = 0;
+            klass->cctor_finished_or_no_cctor = !klass->has_cctor;
+            klass->initializationExceptionGCHandle = 0;
+            klass->unity_user_data = nullptr;
+        }
+    }
+    // ===}} AssemblyReloadReuse
+
 } /* namespace vm */
 } /* namespace il2cpp */

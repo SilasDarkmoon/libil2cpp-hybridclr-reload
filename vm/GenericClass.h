@@ -34,6 +34,14 @@ namespace vm
         static void SetupMethods(Il2CppClass* genericInstanceType);
         static void SetupProperties(Il2CppClass* genericInstanceType);
 
+        // ==={{ AssemblyReloadReuse
+        // Iterate the internal generic-class cache and for every entry whose
+        // cached_class->image matches oldImage, update the image pointer to
+        // newImage and reset lazily-initialised fields so they get
+        // re-computed from the new metadata.
+        static void RestoreCachedGenericClasses(const Il2CppImage* oldImage, Il2CppImage* newImage);
+        // ===}} AssemblyReloadReuse
+
         static bool HasSameGenericTypeDefinition(const Il2CppGenericClass* gclass1, const Il2CppGenericClass* gclass2)
         {
             IL2CPP_ASSERT(gclass1->type->type == IL2CPP_TYPE_VALUETYPE || gclass1->type->type == IL2CPP_TYPE_CLASS);

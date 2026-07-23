@@ -755,6 +755,81 @@ namespace metadata
 
 		std::vector<const char*> _moduleRefs;
 		std::unordered_map<uint32_t, ImplMapInfo> _implMapInfos;
+
+		// ==={{ AssemblyReloadReuse
+	public:
+		// Collect reusable Il2CppClass and MethodInfo objects from an old image
+		// before the new assembly is registered.  Must be called *before*
+		// InitRuntimeMetadatas() so that the reuse maps are available during
+		// class creation.
+		void CollectReusableObjects(InterpreterImage* oldImage);
+
+		// After InitRuntimeMetadatas(), walk the new type-definition table and
+		// for every entry whose full name matches a reusable Il2CppClass,
+		// update the old object's external pointers to the new image/assembly,
+		// reset lazily-initialised fields to null, and store the pointer in
+		// _classList so that later GetTypeInfoFromTypeDefinitionRawIndex calls
+		// return the reused object.
+		void RestoreReusedClasses();
+
+		// Look up a reusable Il2CppClass by its full name ("Ns.Name" or
+		// "Ns.Outer+Inner").  Returns nullptr if not found.
+		Il2CppClass* FindReusableClass(const std::string& fullName)
+		{
+			auto it = _reuseClassMap.find(fullName);
+			return it != _reuseClassMap.end() ? it->second : nullptr;
+		}
+
+		// Look up a reusable MethodInfo by its signature key.
+		// Returns nullptr if not found.  If found, the entry is *consumed*
+		// (removed from the map) so that each old MethodInfo is reused at most
+		// once.
+		MethodInfo* FindReusableMethod(const std::string& signatureKey)
+		{
+			auto it = _reuseMethodMap.find(signatureKey);
+			if (it != _reuseMethodMap.end())
+			{
+				MethodInfo* m = it->second;
+				_reuseMethodMap.erase(it);
+				return m;
+			}
+			return nullptr;
+		}
+
+		bool HasReuseData() const { return !_reuseClassMap.empty(); }
+
+		// Build the full name of an Il2CppClass, e.g. "System.String" or
+		// "MyNs.Outer+Inner".
+		static std::string BuildClassFullName(const Il2CppClass* klass);
+
+		// Build a method signature key:
+		//   "DeclaringTypeFullName:MethodName(ParamType1,ParamType2,...)->ReturnType"
+		static std::string BuildMethodSignatureKey(const Il2CppClass* klass, const MethodInfo* method);
+
+		// Convert an Il2CppType to a signature string without triggering
+		// class loading (uses raw type-definition data).
+		static std::string TypeToSigString(const Il2CppType* type);
+
+		// Convenience: build a signature key from individual method fields
+		// (used by SetupMethodsLocked when it has Il2CppMetadataMethodInfo
+		// but not a MethodInfo* yet) and look up the reuse map.
+		// Returns the reusable MethodInfo* or nullptr.  If found, the entry
+		// is consumed (removed from the map).
+		MethodInfo* TryReuseMethodFromMetadata(
+			const Il2CppClass* klass,
+			const char* methodName,
+			const Il2CppType* returnType,
+			const Il2CppType** parameters,
+			uint16_t paramCount);
+
+	protected:
+		// fullName -> old Il2CppClass*
+		std::unordered_map<std::string, Il2CppClass*> _reuseClassMap;
+		// signatureKey -> old MethodInfo*
+		std::unordered_map<std::string, MethodInfo*> _reuseMethodMap;
+		// Old image pointer (for generic-class restoration).
+		const Il2CppImage* _oldImageForReuse = nullptr;
+		// ===}} AssemblyReloadReuse
 	};
 }
 }
