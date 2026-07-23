@@ -69,10 +69,26 @@ namespace metadata
         }
         return nullptr;
     }
+
+    static void ReplacePlaceHolderAssembly(Il2CppAssembly* oldAss, Il2CppAssembly* newAss)
+    {
+        for (size_t i = 0; i < s_placeHolderAssembies.size(); ++i)
+        {
+            if (s_placeHolderAssembies[i] == oldAss)
+            {
+                s_placeHolderAssembies[i] = newAss;
+                return;
+            }
+        }
+    }
 #else
     static Il2CppAssembly* FindPlaceHolderAssembly(const char* assemblyNameNoExt)
     {
         return nullptr;
+    }
+
+    static void ReplacePlaceHolderAssembly(Il2CppAssembly* oldAss, Il2CppAssembly* newAss)
+    {
     }
 #endif
 
@@ -146,18 +162,31 @@ namespace metadata
 
         Il2CppAssembly* ass;
         Il2CppImage* image2;
-        if ((ass = FindPlaceHolderAssembly(nameNoExt)) != nullptr)
+        Il2CppAssembly* placeHolderAss = FindPlaceHolderAssembly(nameNoExt);
+        // 需要被替换掉的旧程序集（重新加载同名程序集时非空）
+        Il2CppAssembly* oldAss = nullptr;
+        if (placeHolderAss != nullptr && !placeHolderAss->token)
         {
-            if (ass->token)
-            {
-                RaiseExecutionEngineException("reloading placeholder assembly is not supported!");
-            }
+            // 占位程序集首次真正加载，复用预创建的 Il2CppAssembly/Il2CppImage
+            ass = placeHolderAss;
             image2 = ass->image;
             HYBRIDCLR_FREE((void*)ass->image->name);
             HYBRIDCLR_FREE((void*)ass->image->nameNoExt);
         }
         else
         {
+            // 普通加载，或重新加载同名程序集：一律走新建逻辑
+            if (placeHolderAss != nullptr)
+            {
+                // 占位程序集已被加载过，本次为重新加载。
+                // s_placeHolderAssembies 中的条目总是指向最近一次注册的同名程序集。
+                oldAss = placeHolderAss;
+            }
+            else
+            {
+                // 非占位程序集也可能重复加载，逆序查找最近注册的同名解释器程序集
+                oldAss = il2cpp::vm::MetadataCache::GetInterpreterAssemblyByName(nameNoExt);
+            }
             ass = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppAssembly))) Il2CppAssembly;
             image2 = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppImage))) Il2CppImage;
         }
@@ -172,6 +201,17 @@ namespace metadata
         image2->assembly = ass;
 
         image->InitRuntimeMetadatas();
+
+        if (oldAss != nullptr)
+        {
+            // 重新加载：先把旧程序集从 s_cliAssemblies、s_Assemblies 等缓存中移除，
+            // 再注册新程序集完成替换。
+            il2cpp::vm::MetadataCache::UnregisterInterpreterAssembly(oldAss);
+            // 更新占位程序集列表，保证后续重载能找到最新的同名程序集
+            ReplacePlaceHolderAssembly(oldAss, ass);
+            // 注意：旧的 Il2CppAssembly/Il2CppImage 及其元数据可能仍被已创建的
+            // 类型/方法引用，这里有意不释放（泄漏换安全）。
+        }
 
         il2cpp::vm::MetadataCache::RegisterInterpreterAssembly(ass);
         return ass;

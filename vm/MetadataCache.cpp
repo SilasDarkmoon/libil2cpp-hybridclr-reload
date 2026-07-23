@@ -1012,6 +1012,35 @@ void il2cpp::vm::MetadataCache::RegisterInterpreterAssembly(Il2CppAssembly* asse
     s_cliAssemblies.push_back(assembly);
 }
 
+void il2cpp::vm::MetadataCache::UnregisterInterpreterAssembly(const Il2CppAssembly* assembly)
+{
+    il2cpp::os::FastAutoLock lock(&il2cpp::vm::g_MetadataLock);
+    for (il2cpp::utils::dynamic_array<Il2CppAssembly*>::iterator it = s_cliAssemblies.begin(); it != s_cliAssemblies.end(); ++it)
+    {
+        if (*it == assembly)
+        {
+            s_cliAssemblies.erase(it);
+            break;
+        }
+    }
+    il2cpp::vm::Assembly::Unregister(assembly);
+}
+
+Il2CppAssembly* il2cpp::vm::MetadataCache::GetInterpreterAssemblyByName(const char* assemblyName)
+{
+    il2cpp::os::FastAutoLock lock(&il2cpp::vm::g_MetadataLock);
+    il2cpp::utils::VmStringUtils::CaseInsensitiveComparer comparer;
+    // 逆序查找，返回最近注册的同名程序集
+    for (il2cpp::utils::dynamic_array<Il2CppAssembly*>::iterator it = s_cliAssemblies.end(); it != s_cliAssemblies.begin();)
+    {
+        --it;
+        Il2CppAssembly* assembly = *it;
+        if (comparer(assembly->aname.name, assemblyName) || comparer(assembly->image->name, assemblyName))
+            return assembly;
+    }
+    return nullptr;
+}
+
 const Il2CppAssembly* il2cpp::vm::MetadataCache::LoadAssemblyFromBytes(const char* assemblyBytes, size_t length, const char* rawSymbolStoreBytes, size_t rawSymbolStoreLength)
 {
     Il2CppAssembly* newAssembly = hybridclr::metadata::Assembly::LoadFromBytes(assemblyBytes, length, rawSymbolStoreBytes, rawSymbolStoreLength);

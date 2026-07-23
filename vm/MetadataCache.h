@@ -200,6 +200,8 @@ namespace vm
         static Il2CppMetadataTypeHandle GetTypeHandleFromIndex(const Il2CppImage* image, TypeDefinitionIndex typeIndex);
 
         static void RegisterInterpreterAssembly(Il2CppAssembly* assembly);
+        static void UnregisterInterpreterAssembly(const Il2CppAssembly* assembly);
+        static Il2CppAssembly* GetInterpreterAssemblyByName(const char* assemblyName);
         static const Il2CppAssembly* LoadAssemblyFromBytes(const char* assemblyBytes, size_t length, const char* rawSymbolStoreBytes, size_t rawSymbolStoreLength);
         static const Il2CppGenericMethod* FindGenericMethod(std::function<bool(const Il2CppGenericMethod*)> predic);
         static void FixThreadLocalStaticOffsetForFieldLocked(FieldInfo* field, int32_t offset, const il2cpp::os::FastAutoLock& lock);

@@ -150,6 +150,21 @@ namespace vm
         ++s_assemblyVersion;
     }
 
+    void Assembly::Unregister(const Il2CppAssembly* assembly)
+    {
+        os::FastAutoLock lock(&s_assemblyLock);
+
+        for (AssemblyVector::iterator it = s_Assemblies.begin(); it != s_Assemblies.end(); ++it)
+        {
+            if (*it == assembly)
+            {
+                s_Assemblies.erase(it);
+                break;
+            }
+        }
+        ++s_assemblyVersion;
+    }
+
     void Assembly::InvalidateAssemblyList()
     {
         os::FastAutoLock lock(&s_assemblyLock);
