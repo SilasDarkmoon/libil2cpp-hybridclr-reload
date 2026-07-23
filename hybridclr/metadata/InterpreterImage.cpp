@@ -2654,7 +2654,7 @@ namespace metadata
 		case IL2CPP_TYPE_SZARRAY:
 			return TypeToSigString(type->data.type) + "[]";
 		case IL2CPP_TYPE_ARRAY:
-			return TypeToSigString(type->data.array->type) + "[]";
+			return TypeToSigString(type->data.array->etype) + "[]";
 		case IL2CPP_TYPE_PTR:
 			return TypeToSigString(type->data.type) + "*";
 		case IL2CPP_TYPE_BYREF:
@@ -2663,8 +2663,12 @@ namespace metadata
 		case IL2CPP_TYPE_MVAR:
 		{
 			const Il2CppGenericParameter* param = (const Il2CppGenericParameter*)type->data.genericParameterHandle;
-			if (param && param->name)
-				return param->name;
+			if (param)
+			{
+				std::string result = (type->type == IL2CPP_TYPE_VAR) ? "TVar" : "MVar";
+				result += std::to_string(param->num);
+				return result;
+			}
 			return (type->type == IL2CPP_TYPE_VAR) ? "TVar" : "MVar";
 		}
 		default:
@@ -2904,7 +2908,7 @@ namespace metadata
 							timeBuf, ns2, nm2, (unsigned)newVtableCount, (unsigned)klass->vtable_allocated_count);
 						fclose(fp);
 					}
-				}
+
 					// Cannot reuse this class.
 					_reuseClassMap.erase(it);
 					continue;
