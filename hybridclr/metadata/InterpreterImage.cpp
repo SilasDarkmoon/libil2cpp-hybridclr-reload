@@ -7,6 +7,7 @@
 #include <string>
 #include <ctime>
 #include <cstdio>
+#include <cstdarg>
 
 #include "il2cpp-class-internals.h"
 #include "vm/GlobalMetadata.h"
