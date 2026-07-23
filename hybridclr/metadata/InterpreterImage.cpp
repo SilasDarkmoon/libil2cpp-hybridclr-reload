@@ -46,6 +46,47 @@ namespace hybridclr
 {
 namespace metadata
 {
+	// ==={{ AssemblyReloadReuse: logging helper
+	static void ReuseLog(const char* fmt, ...)
+	{
+		// Build timestamp
+		std::time_t nowTime = std::time(NULL);
+		struct tm tmNow;
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
+		tmNow = *std::gmtime(&nowTime);
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+		char timeBuf[32];
+		std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &tmNow);
+
+		// Format message
+		char msgBuf[2048];
+		va_list args;
+		va_start(args, fmt);
+		vsnprintf(msgBuf, sizeof(msgBuf), fmt, args);
+		va_end(args);
+
+		// Write to stderr
+		fprintf(stderr, "[%s] %s\n", timeBuf, msgBuf);
+
+		// Write to file
+		const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+		std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+		int createError = 0;
+		il2cpp::os::Directory::Create(dirStr, &createError);
+		std::string filePath = dirStr + "/assembly_reload_reuse.log";
+		FILE* fp = fopen(filePath.c_str(), "a");
+		if (fp)
+		{
+			fprintf(fp, "[%s] %s\n", timeBuf, msgBuf);
+			fclose(fp);
+		}
+	}
+	// ===}} AssemblyReloadReuse
 
 	static uint32_t s_nextImageIndexByKind[4] = { (1u << kMetadataImageIndexExtraShiftBitsA), 0, 0, 0};
 
@@ -2757,6 +2798,9 @@ namespace metadata
 			if (_reuseClassMap.find(fullName) == _reuseClassMap.end())
 			{
 				_reuseClassMap[fullName] = klass;
+				ReuseLog("CollectReusable: class='%s' klass=%p vtable_count=%u vtable_allocated=%u initialized=%d",
+					fullName.c_str(), (void*)klass, (unsigned)klass->vtable_count,
+					(unsigned)klass->vtable_allocated_count, (int)klass->initialized);
 			}
 
 			// Collect MethodInfo objects.
@@ -2775,6 +2819,8 @@ namespace metadata
 				}
 			}
 		}
+		ReuseLog("CollectReusable: total classes=%zu total methods=%zu",
+			_reuseClassMap.size(), _reuseMethodMap.size());
 	}
 
 	void InterpreterImage::RestoreReusedClasses()
@@ -2921,13 +2967,13 @@ namespace metadata
 			klass->typeMetadataHandle = reinterpret_cast<Il2CppMetadataTypeHandle>(&_typesDefines[i]);
 			klass->genericContainerHandle = reinterpret_cast<Il2CppMetadataGenericContainerHandle>(
 				GetGenericContainerByTypeDefinition(&_typesDefines[i]));
-			klass->interopData = il2cpp::vm::MetadataCache::GetInteropDataForType(&klass->byval_arg);
 
-			// --- Update type identity ---
+			// --- Update type identity FIRST, then interopData (which depends on byval_arg) ---
 			klass->byval_arg = *GetIl2CppTypeFromRawTypeDefIndex((uint32_t)i);
 			klass->this_arg = klass->byval_arg;
 			klass->this_arg.byref = true;
 			klass->this_arg.valuetype = 0;
+			klass->interopData = il2cpp::vm::MetadataCache::GetInteropDataForType(&klass->byval_arg);
 
 			// --- Update counts from new type definition ---
 			klass->method_count = typeDef.method_count;
@@ -3016,6 +3062,13 @@ namespace metadata
 
 			// Remove from the reuse map (already reused).
 			_reuseClassMap.erase(it);
+
+			ReuseLog("RestoreReused: class='%s' klass=%p new_vtable_count=%u vtable_allocated=%u "
+				"methods=%p fields=%p initialized=%d is_vtable_init=%d parent=%p",
+				fullName.c_str(), (void*)klass, (unsigned)newVtableCount,
+				(unsigned)klass->vtable_allocated_count, (void*)klass->methods,
+				(void*)klass->fields, (int)klass->initialized,
+				(int)klass->is_vtable_initialized, (void*)klass->parent);
 		}
 
 		// --- Restore generic instance classes ---

@@ -281,6 +281,7 @@ namespace vm
     void GenericClass::RestoreCachedGenericClasses(const Il2CppImage* oldImage, Il2CppImage* newImage)
     {
         os::FastAutoLock lock(&g_MetadataLock);
+        int restoredCount = 0;
         for (Il2CppGenericClass* gclass : s_GenericClassSet)
         {
             if (!gclass->cached_class)
@@ -289,8 +290,15 @@ namespace vm
             if (klass->image != oldImage)
                 continue;
 
+            fprintf(stderr, "[Reuse] GenericClass restore: klass=%p name='%s.%s' methods=%p initialized=%d\n",
+                (void*)klass,
+                klass->namespaze ? klass->namespaze : "",
+                klass->name ? klass->name : "",
+                (void*)klass->methods, (int)klass->initialized);
+
             // Update image pointer to the new image.
             klass->image = newImage;
+            restoredCount++;
 
             // Reset lazily-initialised fields to null so they get
             // re-computed from the new metadata.
@@ -317,6 +325,7 @@ namespace vm
             klass->initializationExceptionGCHandle = 0;
             klass->unity_user_data = nullptr;
         }
+        fprintf(stderr, "[Reuse] GenericClass restore: total restored=%d\n", restoredCount);
     }
     // ===}} AssemblyReloadReuse
 

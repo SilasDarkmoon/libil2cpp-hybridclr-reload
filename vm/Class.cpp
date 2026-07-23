@@ -1209,6 +1209,12 @@ namespace vm
                 if (reuseImage && !reuseImage->HasReuseData())
                     reuseImage = nullptr;
             }
+            if (reuseImage)
+            {
+                fprintf(stderr, "[Reuse] SetupMethodsLocked: klass=%p name='%s.%s' method_count=%u reuseMap active\n",
+                    (void*)klass, klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "",
+                    (unsigned)klass->method_count);
+            }
             // ===}} AssemblyReloadReuse
 
             MethodIndex end = klass->method_count;
@@ -1291,7 +1297,17 @@ namespace vm
                         reused->isInterpterImpl = hybridclr::interpreter::InterpreterModule::IsImplementsByInterpreter(reused);
 
                         klass->methods[index] = reused;
+
+                        fprintf(stderr, "[Reuse]   method[%u] REUSED name='%s' slot=%u reused=%p methodPtr=%p\n",
+                            (unsigned)index, methodInfo.name ? methodInfo.name : "<null>",
+                            (unsigned)reused->slot, (void*)reused, (void*)reused->methodPointer);
+
                         continue;  // Skip creating a new MethodInfo for this slot.
+                    }
+                    else
+                    {
+                        fprintf(stderr, "[Reuse]   method[%u] NEW (no reuse match) name='%s'\n",
+                            (unsigned)index, methodInfo.name ? methodInfo.name : "<null>");
                     }
                 }
                 // ===}} AssemblyReloadReuse
