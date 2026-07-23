@@ -2617,9 +2617,8 @@ namespace metadata
 			std::string result;
 			if (IsInterpreterType(typeDef))
 			{
-				InterpreterImage* img = MetadataModule::GetImage(typeDef);
-				const char* ns = img->GetStringFromRawIndex(typeDef->namespaceIndex);
-				const char* nm = img->GetStringFromRawIndex(typeDef->nameIndex);
+				const char* ns = MetadataModule::GetStringFromEncodeIndex(typeDef->namespaceIndex);
+				const char* nm = MetadataModule::GetStringFromEncodeIndex(typeDef->nameIndex);
 				if (ns && *ns) { result = ns; result += "."; }
 				if (nm) result += nm;
 			}
@@ -2787,8 +2786,10 @@ namespace metadata
 		for (size_t i = 0; i < _typesDefines.size(); i++)
 		{
 			const Il2CppTypeDefinition& typeDef = _typesDefines[i];
-			const char* ns = GetStringFromRawIndex(typeDef.namespaceIndex);
-			const char* nm = GetStringFromRawIndex(typeDef.nameIndex);
+			// namespaceIndex/nameIndex are encoded (via EncodeWithIndex in InitTypeDefs_0),
+			// so use GetStringFromEncodeIndex instead of GetStringFromRawIndex.
+			const char* ns = MetadataModule::GetStringFromEncodeIndex(typeDef.namespaceIndex);
+			const char* nm = MetadataModule::GetStringFromEncodeIndex(typeDef.nameIndex);
 
 			// Build full name (handle nested types via declaringTypeIndex).
 			std::string fullName;
@@ -2815,8 +2816,8 @@ namespace metadata
 						{
 							InterpreterImage* img = MetadataModule::GetImage(DecodeImageIndex(cur));
 							curTypeDef = img->GetTypeFromRawIndex(DecodeMetadataIndex(cur));
-							const char* curNs = img->GetStringFromRawIndex(curTypeDef->namespaceIndex);
-							const char* curNm = img->GetStringFromRawIndex(curTypeDef->nameIndex);
+							const char* curNs = MetadataModule::GetStringFromEncodeIndex(curTypeDef->namespaceIndex);
+							const char* curNm = MetadataModule::GetStringFromEncodeIndex(curTypeDef->nameIndex);
 							if (curNs && *curNs) { curName = curNs; curName += "."; }
 							if (curNm) curName += curNm;
 						}
