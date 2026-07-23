@@ -380,7 +380,7 @@ typedef struct Il2CppRuntimeInterfaceOffsetPair
 // with IL2CPP_MAX_VTABLE_SLOT_COUNT slots instead of a variable-length trailing array.
 // If a type's vtable has more slots than this capacity, the extra slots are discarded
 // and vtable_count is clamped to this value (see Class::ClampVTableSlotCount).
-#define IL2CPP_MAX_VTABLE_SLOT_COUNT 128
+#define IL2CPP_MAX_VTABLE_SLOT_COUNT 512
 
 typedef struct Il2CppClass
 {
