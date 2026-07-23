@@ -9,6 +9,9 @@
 #include "metadata/Il2CppTypeCompare.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
+#include <cstdio>
 #include "utils/Memory.h"
 #include "utils/StringUtils.h"
 #include "vm/Assembly.h"
@@ -62,14 +65,50 @@ namespace vm
     {
         if (vtableCount > IL2CPP_MAX_VTABLE_SLOT_COUNT)
         {
+            const char* ns = (namespaze && namespaze[0]) ? namespaze : "";
+            const char* nm = name ? name : "<unknown>";
             il2cpp::utils::Logging::Write("Error: vtable of type '%s%s%s' has %u slots which exceeds the fixed capacity %d. The extra %u slots are discarded and vtable_count is clamped to %d.",
-                (namespaze && namespaze[0]) ? namespaze : "",
+                ns,
                 (namespaze && namespaze[0]) ? "." : "",
-                name ? name : "<unknown>",
+                nm,
                 (unsigned int)vtableCount,
                 (int)IL2CPP_MAX_VTABLE_SLOT_COUNT,
                 (unsigned int)(vtableCount - IL2CPP_MAX_VTABLE_SLOT_COUNT),
                 (int)IL2CPP_MAX_VTABLE_SLOT_COUNT);
+
+            // Also dump the overflow info to a file so it can be inspected after the run.
+            // Preferred location is Unity's Application.temporaryCachePath. Since libil2cpp (C++) cannot
+            // read that managed property directly, the managed side may publish it via the
+            // UNITY_TEMPORARY_CACHE_PATH environment variable (e.g. Environment.SetEnvironmentVariable
+            // at startup, before il2cpp loads metadata). If it is not available, fall back to a "log"
+            // subdirectory of the current working directory. Failures are non-fatal.
+            static std::string s_overflowLogDir;
+            static bool s_overflowLogDirResolved = false;
+            if (!s_overflowLogDirResolved)
+            {
+                s_overflowLogDirResolved = true;
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                if (!tmpCache.empty())
+                    s_overflowLogDir = tmpCache;
+                else
+                    s_overflowLogDir = "log";
+            }
+
+            static int s_createError = 0;
+            il2cpp::os::Directory::Create(s_overflowLogDir, &s_createError);
+            const std::string filePath = s_overflowLogDir + "/vtable_overflow.log";
+            FILE* fp = fopen(filePath.c_str(), "a");
+            if (fp != NULL)
+            {
+                fprintf(fp, "vtable overflow: type='%s.%s' slots=%u capacity=%d discarded=%u\n",
+                    ns,
+                    nm,
+                    (unsigned int)vtableCount,
+                    (int)IL2CPP_MAX_VTABLE_SLOT_COUNT,
+                    (unsigned int)(vtableCount - IL2CPP_MAX_VTABLE_SLOT_COUNT));
+                fclose(fp);
+            }
+
             return (uint16_t)IL2CPP_MAX_VTABLE_SLOT_COUNT;
         }
         return (uint16_t)vtableCount;
