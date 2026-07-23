@@ -2987,10 +2987,22 @@ namespace metadata
 			klass->unity_user_data = nullptr;
 
 			// --- Update parent / declaring type / element_class ---
-			// These will be resolved lazily by Class::Init, but we set them
-			// to null so they get re-resolved from the new type definition.
-			klass->parent = nullptr;
-			klass->declaringType = nullptr;
+			// These must be set from the new type definition immediately
+			// (not lazily), because Unity native code walks the parent chain
+			// to check MonoBehaviour / ScriptableObject derivation before
+			// Class::Init is called.
+			if (typeDef.parentIndex != kTypeIndexInvalid)
+				klass->parent = il2cpp::vm::Class::FromIl2CppType(
+					il2cpp::vm::GlobalMetadata::GetIl2CppTypeFromIndex(typeDef.parentIndex));
+			else
+				klass->parent = nullptr;
+
+			if (typeDef.declaringTypeIndex != kTypeIndexInvalid)
+				klass->declaringType = il2cpp::vm::Class::FromIl2CppType(
+					il2cpp::vm::GlobalMetadata::GetIl2CppTypeFromIndex(typeDef.declaringTypeIndex));
+			else
+				klass->declaringType = nullptr;
+
 			klass->element_class = klass->castClass = klass;
 			if (klass->enumtype)
 			{
