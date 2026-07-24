@@ -4,6 +4,8 @@
 #include "metadata/Il2CppGenericClassCompare.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 #include "utils/Memory.h"
 #include "utils/Il2CppHashSet.h"
 #include "vm/Class.h"
@@ -282,19 +284,61 @@ namespace vm
     {
         os::FastAutoLock lock(&g_MetadataLock);
         int restoredCount = 0;
+        int scannedCount = 0;
         for (Il2CppGenericClass* gclass : s_GenericClassSet)
         {
             if (!gclass->cached_class)
                 continue;
+            scannedCount++;
             Il2CppClass* klass = gclass->cached_class;
-            if (klass->image != oldImage)
+
+            // The generic instance class's image was set to definition->image
+            // during CreateClass. After RestoreReusedClasses updated the
+            // definition's image to newImage, the generic instance's image
+            // might already be newImage (if the definition was reused) or
+            // still oldImage (if the definition was not reused).
+            // We check both conditions: image == oldImage OR image == newImage
+            // (but only if the generic type definition belongs to the old
+            // interpreter image).
+            bool shouldRestore = (klass->image == oldImage);
+
+            // Also check: if the generic type definition's image was oldImage
+            // but the instance's image was already updated to newImage by
+            // RestoreReusedClasses (because the definition was reused).
+            if (!shouldRestore && klass->image == newImage)
+            {
+                // Check if the generic type definition's typeHandle points
+                // to a type definition from the old image.
+                Il2CppClass* definition = GetTypeDefinition(gclass);
+                if (definition && definition->image == newImage)
+                {
+                    // The definition was already reused (image updated to newImage).
+                    // The generic instance should also be restored.
+                    shouldRestore = true;
+                }
+            }
+
+            if (!shouldRestore)
                 continue;
 
-            fprintf(stderr, "[Reuse] GenericClass restore: klass=%p name='%s.%s' methods=%p initialized=%d\n",
-                (void*)klass,
-                klass->namespaze ? klass->namespaze : "",
-                klass->name ? klass->name : "",
-                (void*)klass->methods, (int)klass->initialized);
+            // Log to both stderr and file
+            {
+                char msgBuf[512];
+                snprintf(msgBuf, sizeof(msgBuf),
+                    "GenericClass restore: klass=%p name='%s.%s' methods=%p initialized=%d image=%p oldImage=%p newImage=%p",
+                    (void*)klass,
+                    klass->namespaze ? klass->namespaze : "",
+                    klass->name ? klass->name : "",
+                    (void*)klass->methods, (int)klass->initialized,
+                    (void*)klass->image, (void*)oldImage, (void*)newImage);
+                fprintf(stderr, "[Reuse] %s\n", msgBuf);
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) { fprintf(fp, "[Reuse] %s\n", msgBuf); fclose(fp); }
+            }
 
             // Update image pointer to the new image.
             klass->image = newImage;
@@ -329,7 +373,15 @@ namespace vm
 
             il2cpp::vm::Class::Init(klass);
         }
-        fprintf(stderr, "[Reuse] GenericClass restore: total restored=%d\n", restoredCount);
+        fprintf(stderr, "[Reuse] GenericClass restore: scanned=%d restored=%d\n", scannedCount, restoredCount);
+        {
+            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+            int createError = 0;
+            il2cpp::os::Directory::Create(dirStr, &createError);
+            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+            if (fp) { fprintf(fp, "[Reuse] GenericClass restore: scanned=%d restored=%d\n", scannedCount, restoredCount); fclose(fp); }
+        }
     }
     // ===}} AssemblyReloadReuse
 
