@@ -1,6 +1,8 @@
 #include "GlobalMetadata.h"
 
 #include "il2cpp-config.h"
+#include <cstdarg>
+#include <cstdio>
 
 
 #include <map>
