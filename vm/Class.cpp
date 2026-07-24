@@ -1233,9 +1233,17 @@ namespace vm
             }
             if (reuseImage)
             {
-                fprintf(stderr, "[Reuse] SetupMethodsLocked: klass=%p name='%s.%s' method_count=%u reuseMap active\n",
-                    (void*)klass, klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "",
-                    (unsigned)klass->method_count);
+                const char* kName = klass->name ? klass->name : "";
+                if (strstr(kName, "LogManager") || strstr(kName, "MainThreadExecutor"))
+                {
+                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                    int createError = 0;
+                    il2cpp::os::Directory::Create(dirStr, &createError);
+                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                    if (fp) { fprintf(fp, "[ReuseDiag] SetupMethods: '%s.%s' method_count=%u\n",
+                        klass->namespaze ? klass->namespaze : "", kName, (unsigned)klass->method_count); fclose(fp); }
+                }
             }
             // ===}} AssemblyReloadReuse
 
@@ -1323,6 +1331,20 @@ namespace vm
                         fprintf(stderr, "[Reuse]   method[%u] REUSED name='%s' slot=%u reused=%p methodPtr=%p\n",
                             (unsigned)index, methodInfo.name ? methodInfo.name : "<null>",
                             (unsigned)reused->slot, (void*)reused, (void*)reused->methodPointer);
+                        // Also log to file for LogManager
+                        {
+                            const char* kName = klass->name ? klass->name : "";
+                            if (strstr(kName, "LogManager") && methodInfo.name && strstr(methodInfo.name, "GetLogger"))
+                            {
+                                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                                int createError = 0;
+                                il2cpp::os::Directory::Create(dirStr, &createError);
+                                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                                if (fp) { fprintf(fp, "[ReuseDiag] Method REUSED: '%s' on '%s.%s' methodPtr=%p\n",
+                                    methodInfo.name, klass->namespaze ? klass->namespaze : "", kName, (void*)reused->methodPointer); fclose(fp); }
+                            }
+                        }
 
                         continue;  // Skip creating a new MethodInfo for this slot.
                     }
@@ -1330,6 +1352,20 @@ namespace vm
                     {
                         fprintf(stderr, "[Reuse]   method[%u] NEW (no reuse match) name='%s'\n",
                             (unsigned)index, methodInfo.name ? methodInfo.name : "<null>");
+                        // Also log to file for LogManager
+                        {
+                            const char* kName = klass->name ? klass->name : "";
+                            if (strstr(kName, "LogManager") && methodInfo.name && strstr(methodInfo.name, "GetLogger"))
+                            {
+                                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                                int createError = 0;
+                                il2cpp::os::Directory::Create(dirStr, &createError);
+                                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                                if (fp) { fprintf(fp, "[ReuseDiag] Method NEW (no reuse): '%s' on '%s.%s'\n",
+                                    methodInfo.name, klass->namespaze ? klass->namespaze : "", kName); fclose(fp); }
+                            }
+                        }
                     }
                 }
                 // ===}} AssemblyReloadReuse
