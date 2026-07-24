@@ -3009,7 +3009,7 @@ namespace metadata
 			klass->thread_static_fields_offset = -1;
 
 			// --- Reset lazily-initialised fields to null ---
-			// Do NOT fill them here to avoid introducing stale pointers.
+			// These will be re-populated immediately by Class::Init below.
 			klass->fields = nullptr;
 			klass->methods = nullptr;
 			klass->properties = nullptr;
@@ -3020,8 +3020,9 @@ namespace metadata
 			klass->static_fields = nullptr;
 			klass->rgctx_data = nullptr;
 			klass->typeHierarchy = nullptr;
+			klass->gc_desc = nullptr;  // re-set by SetupGCDescriptor in InitLocked
 
-			// --- Reset init flags ---
+			// --- Reset init flags so Class::Init re-runs ---
 			klass->initialized = 0;
 			klass->initialized_and_no_error = 0;
 			klass->init_pending = 0;
@@ -3030,6 +3031,8 @@ namespace metadata
 			klass->is_vtable_initialized = 0;
 			klass->cctor_started = 0;
 			klass->cctor_finished_or_no_cctor = !klass->has_cctor;
+			klass->cctor_thread = 0;
+			klass->genericRecursionDepth = 0;  // incremented by InitLocked
 			klass->initializationExceptionGCHandle = 0;
 			klass->unity_user_data = nullptr;
 
@@ -3064,8 +3067,16 @@ namespace metadata
 			// Remove from the reuse map (already reused).
 			_reuseClassMap.erase(it);
 
+			// --- Immediately re-initialise from new metadata ---
+			// g_MetadataLock is a ReentrantLock, so calling Class::Init
+			// (which acquires the same lock) from within this locked
+			// context is safe.  This atomically re-populates methods,
+			// fields, vtable, type hierarchy, etc. from the new assembly,
+			// eliminating the inconsistent-state window.
+			il2cpp::vm::Class::Init(klass);
+
 			ReuseLog("RestoreReused: class='%s' klass=%p new_vtable_count=%u vtable_allocated=%u "
-				"methods=%p fields=%p initialized=%d is_vtable_init=%d parent=%p",
+				"methods=%p fields=%p initialized=%d is_vtable_init=%d parent=%p (re-init done)",
 				fullName.c_str(), (void*)klass, (unsigned)newVtableCount,
 				(unsigned)klass->vtable_allocated_count, (void*)klass->methods,
 				(void*)klass->fields, (int)klass->initialized,

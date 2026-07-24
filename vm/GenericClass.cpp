@@ -300,8 +300,9 @@ namespace vm
             klass->image = newImage;
             restoredCount++;
 
-            // Reset lazily-initialised fields to null so they get
-            // re-computed from the new metadata.
+            // Reset lazily-initialised fields and init flags, then
+            // immediately re-initialise from the new metadata.
+            // g_MetadataLock is reentrant so Class::Init is safe here.
             klass->fields = nullptr;
             klass->methods = nullptr;
             klass->properties = nullptr;
@@ -312,8 +313,7 @@ namespace vm
             klass->static_fields = nullptr;
             klass->rgctx_data = nullptr;
             klass->typeHierarchy = nullptr;
-
-            // Reset init flags.
+            klass->gc_desc = nullptr;
             klass->initialized = 0;
             klass->initialized_and_no_error = 0;
             klass->init_pending = 0;
@@ -322,8 +322,13 @@ namespace vm
             klass->is_vtable_initialized = 0;
             klass->cctor_started = 0;
             klass->cctor_finished_or_no_cctor = !klass->has_cctor;
+            klass->cctor_thread = 0;
+            klass->genericRecursionDepth = 0;
             klass->initializationExceptionGCHandle = 0;
             klass->unity_user_data = nullptr;
+
+            il2cpp::vm::Class::Init(klass);
+        }
         }
         fprintf(stderr, "[Reuse] GenericClass restore: total restored=%d\n", restoredCount);
     }
