@@ -2966,12 +2966,24 @@ namespace metadata
 			klass->genericContainerHandle = reinterpret_cast<Il2CppMetadataGenericContainerHandle>(
 				GetGenericContainerByTypeDefinition(&_typesDefines[i]));
 
-			// --- Update type identity FIRST, then interopData (which depends on byval_arg) ---
-			klass->byval_arg = *GetIl2CppTypeFromRawTypeDefIndex((uint32_t)i);
-			klass->this_arg = klass->byval_arg;
-			klass->this_arg.byref = true;
-			klass->this_arg.valuetype = 0;
-			klass->interopData = il2cpp::vm::MetadataCache::GetInteropDataForType(&klass->byval_arg);
+			// --- Do NOT update byval_arg / this_arg ---
+			// The old byval_arg.data.typeHandle points to the old image's
+			// Il2CppTypeDefinition. GetTypeInfoFromType(&klass->byval_arg)
+			// will still return the correct Il2CppClass because the old
+			// image's _classList still points to this reused klass.
+			// Keeping the old byval_arg ensures that s_GenericClassSet
+			// (which hashes by Il2CppType value including typeHandle)
+			// lookups still find the old entry, preventing creation of
+			// duplicate generic instances with different pointers.
+			// This also avoids the need for recursive traversal of nested
+			// generic instances like List<List<NewClass>>.
+			// klass->byval_arg = *GetIl2CppTypeFromRawTypeDefIndex((uint32_t)i);
+			// klass->this_arg = klass->byval_arg;
+			// klass->this_arg.byref = true;
+			// klass->this_arg.valuetype = 0;
+			// interopData depends on byval_arg, but since we keep the old
+			// byval_arg, the old interopData is still valid.
+			// klass->interopData = il2cpp::vm::MetadataCache::GetInteropDataForType(&klass->byval_arg);
 
 			// --- Update counts from new type definition ---
 			klass->method_count = typeDef.method_count;

@@ -336,6 +336,21 @@ namespace vm
                 }
             }
 
+            // Third condition: the generic instance is from an AOT image,
+            // but its generic type definition is from the interpreter image
+            // (which was restored). When the definition's byval_arg was
+            // updated, the s_GenericClassSet lookup may create a NEW generic
+            // instance (different pointer). The old instance's typeHierarchy
+            // still points to the old parent, causing cast failures.
+            if (!shouldRestore)
+            {
+                Il2CppClass* definition = GetTypeDefinition(gclass);
+                if (definition && definition->image == newImage)
+                {
+                    shouldRestore = true;
+                }
+            }
+
             if (!shouldRestore)
                 continue;
 
