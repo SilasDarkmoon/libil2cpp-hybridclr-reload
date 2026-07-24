@@ -693,6 +693,35 @@ namespace metadata
 				}
 			}
 		}
+		// ==={{ AssemblyReloadReuse: log pointer mismatch
+		{
+			const char* mname = il2cpp::vm::GlobalMetadata::GetStringFromIndex(methodDef->nameIndex);
+			if (mname && strstr(mname, "GetLogger"))
+			{
+				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+				int createError = 0;
+				il2cpp::os::Directory::Create(dirStr, &createError);
+				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+				if (fp) {
+					fprintf(fp, "[ReuseDiag] GetMethodInfoFromMethodDef FAIL: method='%s' methodDef=%p klass='%s.%s' method_count=%u\n",
+						mname, (void*)methodDef,
+						klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "",
+						(unsigned)klass->method_count);
+					// List all methodMetadataHandle pointers
+					void* iter2 = nullptr;
+					for (const MethodInfo* cur = nullptr; (cur = il2cpp::vm::Class::GetMethods(klass, &iter2)) != nullptr; )
+					{
+						fprintf(fp, "  method name='%s' handle=%p match=%d\n",
+							cur->name ? cur->name : "<null>",
+							(void*)cur->methodMetadataHandle,
+							(cur->methodMetadataHandle == methodDef) ? 1 : 0);
+					}
+					fclose(fp);
+				}
+			}
+		}
+		// ===}} AssemblyReloadReuse
 		RaiseMethodNotFindException(type, il2cpp::vm::GlobalMetadata::GetStringFromIndex(methodDef->nameIndex));
 		return nullptr;
 	}
