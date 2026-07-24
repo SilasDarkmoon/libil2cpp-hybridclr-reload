@@ -786,6 +786,7 @@ namespace vm
             }
             return assignResult;
             // ===}} AssemblyReloadReuse
+        }
 
         if (klass->generic_class != NULL)
         {
