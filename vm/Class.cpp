@@ -762,8 +762,30 @@ namespace vm
                     return true;
             }
 
-            return ClassInlines::HasParentUnsafe(oklass, klass);
-        }
+            // ==={{ AssemblyReloadReuse: diagnostic
+            bool assignResult = ClassInlines::HasParentUnsafe(oklass, klass);
+            if (!assignResult)
+            {
+                fprintf(stderr, "[ReuseDiag] IsAssignableFrom FAIL: target='%s.%s' (depth=%d, typeHierarchy=%p)  obj='%s.%s' (depth=%d, typeHierarchy=%p, parent=%p)\n",
+                    klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "",
+                    (int)klass->typeHierarchyDepth, (void*)klass->typeHierarchy,
+                    oklass->namespaze ? oklass->namespaze : "", oklass->name ? oklass->name : "",
+                    (int)oklass->typeHierarchyDepth, (void*)oklass->typeHierarchy,
+                    (void*)oklass->parent);
+                // Also write to file
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) { fprintf(fp, "[ReuseDiag] IsAssignableFrom FAIL: target='%s.%s' (depth=%d)  obj='%s.%s' (depth=%d, parent=%p)\n",
+                    klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "",
+                    (int)klass->typeHierarchyDepth,
+                    oklass->namespaze ? oklass->namespaze : "", oklass->name ? oklass->name : "",
+                    (int)oklass->typeHierarchyDepth, (void*)oklass->parent); fclose(fp); }
+            }
+            return assignResult;
+            // ===}} AssemblyReloadReuse
 
         if (klass->generic_class != NULL)
         {
