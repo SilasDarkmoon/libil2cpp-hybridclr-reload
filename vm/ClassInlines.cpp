@@ -118,13 +118,22 @@ namespace vm
         il2cpp::os::Directory::Create(dirStr, &createError);
         FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
         if (fp) {
-            fprintf(fp, "[ReuseDiag] HasParentUnsafe FAIL: parent='%s.%s'(d=%d,h=%p) klass='%s.%s'(d=%d,h=%p,gc=%p,klass_img=%p,parent_img=%p)\n",
+            // Print typeHierarchy entries to see what's actually stored
+            fprintf(fp, "[ReuseDiag] HasParentUnsafe FAIL: parent='%s.%s'(d=%d,h=%p) klass='%s.%s'(d=%d,h=%p,gc=%p)\n",
                 parent->namespaze ? parent->namespaze : "", pName,
                 (int)parent->typeHierarchyDepth, (void*)parent->typeHierarchy,
                 klass->namespaze ? klass->namespaze : "", kName,
                 (int)klass->typeHierarchyDepth, (void*)klass->typeHierarchy,
-                (void*)klass->generic_class,
-                (void*)klass->image, (void*)parent->image);
+                (void*)klass->generic_class);
+            // Dump typeHierarchy contents
+            if (klass->typeHierarchy && klass->typeHierarchyDepth > 0) {
+                for (uint8_t i = 0; i < klass->typeHierarchyDepth; i++) {
+                    Il2CppClass* entry = klass->typeHierarchy[i];
+                    fprintf(fp, "  hierarchy[%d] = %p ('%s.%s')\n", (int)i, (void*)entry,
+                        entry ? (entry->namespaze ? entry->namespaze : "") : "null",
+                        entry ? (entry->name ? entry->name : "null") : "null");
+                }
+            }
             fclose(fp);
         }
     }
