@@ -15,6 +15,8 @@
 #include "vm/MetadataCache.h"
 #include "vm/MetadataLock.h"
 #include "vm/Type.h"
+#include "hybridclr/metadata/MetadataUtil.h"
+#include "hybridclr/metadata/MetadataModule.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-runtime-metadata.h"
 #include "il2cpp-runtime-stats.h"
