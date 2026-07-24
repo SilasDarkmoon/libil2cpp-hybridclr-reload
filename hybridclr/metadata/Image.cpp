@@ -1,5 +1,7 @@
 #include "Image.h"
 
+#include "os/Directory.h"
+#include "os/Environment.h"
 #include "vm/ClassInlines.h"
 #include "vm/Image.h"
 #include "vm/GlobalMetadata.h"
