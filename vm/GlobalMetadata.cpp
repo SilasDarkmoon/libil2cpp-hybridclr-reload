@@ -1102,6 +1102,31 @@ static int CompareFieldDefaultValues(const void* pkey, const void* pelem)
 static const Il2CppFieldDefaultValue* GetFieldDefaultValueEntry(const FieldInfo* field)
 {
     Il2CppClass* parent = field->parent;
+
+    // ==={{ AssemblyReloadReuse: diagnostic
+    if (!parent || !parent->fields || !parent->typeMetadataHandle)
+    {
+        fprintf(stderr, "[ReuseDiag] GetFieldDefaultValueEntry: field=%p parent=%p fields=%p typeMetaHandle=%p name='%s'\n",
+            (void*)field, (void*)parent, parent ? (void*)parent->fields : nullptr,
+            parent ? (void*)parent->typeMetadataHandle : nullptr,
+            (field && field->name) ? field->name : "<null>");
+    }
+    if (parent && parent->fields)
+    {
+        // Check if field is within parent->fields range
+        FieldInfo* fieldsStart = parent->fields;
+        FieldInfo* fieldsEnd = fieldsStart + parent->field_count;
+        if (field < fieldsStart || field >= fieldsEnd)
+        {
+            fprintf(stderr, "[ReuseDiag] GetFieldDefaultValueEntry: field=%p OUT OF BOUNDS fields=[%p,%p) field_count=%u parent='%s.%s'\n",
+                (void*)field, (void*)fieldsStart, (void*)fieldsEnd,
+                (unsigned)parent->field_count,
+                parent->namespaze ? parent->namespaze : "",
+                parent->name ? parent->name : "");
+        }
+    }
+    // ===}} AssemblyReloadReuse
+
     FieldIndex fieldIndex = (FieldIndex)(field - parent->fields);
 
     if (il2cpp::vm::Type::IsGenericInstance(&parent->byval_arg))
