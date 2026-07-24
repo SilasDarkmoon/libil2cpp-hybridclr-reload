@@ -1924,21 +1924,18 @@ namespace metadata
 		}
 		// _classList[index] is null — type was NOT reused.
 		// A new Il2CppClass* will be created. Log this.
+		if (!_reuseClassMap.empty())
 		{
 			const Il2CppTypeDefinition& typeDef = _typesDefines[index];
-			const char* ns = GetStringFromRawIndex(typeDef.namespaceIndex);
-			const char* nm = GetStringFromRawIndex(typeDef.nameIndex);
-			// Only log if reuse map was active (i.e., this is a reloaded image)
-			if (HasReuseData() || !_reuseClassMap.empty())
-			{
-				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-				int createError = 0;
-				il2cpp::os::Directory::Create(dirStr, &createError);
-				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-				if (fp) { fprintf(fp, "[ReuseDiag] NEW class created (not reused): '%s.%s' index=%u\n",
-					ns ? ns : "", nm ? nm : "", index); fclose(fp); }
-			}
+			const char* ns = MetadataModule::GetStringFromEncodeIndex(typeDef.namespaceIndex);
+			const char* nm = MetadataModule::GetStringFromEncodeIndex(typeDef.nameIndex);
+			const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+			std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+			int createError = 0;
+			il2cpp::os::Directory::Create(dirStr, &createError);
+			FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+			if (fp) { fprintf(fp, "[ReuseDiag] NEW class created (not reused): '%s.%s' index=%u\n",
+				ns ? ns : "", nm ? nm : "", index); fclose(fp); }
 		}
 		klass = il2cpp::vm::GlobalMetadata::FromTypeDefinition(EncodeWithIndex(index));
 		IL2CPP_ASSERT(klass->interfaces_count <= klass->interface_offsets_count || _typesDefines[index].interfaceOffsetsStart == 0);
