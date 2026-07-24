@@ -1132,25 +1132,54 @@ static const Il2CppFieldDefaultValue* GetFieldDefaultValueEntry(const FieldInfo*
 {
     Il2CppClass* parent = field->parent;
 
-    // ==={{ AssemblyReloadReuse: diagnostic
-    if (!parent || !parent->fields || !parent->typeMetadataHandle)
-    {
-        ReuseDiagLog("GetFieldDefaultValueEntry: field=%p parent=%p fields=%p typeMetaHandle=%p name='%s'",
-            (void*)field, (void*)parent, parent ? (void*)parent->fields : nullptr,
-            parent ? (void*)parent->typeMetadataHandle : nullptr,
-            (field && field->name) ? field->name : "<null>");
-    }
-    if (parent && parent->fields)
+    // ==={{ AssemblyReloadReuse: diagnostic + fix
+    if (parent && parent->fields && parent->field_count > 0)
     {
         FieldInfo* fieldsStart = parent->fields;
         FieldInfo* fieldsEnd = fieldsStart + parent->field_count;
         if (field < fieldsStart || field >= fieldsEnd)
         {
-            ReuseDiagLog("GetFieldDefaultValueEntry: field=%p OUT OF BOUNDS fields=[%p,%p) field_count=%u parent='%s.%s'",
-                (void*)field, (void*)fieldsStart, (void*)fieldsEnd,
-                (unsigned)parent->field_count,
+            // field is a stale pointer from before reload (old fields array).
+            // Use field->token to compute the correct fieldIndex instead.
+            ReuseDiagLog("GetFieldDefaultValueEntry: stale field=%p, using token=%u to compute index, parent='%s.%s'",
+                (void*)field, field->token,
                 parent->namespaze ? parent->namespaze : "",
                 parent->name ? parent->name : "");
+
+            // Resolve parent to type definition (for generic instances)
+            Il2CppClass* typeDefParent = parent;
+            if (il2cpp::vm::Type::IsGenericInstance(&parent->byval_arg))
+                typeDefParent = il2cpp::vm::GenericClass::GetTypeDefinition(parent->generic_class);
+
+            const Il2CppTypeDefinition* typeDef = reinterpret_cast<const Il2CppTypeDefinition*>(typeDefParent->typeMetadataHandle);
+            // fieldStart is encoded: EncodeWithIndex(rawFieldStart)
+            // token encodes: EncodeToken(TableType::FIELD, rowIndex) where rowIndex is 1-based
+            // The raw field index = (rowIndex - 1)
+            uint32_t rowIndex = hybridclr::metadata::DecodeTokenRowIndex(field->token);
+            FieldIndex fieldIndexFromToken = (FieldIndex)(rowIndex - 1);
+
+            if (hybridclr::metadata::IsInterpreterIndex((uint32_t)fieldIndexFromToken) ||
+                hybridclr::metadata::IsInterpreterIndex((uint32_t)typeDef->fieldStart))
+            {
+                // For interpreter images, fieldStart is encoded.
+                // The global field index = EncodeWithIndex(rawFieldStart + fieldOffsetInClass)
+                // But we can also compute it as: fieldIndexFromToken + typeDef->fieldStart
+                // where fieldIndexFromToken is the raw row index - 1.
+                // Actually, for interpreter images, the field's raw index in _fieldDetails
+                // is just (rowIndex - 1). So we can use that directly.
+                uint32_t imgIdx = hybridclr::metadata::DecodeImageIndex((uint32_t)typeDef->fieldStart);
+                uint32_t rawFieldIdx = rowIndex - 1;
+                uint32_t encodedIdx = hybridclr::metadata::EncodeImageAndMetadataIndex(imgIdx, rawFieldIdx);
+                return hybridclr::metadata::MetadataModule::GetFieldDefaultValueEntry(encodedIdx);
+            }
+            else
+            {
+                // AOT path
+                Il2CppFieldDefaultValue key;
+                key.fieldIndex = fieldIndexFromToken;
+                const Il2CppFieldDefaultValue* start = (const Il2CppFieldDefaultValue*)((const char*)s_GlobalMetadata + s_GlobalMetadataHeader->fieldDefaultValuesOffset);
+                return (const Il2CppFieldDefaultValue*)bsearch(&key, start, s_GlobalMetadataHeader->fieldDefaultValuesSize / sizeof(Il2CppFieldDefaultValue), sizeof(Il2CppFieldDefaultValue), CompareFieldDefaultValues);
+            }
         }
     }
     // ===}} AssemblyReloadReuse
@@ -1164,17 +1193,6 @@ static const Il2CppFieldDefaultValue* GetFieldDefaultValueEntry(const FieldInfo*
 
     if (hybridclr::metadata::IsInterpreterIndex((uint32_t)fieldIndex))
     {
-        // ==={{ AssemblyReloadReuse: diagnostic
-        {
-            uint32_t imgIdx = hybridclr::metadata::DecodeImageIndex((uint32_t)fieldIndex);
-            uint32_t rawIdx = hybridclr::metadata::DecodeMetadataIndex((uint32_t)fieldIndex);
-            ReuseDiagLog("GetFieldDefaultValueEntry: fieldIndex=%u imgIdx=%u rawIdx=%u parent='%s.%s' field_count=%u",
-                (unsigned)(uint32_t)fieldIndex, imgIdx, rawIdx,
-                parent->namespaze ? parent->namespaze : "",
-                parent->name ? parent->name : "",
-                (unsigned)parent->field_count);
-        }
-        // ===}} AssemblyReloadReuse
         return hybridclr::metadata::MetadataModule::GetFieldDefaultValueEntry((uint32_t)fieldIndex);
     }
 
