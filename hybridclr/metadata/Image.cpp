@@ -954,6 +954,28 @@ namespace metadata
             const Il2CppTypeDefinition* typeDef = GetUnderlyingTypeDefinition(type);
             const Il2CppGenericContainer* klassGenericContainer = GetGenericContainerFromIl2CppType(type);
             const char* typeName = il2cpp::vm::GlobalMetadata::GetStringFromIndex(typeDef->nameIndex);
+            // ==={{ AssemblyReloadReuse: log method resolution failures
+            bool isLogManager = typeName && strstr(typeName, "LogManager");
+            bool isGetLogger = resolveMethodName && strstr(resolveMethodName, "GetLogger");
+            if (isLogManager && isGetLogger)
+            {
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) { fprintf(fp, "[ReuseDiag] ResolveMethodInfo: typeName='%s' method_count=%u looking for '%s'\n",
+                    typeName ? typeName : "", (unsigned)typeDef->method_count, resolveMethodName ? resolveMethodName : ""); fclose(fp); }
+                // List all method names
+                for (uint32_t i = 0; i < typeDef->method_count; i++)
+                {
+                    const Il2CppMethodDefinition* methodDef = il2cpp::vm::GlobalMetadata::GetMethodDefinitionFromIndex(typeDef->methodStart + i);
+                    const char* methodName = il2cpp::vm::GlobalMetadata::GetStringFromIndex(methodDef->nameIndex);
+                    if (fp) { fprintf(fp, "  method[%u] name='%s'\n", i, methodName ? methodName : "<null>"); }
+                }
+                fclose(fp);
+            }
+            // ===}} AssemblyReloadReuse
             for (uint32_t i = 0; i < typeDef->method_count; i++)
             {
                 const Il2CppMethodDefinition* methodDef = il2cpp::vm::GlobalMetadata::GetMethodDefinitionFromIndex(typeDef->methodStart + i);
@@ -963,6 +985,17 @@ namespace metadata
                 {
                     return GetMethodInfo(type, methodDef, genericInstantiation, genericContext);
                 }
+            }
+            // Log if method not found
+            if (isLogManager && isGetLogger)
+            {
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) { fprintf(fp, "[ReuseDiag] ResolveMethodInfo FAILED: '%s::%s' not found in %u methods\n",
+                    typeName ? typeName : "", resolveMethodName ? resolveMethodName : "", (unsigned)typeDef->method_count); fclose(fp); }
             }
         }
         else
