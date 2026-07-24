@@ -2275,6 +2275,21 @@ namespace metadata
 		IL2CPP_ASSERT(indexInClass >= 0 && indexInClass < typeDefinition->method_count);
 		Il2CppClass* klass = il2cpp::vm::GlobalMetadata::GetTypeInfoFromHandle((Il2CppMetadataTypeHandle)typeDefinition);
 		il2cpp::vm::Class::SetupMethods(klass);
+		// Log if methods is null or index out of bounds
+		if (!klass->methods || indexInClass >= (int32_t)klass->method_count)
+		{
+			const char* ns = MetadataModule::GetStringFromEncodeIndex(typeDefinition->namespaceIndex);
+			const char* nm = MetadataModule::GetStringFromEncodeIndex(typeDefinition->nameIndex);
+			const char* mname = MetadataModule::GetStringFromEncodeIndex(methodDefinition->nameIndex);
+			const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+			std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+			int createError = 0;
+			il2cpp::os::Directory::Create(dirStr, &createError);
+			FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+			if (fp) { fprintf(fp, "[ReuseDiag] GetMethodInfo FAIL: class='%s.%s' method='%s' methods=%p method_count=%u indexInClass=%d initialized=%d\n",
+				ns ? ns : "", nm ? nm : "", mname ? mname : "",
+				(void*)klass->methods, (unsigned)klass->method_count, indexInClass, (int)klass->initialized); fclose(fp); }
+		}
 		return klass->methods[indexInClass];
 	}
 
