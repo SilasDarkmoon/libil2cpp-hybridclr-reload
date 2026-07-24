@@ -762,22 +762,25 @@ namespace vm
                     return true;
             }
 
-            // ==={{ AssemblyReloadReuse: diagnostic - only log for interpreter types
+            // ==={{ AssemblyReloadReuse: diagnostic - only log for "Operation" types
             bool assignResult = ClassInlines::HasParentUnsafe(oklass, klass);
-            if (!assignResult && (hybridclr::metadata::IsInterpreterType(klass) || hybridclr::metadata::IsInterpreterType(oklass)))
+            if (!assignResult)
             {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) {
-                    fprintf(fp, "[ReuseDiag] Cast FAIL: '%s.%s'(d=%d,h=%p) <- '%s.%s'(d=%d,h=%p,p=%p)\n",
-                        klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "",
-                        (int)klass->typeHierarchyDepth, (void*)klass->typeHierarchy,
-                        oklass->namespaze ? oklass->namespaze : "", oklass->name ? oklass->name : "",
-                        (int)oklass->typeHierarchyDepth, (void*)oklass->typeHierarchy, (void*)oklass->parent);
-                    fclose(fp);
+                const char* kName = klass->name ? klass->name : "";
+                const char* oName = oklass->name ? oklass->name : "";
+                if (strstr(kName, "Operation") || strstr(oName, "Operation"))
+                {
+                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                    int createError = 0;
+                    il2cpp::os::Directory::Create(dirStr, &createError);
+                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                    if (fp) {
+                        fprintf(fp, "[ReuseDiag] IsAssignableFrom FAIL: '%s.%s'(d=%d) <- '%s.%s'(d=%d,p=%p)\n",
+                            klass->namespaze ? klass->namespaze : "", kName, (int)klass->typeHierarchyDepth,
+                            oklass->namespaze ? oklass->namespaze : "", oName, (int)oklass->typeHierarchyDepth, (void*)oklass->parent);
+                        fclose(fp);
+                    }
                 }
             }
             return assignResult;

@@ -106,8 +106,10 @@ namespace vm
     // ==={{ AssemblyReloadReuse: diagnostic for HasParentUnsafe failures
     void ClassInlines::HasParentUnsafeFailSlowPath(const Il2CppClass* klass, const Il2CppClass* parent)
     {
-        // Only log for interpreter types (from reloaded assemblies)
-        if (!hybridclr::metadata::IsInterpreterType(klass) && !hybridclr::metadata::IsInterpreterType(parent))
+        // Only log for types whose name contains "Operation" to reduce noise
+        const char* kName = klass->name ? klass->name : "";
+        const char* pName = parent->name ? parent->name : "";
+        if (!strstr(kName, "Operation") && !strstr(pName, "Operation"))
             return;
 
         const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
@@ -116,12 +118,13 @@ namespace vm
         il2cpp::os::Directory::Create(dirStr, &createError);
         FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
         if (fp) {
-            fprintf(fp, "[ReuseDiag] HasParentUnsafe FAIL: parent='%s.%s'(d=%d,h=%p) klass='%s.%s'(d=%d,h=%p,gc=%p)\n",
-                parent->namespaze ? parent->namespaze : "", parent->name ? parent->name : "",
+            fprintf(fp, "[ReuseDiag] HasParentUnsafe FAIL: parent='%s.%s'(d=%d,h=%p) klass='%s.%s'(d=%d,h=%p,gc=%p,klass_img=%p,parent_img=%p)\n",
+                parent->namespaze ? parent->namespaze : "", pName,
                 (int)parent->typeHierarchyDepth, (void*)parent->typeHierarchy,
-                klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "",
+                klass->namespaze ? klass->namespaze : "", kName,
                 (int)klass->typeHierarchyDepth, (void*)klass->typeHierarchy,
-                (void*)klass->generic_class);
+                (void*)klass->generic_class,
+                (void*)klass->image, (void*)parent->image);
             fclose(fp);
         }
     }

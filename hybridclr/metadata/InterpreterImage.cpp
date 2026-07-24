@@ -2799,9 +2799,6 @@ namespace metadata
 			if (_reuseClassMap.find(fullName) == _reuseClassMap.end())
 			{
 				_reuseClassMap[fullName] = klass;
-				ReuseLog("CollectReusable: class='%s' klass=%p vtable_count=%u vtable_allocated=%u initialized=%d",
-					fullName.c_str(), (void*)klass, (unsigned)klass->vtable_count,
-					(unsigned)klass->vtable_allocated_count, (int)klass->initialized);
 			}
 
 			// Collect MethodInfo objects.
@@ -3068,19 +3065,10 @@ namespace metadata
 			_reuseClassMap.erase(it);
 
 			// --- Immediately re-initialise from new metadata ---
-			// g_MetadataLock is a ReentrantLock, so calling Class::Init
-			// (which acquires the same lock) from within this locked
-			// context is safe.  This atomically re-populates methods,
-			// fields, vtable, type hierarchy, etc. from the new assembly,
-			// eliminating the inconsistent-state window.
 			il2cpp::vm::Class::Init(klass);
 
-			ReuseLog("RestoreReused: class='%s' klass=%p new_vtable_count=%u vtable_allocated=%u "
-				"methods=%p fields=%p initialized=%d is_vtable_init=%d parent=%p (re-init done)",
-				fullName.c_str(), (void*)klass, (unsigned)newVtableCount,
-				(unsigned)klass->vtable_allocated_count, (void*)klass->methods,
-				(void*)klass->fields, (int)klass->initialized,
-				(int)klass->is_vtable_initialized, (void*)klass->parent);
+			ReuseLog("RestoreReused: class='%s' klass=%p initialized=%d",
+				fullName.c_str(), (void*)klass, (int)klass->initialized);
 		}
 
 		// --- Restore generic instance classes ---
