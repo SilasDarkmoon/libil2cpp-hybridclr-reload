@@ -966,16 +966,19 @@ namespace metadata
                 int createError = 0;
                 il2cpp::os::Directory::Create(dirStr, &createError);
                 FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) { fprintf(fp, "[ReuseDiag] ResolveMethodInfo: typeName='%s' method_count=%u looking for '%s'\n",
-                    typeName ? typeName : "", (unsigned)typeDef->method_count, resolveMethodName ? resolveMethodName : ""); fclose(fp); }
-                // List all method names
-                for (uint32_t i = 0; i < typeDef->method_count; i++)
+                if (fp)
                 {
-                    const Il2CppMethodDefinition* methodDef = il2cpp::vm::GlobalMetadata::GetMethodDefinitionFromIndex(typeDef->methodStart + i);
-                    const char* methodName = il2cpp::vm::GlobalMetadata::GetStringFromIndex(methodDef->nameIndex);
-                    if (fp) { fprintf(fp, "  method[%u] name='%s'\n", i, methodName ? methodName : "<null>"); }
+                    fprintf(fp, "[ReuseDiag] ResolveMethodInfo: typeName='%s' method_count=%u looking for '%s'\n",
+                        typeName ? typeName : "", (unsigned)typeDef->method_count, resolveMethodName ? resolveMethodName : "");
+                    // List all method names
+                    for (uint32_t i = 0; i < typeDef->method_count; i++)
+                    {
+                        const Il2CppMethodDefinition* methodDef = il2cpp::vm::GlobalMetadata::GetMethodDefinitionFromIndex(typeDef->methodStart + i);
+                        const char* methodName = il2cpp::vm::GlobalMetadata::GetStringFromIndex(methodDef->nameIndex);
+                        fprintf(fp, "  method[%u] name='%s'\n", i, methodName ? methodName : "<null>");
+                    }
+                    fclose(fp);
                 }
-                fclose(fp);
             }
             // ===}} AssemblyReloadReuse
             for (uint32_t i = 0; i < typeDef->method_count; i++)
