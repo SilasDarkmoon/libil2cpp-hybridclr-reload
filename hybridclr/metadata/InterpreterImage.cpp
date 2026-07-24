@@ -2840,9 +2840,14 @@ namespace metadata
 	{
 		// Iterate the new type-definition table; for each entry whose full name
 		// matches a reusable Il2CppClass, update the old object's external
-		// pointers to the new image, reset lazily-initialised fields, and store
-		// the pointer in _classList.
-		for (size_t i = 0; i < _typesDefines.size(); i++)
+	// pointers to the new image, reset lazily-initialised fields, and store
+	// the pointer in _classList.
+	//
+	// === Pass 1: Update external pointers, counts, parent/declaringType,
+	// and store in _classList. Do NOT reset lazy-init fields or call
+	// Class::Init yet — this ensures all reused classes have correct
+	// external pointers before any cctor runs. ===
+	for (size_t i = 0; i < _typesDefines.size(); i++)
 		{
 			const Il2CppTypeDefinition& typeDef = _typesDefines[i];
 			// namespaceIndex/nameIndex are encoded (via EncodeWithIndex in InitTypeDefs_0),
@@ -3032,33 +3037,9 @@ namespace metadata
 			klass->thread_static_fields_size = sizes->thread_static_fields_size;
 			klass->thread_static_fields_offset = -1;
 
-			// --- Reset lazily-initialised fields to null ---
-			// These will be re-populated immediately by Class::Init below.
-			klass->fields = nullptr;
-			klass->methods = nullptr;
-			klass->properties = nullptr;
-			klass->events = nullptr;
-			klass->nestedTypes = nullptr;
-			klass->implementedInterfaces = nullptr;
-			klass->interfaceOffsets = nullptr;
-			klass->static_fields = nullptr;
-			klass->rgctx_data = nullptr;
-			klass->typeHierarchy = nullptr;
-			klass->gc_desc = nullptr;
+			// Lazy-init fields and init flags are reset in Pass 2.
 
-			// --- Reset init flags so Class::Init re-runs ---
-			klass->initialized = 0;
-			klass->initialized_and_no_error = 0;
-			klass->init_pending = 0;
-			klass->size_init_pending = 0;
-			klass->size_inited = 0;
-			klass->is_vtable_initialized = 0;
-			klass->cctor_started = 0;
-			klass->cctor_finished_or_no_cctor = !klass->has_cctor;
-			klass->cctor_thread = 0;
-			klass->genericRecursionDepth = 0;
-			klass->initializationExceptionGCHandle = 0;
-			klass->unity_user_data = nullptr;
+
 
 			// --- Update parent / declaring type / element_class ---
 			// These must be set from the new type definition immediately
@@ -3090,12 +3071,60 @@ namespace metadata
 
 			// Remove from the reuse map (already reused).
 			_reuseClassMap.erase(it);
+		}
 
-			// --- Immediately re-initialise from new metadata ---
+		// === Pass 2: Reset lazy-init fields and init flags for all reused
+		// classes. Done in a separate pass so all classes have correct
+		// external pointers before any reset happens. ===
+		for (size_t i = 0; i < _typesDefines.size(); i++)
+		{
+			if (!_classList[i])
+				continue;
+
+			Il2CppClass* klass = _classList[i];
+
+			klass->fields = nullptr;
+			klass->methods = nullptr;
+			klass->properties = nullptr;
+			klass->events = nullptr;
+			klass->nestedTypes = nullptr;
+			klass->implementedInterfaces = nullptr;
+			klass->interfaceOffsets = nullptr;
+			klass->static_fields = nullptr;
+			klass->rgctx_data = nullptr;
+			klass->typeHierarchy = nullptr;
+			klass->gc_desc = nullptr;
+
+			klass->initialized = 0;
+			klass->initialized_and_no_error = 0;
+			klass->init_pending = 0;
+			klass->size_init_pending = 0;
+			klass->size_inited = 0;
+			klass->is_vtable_initialized = 0;
+			klass->cctor_started = 0;
+			klass->cctor_finished_or_no_cctor = !klass->has_cctor;
+			klass->cctor_thread = 0;
+			klass->genericRecursionDepth = 0;
+			klass->initializationExceptionGCHandle = 0;
+			klass->unity_user_data = nullptr;
+		}
+
+		// === Pass 3: Call Class::Init on all reused classes. At this point,
+		// all reused classes have correct external pointers and reset flags.
+		// cctors triggered during Class::Init can safely reference other
+		// reused classes (they have correct image/typeMetadataHandle/etc.). ===
+		for (size_t i = 0; i < _typesDefines.size(); i++)
+		{
+			if (!_classList[i])
+				continue;
+
+			Il2CppClass* klass = _classList[i];
 			il2cpp::vm::Class::Init(klass);
 
-			ReuseLog("RestoreReused: class='%s' klass=%p initialized=%d",
-				fullName.c_str(), (void*)klass, (int)klass->initialized);
+			ReuseLog("RestoreReused: class='%s.%s' klass=%p initialized=%d",
+				klass->namespaze ? klass->namespaze : "",
+				klass->name ? klass->name : "",
+				(void*)klass, (int)klass->initialized);
 		}
 
 		// --- Restore generic instance classes ---
