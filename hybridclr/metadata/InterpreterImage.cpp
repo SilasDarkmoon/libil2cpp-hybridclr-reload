@@ -2757,7 +2757,18 @@ namespace metadata
 
 	std::string InterpreterImage::BuildMethodSignatureKey(const Il2CppClass* klass, const MethodInfo* method)
 	{
-		std::string key = BuildClassFullName(klass);
+		// Build full name from typeMetadataHandle (not klass->name which
+		// may be garbage for interpreter types).
+		std::string className;
+		if (klass->typeMetadataHandle)
+		{
+			const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)klass->typeMetadataHandle;
+			const char* ns = MetadataModule::GetStringFromEncodeIndex(typeDef->namespaceIndex);
+			const char* nm = MetadataModule::GetStringFromEncodeIndex(typeDef->nameIndex);
+			if (ns && *ns) { className = ns; className += "."; }
+			if (nm) className += nm;
+		}
+		std::string key = className;
 		key += ":";
 		key += method->name ? method->name : "";
 		key += "(";
@@ -2806,7 +2817,46 @@ namespace metadata
 			if (!klass)
 				continue;
 
-			std::string fullName = BuildClassFullName(klass);
+			// Build full name from typeMetadataHandle (NOT klass->name,
+			// which is set by FromTypeDefinition using GetStringFromIndex
+			// and gives garbage for interpreter types because nameIndex
+			// is an encoded index, not a raw global string index).
+			std::string fullName;
+			if (klass->typeMetadataHandle)
+			{
+				const Il2CppTypeDefinition* typeDef =
+					(const Il2CppTypeDefinition*)klass->typeMetadataHandle;
+				const char* ns = MetadataModule::GetStringFromEncodeIndex(typeDef->namespaceIndex);
+				const char* nm = MetadataModule::GetStringFromEncodeIndex(typeDef->nameIndex);
+				if (ns && *ns) { fullName = ns; fullName += "."; }
+				if (nm) fullName += nm;
+				// Handle nested types
+				if (klass->declaringType)
+				{
+					std::string declFullName;
+					Il2CppClass* decl = klass->declaringType;
+					while (decl)
+					{
+						std::string declName;
+						if (decl->typeMetadataHandle)
+						{
+							const Il2CppTypeDefinition* declTypeDef =
+								(const Il2CppTypeDefinition*)decl->typeMetadataHandle;
+							const char* declNs = MetadataModule::GetStringFromEncodeIndex(declTypeDef->namespaceIndex);
+							const char* declNm = MetadataModule::GetStringFromEncodeIndex(declTypeDef->nameIndex);
+							if (declNs && *declNs) { declName = declNs; declName += "."; }
+							if (declNm) declName += declNm;
+						}
+						if (declFullName.empty())
+							declFullName = declName;
+						else
+							declFullName = declName + "+" + declFullName;
+						decl = decl->declaringType;
+					}
+					if (!declFullName.empty())
+						fullName = declFullName + "+" + fullName;
+				}
+			}
 			if (fullName.empty())
 				continue;
 
