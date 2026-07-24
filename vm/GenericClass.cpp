@@ -329,7 +329,6 @@ namespace vm
 
             il2cpp::vm::Class::Init(klass);
         }
-        }
         fprintf(stderr, "[Reuse] GenericClass restore: total restored=%d\n", restoredCount);
     }
     // ===}} AssemblyReloadReuse
