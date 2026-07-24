@@ -184,13 +184,30 @@ namespace vm
         Il2CppGenericClassSet::const_iterator iter = s_GenericClassSet.find(gclass);
         if (iter != s_GenericClassSet.end())
         {
-            Il2CppGenericClass* cacheGclass = *iter;
+            Il2CppClass* cacheGclass = *iter;
             IL2CPP_ASSERT(cacheGclass->cached_class);
             il2cpp::os::Atomic::ExchangePointer(&gclass->cached_class, cacheGclass->cached_class);
             return gclass->cached_class;
         }
         if (!gclass->cached_class)
         {
+            // ==={{ AssemblyReloadReuse: log new generic instance creation
+            {
+                const char* defNs = definition->namespaze ? definition->namespaze : "";
+                const char* defNm = definition->name ? definition->name : "";
+                // Only log for interpreter types (from reloaded assemblies)
+                if (hybridclr::metadata::IsInterpreterType(definition))
+                {
+                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                    int createError = 0;
+                    il2cpp::os::Directory::Create(dirStr, &createError);
+                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                    if (fp) { fprintf(fp, "[ReuseDiag] NEW generic instance: '%s.%s' def=%p new_klass=%p\n",
+                        defNs, defNm, (void*)definition, (void*)nullptr); fclose(fp); }
+                }
+            }
+            // ===}} AssemblyReloadReuse
             // Il2CppClass uses a fixed-length layout (IL2CPP_MAX_VTABLE_SLOT_COUNT inline vtable slots) for types
             // whose vtable fits, otherwise a variable-length allocation of (vtable_count + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT)
             // slots. ComputeVTableAllocatedSlotCount returns the allocated slot count and logs the variable case.
