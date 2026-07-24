@@ -712,10 +712,10 @@ namespace metadata
 					void* iter2 = nullptr;
 					for (const MethodInfo* cur = nullptr; (cur = il2cpp::vm::Class::GetMethods(klass, &iter2)) != nullptr; )
 					{
-						fprintf(fp, "  method name='%s' handle=%p match=%d\n",
-							cur->name ? cur->name : "<null>",
-							(void*)cur->methodMetadataHandle,
-							(cur->methodMetadataHandle == methodDef) ? 1 : 0);
+					fprintf(fp, "  method name='%s' handle=%p match=%d\n",
+						cur->name ? cur->name : "<null>",
+						(void*)cur->methodMetadataHandle,
+						((const Il2CppMethodDefinition*)cur->methodMetadataHandle == methodDef) ? 1 : 0);
 					}
 					fclose(fp);
 				}
