@@ -1922,6 +1922,24 @@ namespace metadata
 		{
 			return klass;
 		}
+		// _classList[index] is null — type was NOT reused.
+		// A new Il2CppClass* will be created. Log this.
+		{
+			const Il2CppTypeDefinition& typeDef = _typesDefines[index];
+			const char* ns = GetStringFromRawIndex(typeDef.namespaceIndex);
+			const char* nm = GetStringFromRawIndex(typeDef.nameIndex);
+			// Only log if reuse map was active (i.e., this is a reloaded image)
+			if (HasReuseData() || !_reuseClassMap.empty())
+			{
+				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+				int createError = 0;
+				il2cpp::os::Directory::Create(dirStr, &createError);
+				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+				if (fp) { fprintf(fp, "[ReuseDiag] NEW class created (not reused): '%s.%s' index=%u\n",
+					ns ? ns : "", nm ? nm : "", index); fclose(fp); }
+			}
+		}
 		klass = il2cpp::vm::GlobalMetadata::FromTypeDefinition(EncodeWithIndex(index));
 		IL2CPP_ASSERT(klass->interfaces_count <= klass->interface_offsets_count || _typesDefines[index].interfaceOffsetsStart == 0);
 		il2cpp::os::Atomic::FullMemoryBarrier();
@@ -3029,7 +3047,7 @@ namespace metadata
 			klass->static_fields = nullptr;
 			klass->rgctx_data = nullptr;
 			klass->typeHierarchy = nullptr;
-			klass->gc_desc = nullptr;  // re-set by SetupGCDescriptor in InitLocked
+			klass->gc_desc = nullptr;
 
 			// --- Reset init flags so Class::Init re-runs ---
 			klass->initialized = 0;
@@ -3041,7 +3059,7 @@ namespace metadata
 			klass->cctor_started = 0;
 			klass->cctor_finished_or_no_cctor = !klass->has_cctor;
 			klass->cctor_thread = 0;
-			klass->genericRecursionDepth = 0;  // incremented by InitLocked
+			klass->genericRecursionDepth = 0;
 			klass->initializationExceptionGCHandle = 0;
 			klass->unity_user_data = nullptr;
 

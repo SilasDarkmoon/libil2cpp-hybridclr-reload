@@ -375,7 +375,6 @@ namespace vm
 
             // Reset lazily-initialised fields and init flags, then
             // immediately re-initialise from the new metadata.
-            // g_MetadataLock is reentrant so Class::Init is safe here.
             klass->fields = nullptr;
             klass->methods = nullptr;
             klass->properties = nullptr;
