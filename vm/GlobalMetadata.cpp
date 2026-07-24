@@ -26,6 +26,8 @@
 #include "metadata/Il2CppSignature.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 #include "utils/CallOnce.h"
 #include "utils/Collections.h"
 #include "utils/HashUtils.h"
@@ -1099,6 +1101,31 @@ static int CompareFieldDefaultValues(const void* pkey, const void* pelem)
     return (int)(((Il2CppFieldDefaultValue*)pkey)->fieldIndex - ((Il2CppFieldDefaultValue*)pelem)->fieldIndex);
 }
 
+// ==={{ AssemblyReloadReuse: file+stderr logging helper
+static void ReuseDiagLog(const char* fmt, ...)
+{
+    char msgBuf[2048];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(msgBuf, sizeof(msgBuf), fmt, args);
+    va_end(args);
+
+    fprintf(stderr, "[ReuseDiag] %s\n", msgBuf);
+
+    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+    int createError = 0;
+    il2cpp::os::Directory::Create(dirStr, &createError);
+    std::string filePath = dirStr + "/assembly_reload_reuse.log";
+    FILE* fp = fopen(filePath.c_str(), "a");
+    if (fp)
+    {
+        fprintf(fp, "[ReuseDiag] %s\n", msgBuf);
+        fclose(fp);
+    }
+}
+// ===}} AssemblyReloadReuse
+
 static const Il2CppFieldDefaultValue* GetFieldDefaultValueEntry(const FieldInfo* field)
 {
     Il2CppClass* parent = field->parent;
@@ -1106,19 +1133,18 @@ static const Il2CppFieldDefaultValue* GetFieldDefaultValueEntry(const FieldInfo*
     // ==={{ AssemblyReloadReuse: diagnostic
     if (!parent || !parent->fields || !parent->typeMetadataHandle)
     {
-        fprintf(stderr, "[ReuseDiag] GetFieldDefaultValueEntry: field=%p parent=%p fields=%p typeMetaHandle=%p name='%s'\n",
+        ReuseDiagLog("GetFieldDefaultValueEntry: field=%p parent=%p fields=%p typeMetaHandle=%p name='%s'",
             (void*)field, (void*)parent, parent ? (void*)parent->fields : nullptr,
             parent ? (void*)parent->typeMetadataHandle : nullptr,
             (field && field->name) ? field->name : "<null>");
     }
     if (parent && parent->fields)
     {
-        // Check if field is within parent->fields range
         FieldInfo* fieldsStart = parent->fields;
         FieldInfo* fieldsEnd = fieldsStart + parent->field_count;
         if (field < fieldsStart || field >= fieldsEnd)
         {
-            fprintf(stderr, "[ReuseDiag] GetFieldDefaultValueEntry: field=%p OUT OF BOUNDS fields=[%p,%p) field_count=%u parent='%s.%s'\n",
+            ReuseDiagLog("GetFieldDefaultValueEntry: field=%p OUT OF BOUNDS fields=[%p,%p) field_count=%u parent='%s.%s'",
                 (void*)field, (void*)fieldsStart, (void*)fieldsEnd,
                 (unsigned)parent->field_count,
                 parent->namespaze ? parent->namespaze : "",
@@ -1136,6 +1162,17 @@ static const Il2CppFieldDefaultValue* GetFieldDefaultValueEntry(const FieldInfo*
 
     if (hybridclr::metadata::IsInterpreterIndex((uint32_t)fieldIndex))
     {
+        // ==={{ AssemblyReloadReuse: diagnostic
+        {
+            uint32_t imgIdx = hybridclr::metadata::DecodeImageIndex((uint32_t)fieldIndex);
+            uint32_t rawIdx = hybridclr::metadata::DecodeMetadataIndex((uint32_t)fieldIndex);
+            ReuseDiagLog("GetFieldDefaultValueEntry: fieldIndex=%u imgIdx=%u rawIdx=%u parent='%s.%s' field_count=%u",
+                (unsigned)(uint32_t)fieldIndex, imgIdx, rawIdx,
+                parent->namespaze ? parent->namespaze : "",
+                parent->name ? parent->name : "",
+                (unsigned)parent->field_count);
+        }
+        // ===}} AssemblyReloadReuse
         return hybridclr::metadata::MetadataModule::GetFieldDefaultValueEntry((uint32_t)fieldIndex);
     }
 

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <unordered_map>
+#include <cstdio>
+#include <string>
 
 #if HYBRIDCLR_UNITY_2021_OR_NEW
 #include "metadata/CustomAttributeDataReader.h"
@@ -9,6 +11,8 @@
 
 #include "Image.h"
 #include "CustomAttributeDataWriter.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 
 namespace hybridclr
 {
@@ -404,9 +408,48 @@ namespace metadata
 
 		const Il2CppFieldDefaultValue* GetFieldDefaultValueEntryByRawIndex(uint32_t index)
 		{
-			IL2CPP_ASSERT(index < (uint32_t)_fieldDetails.size());
+			if (index >= (uint32_t)_fieldDetails.size())
+			{
+				char buf[512];
+				snprintf(buf, sizeof(buf), "GetFieldDefaultValueEntryByRawIndex: index=%u OUT OF BOUNDS _fieldDetails.size=%zu",
+					index, _fieldDetails.size());
+				fprintf(stderr, "[ReuseDiag] %s\n", buf);
+				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+				int createError = 0;
+				il2cpp::os::Directory::Create(dirStr, &createError);
+				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+				if (fp) { fprintf(fp, "[ReuseDiag] %s\n", buf); fclose(fp); }
+				return nullptr;
+			}
 			uint32_t fdvIndex = _fieldDetails[index].defaultValueIndex;
-			IL2CPP_ASSERT(fdvIndex != kDefaultValueIndexNull);
+			if (fdvIndex == kDefaultValueIndexNull)
+			{
+				char buf[512];
+				snprintf(buf, sizeof(buf), "GetFieldDefaultValueEntryByRawIndex: index=%u fdvIndex=NULL (no default value)", index);
+				fprintf(stderr, "[ReuseDiag] %s\n", buf);
+				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+				int createError = 0;
+				il2cpp::os::Directory::Create(dirStr, &createError);
+				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+				if (fp) { fprintf(fp, "[ReuseDiag] %s\n", buf); fclose(fp); }
+				return nullptr;
+			}
+			if (fdvIndex >= (uint32_t)_fieldDefaultValues.size())
+			{
+				char buf[512];
+				snprintf(buf, sizeof(buf), "GetFieldDefaultValueEntryByRawIndex: fdvIndex=%u OUT OF BOUNDS _fieldDefaultValues.size=%zu",
+					fdvIndex, _fieldDefaultValues.size());
+				fprintf(stderr, "[ReuseDiag] %s\n", buf);
+				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+				int createError = 0;
+				il2cpp::os::Directory::Create(dirStr, &createError);
+				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+				if (fp) { fprintf(fp, "[ReuseDiag] %s\n", buf); fclose(fp); }
+				return nullptr;
+			}
 			return &_fieldDefaultValues[fdvIndex];
 		}
 
