@@ -186,7 +186,7 @@ namespace vm
         Il2CppGenericClassSet::const_iterator iter = s_GenericClassSet.find(gclass);
         if (iter != s_GenericClassSet.end())
         {
-            Il2CppClass* cacheGclass = *iter;
+            Il2CppGenericClass* cacheGclass = *iter;
             IL2CPP_ASSERT(cacheGclass->cached_class);
             il2cpp::os::Atomic::ExchangePointer(&gclass->cached_class, cacheGclass->cached_class);
             return gclass->cached_class;
