@@ -2856,52 +2856,27 @@ namespace metadata
 			const char* nm = MetadataModule::GetStringFromEncodeIndex(typeDef.nameIndex);
 
 			// Build full name (handle nested types via declaringTypeIndex).
+			// declaringTypeIndex is set to enclosingType.byvalTypeIndex (an encoded TypeIndex).
+			// We resolve it via GetIl2CppTypeFromIndex -> Class::FromIl2CppType
+			// to get the declaring Il2CppClass*, then use BuildClassFullName.
 			std::string fullName;
 			if (ns && *ns) { fullName = ns; fullName += "."; }
 			if (nm) fullName += nm;
-			// For nested types, prepend declaring type's full name.
-			// We resolve the declaring type from the new image's type definitions.
-			// The declaringTypeIndex in the new typeDef points to another typeDef
-			// in this image (or external).  For simplicity, we also try the
-			// declaringTypeIndex == kTypeIndexInvalid case (non-nested).
-			// Nested-type full names are built by traversing the declaring chain.
 			{
-				TypeDefinitionIndex declIdx = typeDef.declaringTypeIndex;
+				TypeIndex declIdx = typeDef.declaringTypeIndex;
 				if (declIdx != kTypeIndexInvalid)
 				{
-					// Build the declaring type's full name recursively.
-					std::string declFullName;
-					TypeDefinitionIndex cur = declIdx;
-					while (cur != kTypeIndexInvalid)
+					const Il2CppType* declType = il2cpp::vm::GlobalMetadata::GetIl2CppTypeFromIndex(declIdx);
+					if (declType)
 					{
-						const Il2CppTypeDefinition* curTypeDef = nullptr;
-						std::string curName;
-						if (IsInterpreterIndex(cur))
+						Il2CppClass* declKlass = il2cpp::vm::Class::FromIl2CppType(declType);
+						if (declKlass)
 						{
-							InterpreterImage* img = MetadataModule::GetImage(DecodeImageIndex(cur));
-							curTypeDef = img->GetTypeFromRawIndex(DecodeMetadataIndex(cur));
-							const char* curNs = MetadataModule::GetStringFromEncodeIndex(curTypeDef->namespaceIndex);
-							const char* curNm = MetadataModule::GetStringFromEncodeIndex(curTypeDef->nameIndex);
-							if (curNs && *curNs) { curName = curNs; curName += "."; }
-							if (curNm) curName += curNm;
+							std::string declFullName = BuildClassFullName(declKlass);
+							if (!declFullName.empty())
+								fullName = declFullName + "+" + fullName;
 						}
-						else
-						{
-							curTypeDef = (const Il2CppTypeDefinition*)il2cpp::vm::GlobalMetadata::GetTypeHandleFromIndex(cur);
-							const char* curNs = il2cpp::vm::GlobalMetadata::GetStringFromIndex(curTypeDef->namespaceIndex);
-							const char* curNm = il2cpp::vm::GlobalMetadata::GetStringFromIndex(curTypeDef->nameIndex);
-							if (curNs && *curNs) { curName = curNs; curName += "."; }
-							if (curNm) curName += curNm;
-						}
-						if (declFullName.empty())
-							declFullName = curName;
-						else
-						{
-							declFullName = curName + "+" + declFullName;
-						}
-						cur = curTypeDef ? curTypeDef->declaringTypeIndex : kTypeIndexInvalid;
 					}
-					fullName = declFullName + "+" + fullName;
 				}
 			}
 
