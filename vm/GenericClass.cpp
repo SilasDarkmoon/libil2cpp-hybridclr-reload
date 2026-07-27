@@ -309,10 +309,22 @@ namespace vm
         if (!gclass || !gclass->type)
             return false;
 
-        // Check generic type definition
-        Il2CppClass* definition = GenericClass::GetTypeDefinition(gclass);
-        if (definition && definition->image == newImage)
-            return true;
+        // Check generic type definition WITHOUT triggering class resolution
+        // (GetTypeDefinition would call Class::FromIl2CppType which may
+        // trigger Class::Init during restore). Instead, check the type's
+        // typeHandle directly.
+        const Il2CppType* defType = gclass->type;
+        if (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE)
+        {
+            const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)defType->data.typeHandle;
+            if (typeDef && hybridclr::metadata::IsInterpreterType(typeDef))
+            {
+                hybridclr::metadata::InterpreterImage* img =
+                    hybridclr::metadata::MetadataModule::GetImage(typeDef);
+                if (img && img->GetIl2CppImage() == newImage)
+                    return true;
+            }
+        }
 
         // Check generic arguments recursively
         const Il2CppGenericInst* inst = gclass->context.class_inst;
