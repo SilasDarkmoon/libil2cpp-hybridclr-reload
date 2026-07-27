@@ -3061,22 +3061,10 @@ namespace metadata
 
 			Il2CppClass* klass = _classList[i];
 
-			klass->fields = nullptr;
-			klass->methods = nullptr;
-			klass->properties = nullptr;
-			klass->events = nullptr;
-			klass->nestedTypes = nullptr;
-			klass->implementedInterfaces = nullptr;
-			klass->interfaceOffsets = nullptr;
-			klass->static_fields = nullptr;
-			klass->rgctx_data = nullptr;
-			klass->typeHierarchy = nullptr;
-			klass->gc_desc = nullptr;
-
-			// Clear interpData on all existing methods so they get re-transformed
-			// using the new image. Without this, the old transform cache
-			// (which references the old image) causes BadImageFormatException
-			// and MissingMethodException at runtime.
+			// Clear interpData on all existing methods BEFORE resetting
+			// klass->methods to null. This ensures the old MethodInfo objects
+			// (which may still be referenced by other code) get their
+			// transform cache cleared, forcing re-transform with new image.
 			if (klass->methods)
 			{
 				for (uint16_t m = 0; m < klass->method_count; m++)
@@ -3091,6 +3079,18 @@ namespace metadata
 					}
 				}
 			}
+
+			klass->fields = nullptr;
+			klass->methods = nullptr;
+			klass->properties = nullptr;
+			klass->events = nullptr;
+			klass->nestedTypes = nullptr;
+			klass->implementedInterfaces = nullptr;
+			klass->interfaceOffsets = nullptr;
+			klass->static_fields = nullptr;
+			klass->rgctx_data = nullptr;
+			klass->typeHierarchy = nullptr;
+			klass->gc_desc = nullptr;
 
 			klass->initialized = 0;
 			klass->initialized_and_no_error = 0;
