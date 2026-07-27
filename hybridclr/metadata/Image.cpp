@@ -208,6 +208,20 @@ namespace metadata
     readAgain:
         Il2CppTypeEnum etype = (Il2CppTypeEnum)reader.ReadByte();
         type.type = etype;
+        // Log when etype is invalid (0 or unexpected value)
+        if (etype == 0)
+        {
+            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+            int createError = 0;
+            il2cpp::os::Directory::Create(dirStr, &createError);
+            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+            if (fp) {
+                fprintf(fp, "[ReuseDiag] ReadType etype=0: readPos=%u length=%u buf=%p this=%p\n",
+                    reader.GetReadPosition(), reader.GetLength(), (void*)reader.GetData(), (void*)this);
+                fclose(fp);
+            }
+        }
         switch (etype)
         {
         case IL2CPP_TYPE_VOID:
