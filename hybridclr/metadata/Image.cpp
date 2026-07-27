@@ -201,6 +201,34 @@ namespace metadata
         return il2cpp::metadata::GenericMetadata::GetGenericClass(genericBase, genericInst);
     }
 
+    // Helper to log ReadType caller when etype=0
+    static void LogReadTypeFail(BlobReader& reader, Image* img)
+    {
+        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+        int createError = 0;
+        il2cpp::os::Directory::Create(dirStr, &createError);
+        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+        if (fp) {
+            const byte* d = reader.GetData();
+            uint32_t dl = reader.GetLength();
+            fprintf(fp, "[ReuseDiag] ReadType etype=0: readPos=%u length=%u buf=%p this=%p caller=%p data=",
+                reader.GetReadPosition(), dl, (void*)d, (void*)img,
+#ifdef _MSC_VER
+                _ReturnAddress()
+#else
+                __builtin_return_address(0)
+#endif
+            );
+            for (uint32_t b = 0; b < 16 && b < dl; b++)
+                fprintf(fp, "%02x ", d[b]);
+            if (dl == 0)
+                fprintf(fp, "(length=0)");
+            fprintf(fp, "\n");
+            fclose(fp);
+        }
+    }
+
     const Il2CppType* Image::ReadType(BlobReader& reader, const Il2CppGenericContainer* klassGenericContainer, const Il2CppGenericContainer* methodGenericContainer)
     {
         Il2CppType type = {};
@@ -703,34 +731,6 @@ namespace metadata
         for (uint32_t i = 0; i < varCount; i++)
         {
             vars[i] = ReadType(reader, klassGenericContainer, methodGenericContainer);
-        }
-    }
-
-    // Helper to log ReadType caller when etype=0
-    static void LogReadTypeFail(BlobReader& reader, Image* img)
-    {
-        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-        int createError = 0;
-        il2cpp::os::Directory::Create(dirStr, &createError);
-        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-        if (fp) {
-            const byte* d = reader.GetData();
-            uint32_t dl = reader.GetLength();
-            fprintf(fp, "[ReuseDiag] ReadType etype=0: readPos=%u length=%u buf=%p this=%p caller=%p data=",
-                reader.GetReadPosition(), dl, (void*)d, (void*)img,
-#ifdef _MSC_VER
-                _ReturnAddress()
-#else
-                __builtin_return_address(0)
-#endif
-            );
-            for (uint32_t b = 0; b < 16 && b < dl; b++)
-                fprintf(fp, "%02x ", d[b]);
-            if (dl == 0)
-                fprintf(fp, "(length=0)");
-            fprintf(fp, "\n");
-            fclose(fp);
         }
     }
 
