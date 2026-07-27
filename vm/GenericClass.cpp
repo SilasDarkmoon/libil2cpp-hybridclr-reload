@@ -298,6 +298,77 @@ namespace vm
     }
 
     // ==={{ AssemblyReloadReuse
+
+    // Recursively check if a type depends on the reloaded interpreter image.
+    // Returns true if the type is from newImage, or if it's a generic instance
+    // whose definition or any generic argument depends on newImage.
+    static bool ShouldRestoreType(const Il2CppType* type, const Il2CppImage* newImage);
+
+    static bool ShouldRestoreGenericClass(Il2CppGenericClass* gclass, const Il2CppImage* newImage)
+    {
+        if (!gclass || !gclass->type)
+            return false;
+
+        // Check generic type definition
+        Il2CppClass* definition = GenericClass::GetTypeDefinition(gclass);
+        if (definition && definition->image == newImage)
+            return true;
+
+        // Check generic arguments recursively
+        const Il2CppGenericInst* inst = gclass->context.class_inst;
+        if (inst)
+        {
+            for (uint32_t i = 0; i < inst->type_argc; i++)
+            {
+                if (ShouldRestoreType(inst->type_argv[i], newImage))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    static bool ShouldRestoreType(const Il2CppType* type, const Il2CppImage* newImage)
+    {
+        if (!type)
+            return false;
+        switch (type->type)
+        {
+        case IL2CPP_TYPE_CLASS:
+        case IL2CPP_TYPE_VALUETYPE:
+        {
+            const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)type->data.typeHandle;
+            if (!typeDef)
+                return false;
+            if (hybridclr::metadata::IsInterpreterType(typeDef))
+            {
+                hybridclr::metadata::InterpreterImage* img =
+                    hybridclr::metadata::MetadataModule::GetImage(typeDef);
+                if (img && img->GetIl2CppImage() == newImage)
+                    return true;
+            }
+            return false;
+        }
+        case IL2CPP_TYPE_GENERICINST:
+        {
+            const Il2CppGenericClass* gclass = type->data.generic_class;
+            if (gclass)
+                return ShouldRestoreGenericClass(const_cast<Il2CppGenericClass*>(gclass), newImage);
+            return false;
+        }
+        case IL2CPP_TYPE_SZARRAY:
+            return ShouldRestoreType(type->data.type, newImage);
+        case IL2CPP_TYPE_ARRAY:
+            return ShouldRestoreType(type->data.array->etype, newImage);
+        case IL2CPP_TYPE_PTR:
+            return ShouldRestoreType(type->data.type, newImage);
+        case IL2CPP_TYPE_BYREF:
+            return ShouldRestoreType(type->data.type, newImage);
+        default:
+            return false;
+        }
+    }
+
     void GenericClass::RestoreCachedGenericClasses(const Il2CppImage* oldImage, Il2CppImage* newImage)
     {
         os::FastAutoLock lock(&g_MetadataLock);
@@ -310,46 +381,10 @@ namespace vm
             scannedCount++;
             Il2CppClass* klass = gclass->cached_class;
 
-            // The generic instance class's image was set to definition->image
-            // during CreateClass. After RestoreReusedClasses updated the
-            // definition's image to newImage, the generic instance's image
-            // might already be newImage (if the definition was reused) or
-            // still oldImage (if the definition was not reused).
-            // We check both conditions: image == oldImage OR image == newImage
-            // (but only if the generic type definition belongs to the old
-            // interpreter image).
-            bool shouldRestore = (klass->image == oldImage);
-
-            // Also check: if the generic type definition's image was oldImage
-            // but the instance's image was already updated to newImage by
-            // RestoreReusedClasses (because the definition was reused).
-            if (!shouldRestore && klass->image == newImage)
-            {
-                // Check if the generic type definition's typeHandle points
-                // to a type definition from the old image.
-                Il2CppClass* definition = GetTypeDefinition(gclass);
-                if (definition && definition->image == newImage)
-                {
-                    // The definition was already reused (image updated to newImage).
-                    // The generic instance should also be restored.
-                    shouldRestore = true;
-                }
-            }
-
-            // Third condition: the generic instance is from an AOT image,
-            // but its generic type definition is from the interpreter image
-            // (which was restored). When the definition's byval_arg was
-            // updated, the s_GenericClassSet lookup may create a NEW generic
-            // instance (different pointer). The old instance's typeHierarchy
-            // still points to the old parent, causing cast failures.
-            if (!shouldRestore)
-            {
-                Il2CppClass* definition = GetTypeDefinition(gclass);
-                if (definition && definition->image == newImage)
-                {
-                    shouldRestore = true;
-                }
-            }
+            // Use recursive check: does this generic instance (or any of
+            // its generic arguments) depend on a type from the reloaded
+            // interpreter image?
+            bool shouldRestore = ShouldRestoreGenericClass(gclass, newImage);
 
             if (!shouldRestore)
                 continue;
