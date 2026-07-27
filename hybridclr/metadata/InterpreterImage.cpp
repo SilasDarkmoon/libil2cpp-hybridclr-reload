@@ -3073,6 +3073,25 @@ namespace metadata
 			klass->typeHierarchy = nullptr;
 			klass->gc_desc = nullptr;
 
+			// Clear interpData on all existing methods so they get re-transformed
+			// using the new image. Without this, the old transform cache
+			// (which references the old image) causes BadImageFormatException
+			// and MissingMethodException at runtime.
+			if (klass->methods)
+			{
+				for (uint16_t m = 0; m < klass->method_count; m++)
+				{
+					if (klass->methods[m])
+					{
+						MethodInfo* mi = const_cast<MethodInfo*>(klass->methods[m]);
+						mi->interpData = nullptr;
+						mi->initInterpCallMethodPointer = false;
+						mi->methodPointerCallByInterp = nullptr;
+						mi->virtualMethodPointerCallByInterp = nullptr;
+					}
+				}
+			}
+
 			klass->initialized = 0;
 			klass->initialized_and_no_error = 0;
 			klass->init_pending = 0;
