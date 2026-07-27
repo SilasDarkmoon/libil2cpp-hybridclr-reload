@@ -2983,6 +2983,62 @@ namespace metadata
 			klass->this_arg.valuetype = 0;
 			klass->interopData = il2cpp::vm::MetadataCache::GetInteropDataForType(&klass->byval_arg);
 
+			// --- Update old MethodInfo objects BEFORE updating method_count ---
+			// Old MethodInfo objects may still be referenced by delegates,
+			// vtables, etc. We must update their token, methodMetadataHandle,
+			// methodPointer, etc. to point to the new image, and clear
+			// interpData to force re-transform with the new image.
+			// Must use OLD method_count (klass->method_count hasn't been
+			// updated yet) to iterate the old methods array.
+			if (klass->methods && klass->method_count > 0)
+			{
+				uint16_t oldMethodCount = klass->method_count;
+				for (uint16_t m = 0; m < oldMethodCount; m++)
+				{
+					MethodInfo* mi = const_cast<MethodInfo*>(klass->methods[m]);
+					if (!mi)
+						continue;
+					Il2CppMetadataMethodInfo newMethodInfo =
+						il2cpp::vm::MetadataCache::GetMethodInfo(klass, m);
+					mi->token = newMethodInfo.token;
+					mi->methodMetadataHandle = newMethodInfo.handle;
+					mi->genericContainerHandle =
+						il2cpp::vm::MetadataCache::GetGenericContainerFromMethod(newMethodInfo.handle);
+					mi->name = newMethodInfo.name;
+					mi->return_type = newMethodInfo.return_type;
+					mi->parameters_count = (uint8_t)newMethodInfo.parameterCount;
+					mi->flags = newMethodInfo.flags;
+					mi->iflags = newMethodInfo.iflags;
+					mi->slot = newMethodInfo.slot;
+					const Il2CppType** params = (const Il2CppType**)il2cpp::vm::MetadataCalloc(
+						newMethodInfo.parameterCount, sizeof(Il2CppType*));
+					for (uint16_t pi = 0; pi < newMethodInfo.parameterCount; pi++)
+					{
+						Il2CppMetadataParameterInfo paramInfo =
+							il2cpp::vm::MetadataCache::GetParameterInfo(klass, newMethodInfo.handle, pi);
+						params[pi] = paramInfo.type;
+					}
+					mi->parameters = params;
+					mi->methodPointer = il2cpp::vm::MetadataCache::GetMethodPointer(klass->image, newMethodInfo.token);
+					if (klass->byval_arg.valuetype)
+					{
+						Il2CppMethodPointer adjustorThunk = il2cpp::vm::MetadataCache::GetAdjustorThunk(klass->image, newMethodInfo.token);
+						if (adjustorThunk != NULL)
+							mi->virtualMethodPointer = adjustorThunk;
+					}
+					if (mi->virtualMethodPointer == NULL || mi->virtualMethodPointer == mi->methodPointer)
+						mi->virtualMethodPointer = mi->methodPointer;
+					mi->methodPointerCallByInterp = nullptr;
+					mi->virtualMethodPointerCallByInterp = nullptr;
+					mi->initInterpCallMethodPointer = false;
+					mi->interpData = nullptr;
+					if (mi->virtualMethodPointer)
+						mi->invoker_method = il2cpp::vm::MetadataCache::GetMethodInvoker(klass->image, newMethodInfo.token);
+					mi->isInterpterImpl = hybridclr::interpreter::InterpreterModule::IsImplementsByInterpreter(mi);
+					mi->klass = klass;
+				}
+			}
+
 			// --- Update counts from new type definition ---
 			klass->method_count = typeDef.method_count;
 			klass->property_count = typeDef.property_count;
@@ -3061,79 +3117,7 @@ namespace metadata
 
 			Il2CppClass* klass = _classList[i];
 
-			// Update old MethodInfo objects to point to new image's data.
-			// Old MethodInfo objects may still be referenced by delegates,
-			// vtables, etc. We must update their token, methodMetadataHandle,
-			// methodPointer, etc. to point to the new image, and clear
-			// interpData to force re-transform with the new image.
-			if (klass->methods && klass->method_count > 0)
-			{
-				// Get the new type definition for this class
-				const Il2CppTypeDefinition* newTypeDef =
-					(const Il2CppTypeDefinition*)klass->typeMetadataHandle;
-				if (newTypeDef && IsInterpreterIndex(newTypeDef->methodStart))
-				{
-					for (uint16_t m = 0; m < klass->method_count; m++)
-					{
-						MethodInfo* mi = const_cast<MethodInfo*>(klass->methods[m]);
-						if (!mi)
-							continue;
-
-						// Get new method definition for index m
-						Il2CppMetadataMethodInfo newMethodInfo =
-							il2cpp::vm::MetadataCache::GetMethodInfo(klass, m);
-
-						// Update the old MethodInfo to point to new image's data
-						mi->token = newMethodInfo.token;
-						mi->methodMetadataHandle = newMethodInfo.handle;
-						mi->genericContainerHandle =
-							il2cpp::vm::MetadataCache::GetGenericContainerFromMethod(newMethodInfo.handle);
-						mi->name = newMethodInfo.name;
-						mi->return_type = newMethodInfo.return_type;
-						mi->parameters_count = (uint8_t)newMethodInfo.parameterCount;
-						mi->flags = newMethodInfo.flags;
-						mi->iflags = newMethodInfo.iflags;
-						mi->slot = newMethodInfo.slot;
-
-						// Reallocate parameters array if count changed
-						const Il2CppType** params = (const Il2CppType**)il2cpp::vm::MetadataCalloc(
-							newMethodInfo.parameterCount, sizeof(Il2CppType*));
-						for (uint16_t pi = 0; pi < newMethodInfo.parameterCount; pi++)
-						{
-							Il2CppMetadataParameterInfo paramInfo =
-								il2cpp::vm::MetadataCache::GetParameterInfo(klass, newMethodInfo.handle, pi);
-							params[pi] = paramInfo.type;
-						}
-						mi->parameters = params;
-
-						// Update method pointers from new image
-						mi->methodPointer = il2cpp::vm::MetadataCache::GetMethodPointer(klass->image, newMethodInfo.token);
-						if (klass->byval_arg.valuetype)
-						{
-							Il2CppMethodPointer adjustorThunk = il2cpp::vm::MetadataCache::GetAdjustorThunk(klass->image, newMethodInfo.token);
-							if (adjustorThunk != NULL)
-								mi->virtualMethodPointer = adjustorThunk;
-						}
-						if (mi->virtualMethodPointer == NULL || mi->virtualMethodPointer == mi->methodPointer)
-							mi->virtualMethodPointer = mi->methodPointer;
-
-						mi->methodPointerCallByInterp = mi->methodPointer;
-						mi->virtualMethodPointerCallByInterp = mi->virtualMethodPointer;
-						mi->initInterpCallMethodPointer = false;  // force re-init
-						mi->interpData = nullptr;  // force re-transform
-						mi->methodPointerCallByInterp = nullptr;
-						mi->virtualMethodPointerCallByInterp = nullptr;
-
-						if (mi->virtualMethodPointer)
-						{
-							mi->invoker_method = il2cpp::vm::MetadataCache::GetMethodInvoker(klass->image, newMethodInfo.token);
-						}
-
-						mi->isInterpterImpl = hybridclr::interpreter::InterpreterModule::IsImplementsByInterpreter(mi);
-						mi->klass = klass;
-					}
-				}
-			}
+			// MethodInfo update was done in Pass 1 (before method_count update).
 
 			klass->fields = nullptr;
 			klass->methods = nullptr;
