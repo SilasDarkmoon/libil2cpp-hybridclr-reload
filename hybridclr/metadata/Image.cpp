@@ -387,8 +387,8 @@ namespace metadata
                 il2cpp::os::Directory::Create(dirStr, &createError);
                 FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
                 if (fp) {
-                    fprintf(fp, "[ReuseDiag] ReadType FAIL: invalid type byte=%d\n",
-                        (int)(unsigned char)reader.PeekByte());
+                    fprintf(fp, "[ReuseDiag] ReadType FAIL: invalid etype=%d (0x%x)\n",
+                        (int)etype, (int)etype);
                     fclose(fp);
                 }
             }
