@@ -2847,8 +2847,8 @@ namespace metadata
 				}
 			}
 		}
-		ReuseLog("CollectReusable: total classes=%zu total methods=%zu",
-			_reuseClassMap.size(), _reuseMethodMap.size());
+		ReuseLog("CollectReusable: total classes=%zu total methods=%zu this=%p",
+			_reuseClassMap.size(), _reuseMethodMap.size(), (void*)this);
 	}
 
 	void InterpreterImage::RestoreReusedClasses()
