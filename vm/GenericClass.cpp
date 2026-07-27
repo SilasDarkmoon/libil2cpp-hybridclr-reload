@@ -344,7 +344,11 @@ namespace vm
     {
         if (!type)
             return false;
-        switch (type->type)
+        // Guard against invalid type values that could cause crashes
+        uint8_t t = type->type;
+        if (t == 0 || t > IL2CPP_TYPE_MVAR)
+            return false;
+        switch (t)
         {
         case IL2CPP_TYPE_CLASS:
         case IL2CPP_TYPE_VALUETYPE:
@@ -446,7 +450,36 @@ namespace vm
             klass->initializationExceptionGCHandle = 0;
             klass->unity_user_data = nullptr;
 
+            // Log before and after Class::Init, write to file
+            {
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) {
+                    fprintf(fp, "[ReuseDiag] GenericClass BEFORE Init: '%s.%s' klass=%p\n",
+                        klass->namespaze ? klass->namespaze : "",
+                        klass->name ? klass->name : "",
+                        (void*)klass);
+                    fclose(fp);
+                }
+            }
             il2cpp::vm::Class::Init(klass);
+            {
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) {
+                    fprintf(fp, "[ReuseDiag] GenericClass AFTER Init: '%s.%s' klass=%p initialized=%d\n",
+                        klass->namespaze ? klass->namespaze : "",
+                        klass->name ? klass->name : "",
+                        (void*)klass, (int)klass->initialized);
+                    fclose(fp);
+                }
+            }
         }
         fprintf(stderr, "[Reuse] GenericClass restore: scanned=%d restored=%d\n", scannedCount, restoredCount);
         {
