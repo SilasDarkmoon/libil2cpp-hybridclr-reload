@@ -388,9 +388,8 @@ namespace metadata
                 FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
                 if (fp) {
                     // Dump a few bytes around the current position for debugging
-                    int b0 = reader.HasMore() ? (int)(unsigned char)reader.PeekByte() : -1;
-                    fprintf(fp, "[ReuseDiag] ReadType FAIL: invalid etype=%d (0x%x) nextByte=%d this=%p\n",
-                        (int)etype, (int)etype, b0, (void*)this);
+                    fprintf(fp, "[ReuseDiag] ReadType FAIL: invalid etype=%d (0x%x) this=%p\n",
+                        (int)etype, (int)etype, (void*)this);
                     fclose(fp);
                 }
             }
