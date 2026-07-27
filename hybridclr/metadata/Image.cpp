@@ -202,6 +202,7 @@ namespace metadata
     }
 
     // Helper to log ReadType caller when etype=0
+    static const char* s_readTypeCaller = "unknown";
     static void LogReadTypeFail(BlobReader& reader, Image* img)
     {
         const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
@@ -212,14 +213,8 @@ namespace metadata
         if (fp) {
             const byte* d = reader.GetData();
             uint32_t dl = reader.GetLength();
-            fprintf(fp, "[ReuseDiag] ReadType etype=0: readPos=%u length=%u buf=%p this=%p caller=%p data=",
-                reader.GetReadPosition(), dl, (void*)d, (void*)img,
-#ifdef _MSC_VER
-                _ReturnAddress()
-#else
-                __builtin_return_address(0)
-#endif
-            );
+            fprintf(fp, "[ReuseDiag] ReadType etype=0: readPos=%u length=%u buf=%p this=%p caller=%s data=",
+                reader.GetReadPosition(), dl, (void*)d, (void*)img, s_readTypeCaller);
             for (uint32_t b = 0; b < 16 && b < dl; b++)
                 fprintf(fp, "%02x ", d[b]);
             if (dl == 0)
@@ -555,6 +550,7 @@ namespace metadata
 
     void Image::ReadFieldRefSig(BlobReader& reader, const Il2CppGenericContainer* klassGenericContainer, FieldRefSig& field)
     {
+        s_readTypeCaller = "ReadFieldRefSig";
         field = {};
         uint8_t rawSigType = reader.ReadByte();
         SigType sigType = DecodeSigType(rawSigType);
@@ -564,6 +560,7 @@ namespace metadata
 
     void Image::ReadMethodRefSig(BlobReader& reader, MethodRefSig& method)
     {
+        s_readTypeCaller = "ReadMethodRefSig";
         method = {};
         uint8_t rawSigFlags = reader.ReadByte();
         method.flags = rawSigFlags;
@@ -591,6 +588,7 @@ namespace metadata
 
     void Image::ReadMemberRefSig(const Il2CppGenericContainer* klassGenericContainer, TbMemberRef& data, ResolveMemberRefSig& signature)
     {
+        s_readTypeCaller = "ReadMemberRefSig";
         BlobReader reader = _rawImage->GetBlobReaderByRawIndex(data.signature);
         uint8_t rawSigFlags = reader.PeekByte();
         SigType sigType = DecodeSigType(rawSigFlags);
@@ -723,6 +721,7 @@ namespace metadata
 
     void Image::ReadLocalVarSig(BlobReader& reader, const Il2CppGenericContainer* klassGenericContainer, const Il2CppGenericContainer* methodGenericContainer, il2cpp::utils::dynamic_array<const Il2CppType*>& vars)
     {
+        s_readTypeCaller = "ReadLocalVarSig";
         uint8_t sig = reader.ReadByte();
         IL2CPP_ASSERT(sig == 0x7);
         uint32_t varCount = reader.ReadCompressedUint32();
@@ -736,6 +735,7 @@ namespace metadata
 
     void Image::ReadStandAloneSig(uint32_t signatureIdx, const Il2CppGenericContainer* klassGenericContainer, const Il2CppGenericContainer* methodGenericContainer, ResolveStandAloneMethodSig& methodSig)
     {
+        s_readTypeCaller = "ReadStandAloneSig";
         BlobReader reader = _rawImage->GetBlobReaderByRawIndex(signatureIdx);
         uint8_t sig = reader.ReadByte();
         methodSig.flags = sig;
