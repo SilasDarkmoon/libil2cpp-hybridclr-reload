@@ -704,10 +704,11 @@ namespace metadata
 				il2cpp::os::Directory::Create(dirStr, &createError);
 				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
 				if (fp) {
-					fprintf(fp, "[ReuseDiag] GetMethodInfoFromMethodDef FAIL: method='%s' methodDef=%p klass='%s.%s' method_count=%u\n",
+					fprintf(fp, "[ReuseDiag] GetMethodInfoFromMethodDef FAIL: method='%s' methodDef=%p klass='%s.%s' method_count=%u klass_image=%p typeMetaHandle=%p\n",
 						mname, (void*)methodDef,
 						klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "",
-						(unsigned)klass->method_count);
+						(unsigned)klass->method_count,
+						(void*)klass->image, (void*)klass->typeMetadataHandle);
 					// List all methodMetadataHandle pointers
 					void* iter2 = nullptr;
 					for (const MethodInfo* cur = nullptr; (cur = il2cpp::vm::Class::GetMethods(klass, &iter2)) != nullptr; )
