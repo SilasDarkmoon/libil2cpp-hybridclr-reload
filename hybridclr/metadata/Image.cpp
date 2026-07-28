@@ -813,7 +813,7 @@ namespace metadata
                         il2cpp::os::Directory::Create(dirStr, &createError);
                         FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
                         if (fp) {
-                            const char* mname = GetStringFromIndex(methodDef.nameIndex);
+                            const char* mname = il2cpp::vm::GlobalMetadata::GetStringFromIndex(methodDef.nameIndex);
                             fprintf(fp, "[ReuseDiag] ReadMethodBody klassGC=NULL: method='%s' declaringType=%u decoded=%u this=%p\n",
                                 mname ? mname : "<null>",
                                 (unsigned)methodDef.declaringType,
