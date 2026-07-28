@@ -72,32 +72,40 @@ namespace vm
             }
             if (reused)
             {
-                // Update the old MethodInfo's fields to point to new data
-                reused->name = methodDefinition->name;
+                // First, inflate the method definition to get correct
+                // inflated return_type, parameters, methodPointer, etc.
+                const MethodInfo* inflated = metadata::GenericMetadata::Inflate(
+                    methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
+
+                // Update the old MethodInfo with inflated data
+                reused->name = inflated->name;
                 reused->klass = genericInstanceType;
-                reused->return_type = methodDefinition->return_type;
-                reused->parameters_count = methodDefinition->parameters_count;
-                // Allocate fresh parameters array
+                reused->return_type = inflated->return_type;
+                reused->parameters_count = inflated->parameters_count;
+                // Allocate fresh parameters array from inflated method
                 const Il2CppType** params = (const Il2CppType**)MetadataCalloc(
-                    methodDefinition->parameters_count, sizeof(Il2CppType*));
-                for (uint16_t pi = 0; pi < methodDefinition->parameters_count; pi++)
-                    params[pi] = methodDefinition->parameters[pi];
+                    inflated->parameters_count, sizeof(Il2CppType*));
+                for (uint16_t pi = 0; pi < inflated->parameters_count; pi++)
+                    params[pi] = inflated->parameters[pi];
                 reused->parameters = params;
-                reused->flags = methodDefinition->flags;
-                reused->iflags = methodDefinition->iflags;
-                reused->slot = methodDefinition->slot;
-                reused->token = methodDefinition->token;
-                reused->methodMetadataHandle = methodDefinition->methodMetadataHandle;
-                reused->genericContainerHandle = methodDefinition->genericContainerHandle;
-                reused->is_generic = methodDefinition->is_generic;
-                reused->methodPointer = methodDefinition->methodPointer;
-                reused->virtualMethodPointer = methodDefinition->virtualMethodPointer;
+                reused->flags = inflated->flags;
+                reused->iflags = inflated->iflags;
+                reused->slot = inflated->slot;
+                reused->token = inflated->token;
+                reused->methodMetadataHandle = inflated->methodMetadataHandle;
+                reused->genericContainerHandle = inflated->genericContainerHandle;
+                reused->is_generic = inflated->is_generic;
+                reused->is_inflated = inflated->is_inflated;
+                if (inflated->genericMethod)
+                    reused->genericMethod = inflated->genericMethod;
+                reused->methodPointer = inflated->methodPointer;
+                reused->virtualMethodPointer = inflated->virtualMethodPointer;
                 reused->methodPointerCallByInterp = nullptr;
                 reused->virtualMethodPointerCallByInterp = nullptr;
                 reused->initInterpCallMethodPointer = false;
                 reused->interpData = nullptr;
-                reused->invoker_method = methodDefinition->invoker_method;
-                reused->isInterpterImpl = methodDefinition->isInterpterImpl;
+                reused->invoker_method = inflated->invoker_method;
+                reused->isInterpterImpl = inflated->isInterpterImpl;
 
                 methods[methodIndex] = reused;
                 continue;
