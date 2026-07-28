@@ -77,6 +77,24 @@ namespace vm
                 const MethodInfo* inflated = metadata::GenericMetadata::Inflate(
                     methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
 
+                // Log to file for debugging
+                {
+                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                    int createError = 0;
+                    il2cpp::os::Directory::Create(dirStr, &createError);
+                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                    if (fp) {
+                        fprintf(fp, "[Reuse] GenericMethod REUSED: '%s.%s' method='%s' klass=%p reused=%p inflated=%p methodPtr=%p\n",
+                            genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
+                            genericInstanceType->name ? genericInstanceType->name : "",
+                            methodDefinition->name ? methodDefinition->name : "",
+                            (void*)genericInstanceType, (void*)reused, (void*)inflated,
+                            (void*)inflated->methodPointer);
+                        fclose(fp);
+                    }
+                }
+
                 // Update the old MethodInfo with inflated data
                 reused->name = inflated->name;
                 reused->klass = genericInstanceType;
@@ -111,6 +129,23 @@ namespace vm
                 continue;
             }
             // ===}} AssemblyReloadReuse
+
+            // Log when method is NOT reused (new inflated method created)
+            if (reuseImage)
+            {
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) {
+                    fprintf(fp, "[Reuse] GenericMethod NEW (no reuse match): '%s.%s' method='%s'\n",
+                        genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
+                        genericInstanceType->name ? genericInstanceType->name : "",
+                        methodDefinition->name ? methodDefinition->name : "");
+                    fclose(fp);
+                }
+            }
 
             methods[methodIndex] = metadata::GenericMetadata::Inflate(methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
         }

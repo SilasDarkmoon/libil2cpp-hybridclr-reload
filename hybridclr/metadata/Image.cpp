@@ -201,29 +201,6 @@ namespace metadata
         return il2cpp::metadata::GenericMetadata::GetGenericClass(genericBase, genericInst);
     }
 
-    // Helper to log ReadType caller when etype=0
-    static const char* s_readTypeCaller = "unknown";
-    static void LogReadTypeFail(BlobReader& reader, Image* img)
-    {
-        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-        int createError = 0;
-        il2cpp::os::Directory::Create(dirStr, &createError);
-        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-        if (fp) {
-            const byte* d = reader.GetData();
-            uint32_t dl = reader.GetLength();
-            fprintf(fp, "[ReuseDiag] ReadType etype=0: readPos=%u length=%u buf=%p this=%p caller=%s data=",
-                reader.GetReadPosition(), dl, (void*)d, (void*)img, s_readTypeCaller);
-            for (uint32_t b = 0; b < 16 && b < dl; b++)
-                fprintf(fp, "%02x ", d[b]);
-            if (dl == 0)
-                fprintf(fp, "(length=0)");
-            fprintf(fp, "\n");
-            fclose(fp);
-        }
-    }
-
     const Il2CppType* Image::ReadType(BlobReader& reader, const Il2CppGenericContainer* klassGenericContainer, const Il2CppGenericContainer* methodGenericContainer)
     {
         Il2CppType type = {};
@@ -231,11 +208,6 @@ namespace metadata
     readAgain:
         Il2CppTypeEnum etype = (Il2CppTypeEnum)reader.ReadByte();
         type.type = etype;
-        // Log when etype is invalid (0 or unexpected value)
-        if (etype == 0)
-        {
-            LogReadTypeFail(reader, this);
-        }
         switch (etype)
         {
         case IL2CPP_TYPE_VOID:
@@ -407,20 +379,6 @@ namespace metadata
         }
         default:
         {
-            // Log before raising exception
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) {
-                    fprintf(fp, "[ReuseDiag] ReadType FAIL: invalid etype=%d (0x%x) this=%p readPos=%u length=%u buf=%p\n",
-                        (int)etype, (int)etype, (void*)this,
-                        reader.GetReadPosition(), reader.GetLength(), (void*)reader.GetData());
-                    fclose(fp);
-                }
-            }
             RaiseBadImageException("Image::ReadType invalid type");
             break;
         }
@@ -550,7 +508,6 @@ namespace metadata
 
     void Image::ReadFieldRefSig(BlobReader& reader, const Il2CppGenericContainer* klassGenericContainer, FieldRefSig& field)
     {
-        s_readTypeCaller = "ReadFieldRefSig";
         field = {};
         uint8_t rawSigType = reader.ReadByte();
         SigType sigType = DecodeSigType(rawSigType);
@@ -560,7 +517,6 @@ namespace metadata
 
     void Image::ReadMethodRefSig(BlobReader& reader, MethodRefSig& method)
     {
-        s_readTypeCaller = "ReadMethodRefSig";
         method = {};
         uint8_t rawSigFlags = reader.ReadByte();
         method.flags = rawSigFlags;
@@ -588,7 +544,6 @@ namespace metadata
 
     void Image::ReadMemberRefSig(const Il2CppGenericContainer* klassGenericContainer, TbMemberRef& data, ResolveMemberRefSig& signature)
     {
-        s_readTypeCaller = "ReadMemberRefSig";
         BlobReader reader = _rawImage->GetBlobReaderByRawIndex(data.signature);
         uint8_t rawSigFlags = reader.PeekByte();
         SigType sigType = DecodeSigType(rawSigFlags);
@@ -721,7 +676,6 @@ namespace metadata
 
     void Image::ReadLocalVarSig(BlobReader& reader, const Il2CppGenericContainer* klassGenericContainer, const Il2CppGenericContainer* methodGenericContainer, il2cpp::utils::dynamic_array<const Il2CppType*>& vars)
     {
-        s_readTypeCaller = "ReadLocalVarSig";
         uint8_t sig = reader.ReadByte();
         IL2CPP_ASSERT(sig == 0x7);
         uint32_t varCount = reader.ReadCompressedUint32();
@@ -735,7 +689,6 @@ namespace metadata
 
     void Image::ReadStandAloneSig(uint32_t signatureIdx, const Il2CppGenericContainer* klassGenericContainer, const Il2CppGenericContainer* methodGenericContainer, ResolveStandAloneMethodSig& methodSig)
     {
-        s_readTypeCaller = "ReadStandAloneSig";
         BlobReader reader = _rawImage->GetBlobReaderByRawIndex(signatureIdx);
         uint8_t sig = reader.ReadByte();
         methodSig.flags = sig;
@@ -1003,31 +956,6 @@ namespace metadata
             const Il2CppTypeDefinition* typeDef = GetUnderlyingTypeDefinition(type);
             const Il2CppGenericContainer* klassGenericContainer = GetGenericContainerFromIl2CppType(type);
             const char* typeName = il2cpp::vm::GlobalMetadata::GetStringFromIndex(typeDef->nameIndex);
-            // ==={{ AssemblyReloadReuse: log method resolution failures
-            bool isLogManager = typeName && strstr(typeName, "LogManager");
-            bool isGetLogger = resolveMethodName && strstr(resolveMethodName, "GetLogger");
-            if (isLogManager && isGetLogger)
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp)
-                {
-                    fprintf(fp, "[ReuseDiag] ResolveMethodInfo: typeName='%s' method_count=%u looking for '%s'\n",
-                        typeName ? typeName : "", (unsigned)typeDef->method_count, resolveMethodName ? resolveMethodName : "");
-                    // List all method names
-                    for (uint32_t i = 0; i < typeDef->method_count; i++)
-                    {
-                        const Il2CppMethodDefinition* methodDef = il2cpp::vm::GlobalMetadata::GetMethodDefinitionFromIndex(typeDef->methodStart + i);
-                        const char* methodName = il2cpp::vm::GlobalMetadata::GetStringFromIndex(methodDef->nameIndex);
-                        fprintf(fp, "  method[%u] name='%s'\n", i, methodName ? methodName : "<null>");
-                    }
-                    fclose(fp);
-                }
-            }
-            // ===}} AssemblyReloadReuse
             for (uint32_t i = 0; i < typeDef->method_count; i++)
             {
                 const Il2CppMethodDefinition* methodDef = il2cpp::vm::GlobalMetadata::GetMethodDefinitionFromIndex(typeDef->methodStart + i);
@@ -1037,17 +965,6 @@ namespace metadata
                 {
                     return GetMethodInfo(type, methodDef, genericInstantiation, genericContext);
                 }
-            }
-            // Log if method not found
-            if (isLogManager && isGetLogger)
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) { fprintf(fp, "[ReuseDiag] ResolveMethodInfo FAILED: '%s::%s' not found in %u methods\n",
-                    typeName ? typeName : "", resolveMethodName ? resolveMethodName : "", (unsigned)typeDef->method_count); fclose(fp); }
             }
         }
         else
