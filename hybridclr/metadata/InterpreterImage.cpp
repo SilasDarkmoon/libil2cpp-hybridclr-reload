@@ -2870,6 +2870,26 @@ namespace metadata
 				}
 			}
 		}
+
+		// Also collect MethodInfo objects from generic instance classes
+		// (s_GenericClassSet). These are not in _classList.
+		{
+			struct CollectContext {
+				std::unordered_map<std::string, MethodInfo*>* methodMap;
+				InterpreterImage* self;
+			} ctx = { &_reuseMethodMap, this };
+
+			il2cpp::vm::GenericClass::CollectMethodsFromGenericClasses(oldImage->GetIl2CppImage(),
+				[](const MethodInfo* method, void* userData) {
+					CollectContext* ctx = (CollectContext*)userData;
+					std::string sigKey = ctx->self->BuildMethodSignatureKey(method->klass, method);
+					if (ctx->methodMap->find(sigKey) == ctx->methodMap->end())
+					{
+						(*ctx->methodMap)[sigKey] = const_cast<MethodInfo*>(method);
+					}
+				}, &ctx);
+		}
+
 		ReuseLog("CollectReusable: total classes=%zu total methods=%zu this=%p",
 			_reuseClassMap.size(), _reuseMethodMap.size(), (void*)this);
 	}

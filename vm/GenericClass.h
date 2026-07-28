@@ -40,6 +40,11 @@ namespace vm
         // newImage and reset lazily-initialised fields so they get
         // re-computed from the new metadata.
         static void RestoreCachedGenericClasses(const Il2CppImage* oldImage, Il2CppImage* newImage);
+
+        // Collect reusable MethodInfo objects from generic instance classes
+        // whose image matches oldImage. Calls callback for each method.
+        typedef void (*CollectMethodCallback)(const MethodInfo* method, void* userData);
+        static void CollectMethodsFromGenericClasses(const Il2CppImage* oldImage, CollectMethodCallback callback, void* userData);
         // ===}} AssemblyReloadReuse
 
         static bool HasSameGenericTypeDefinition(const Il2CppGenericClass* gclass1, const Il2CppGenericClass* gclass2)

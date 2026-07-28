@@ -506,6 +506,28 @@ namespace vm
         }
     }
 
+    void GenericClass::CollectMethodsFromGenericClasses(const Il2CppImage* oldImage, CollectMethodCallback callback, void* userData)
+    {
+        os::FastAutoLock lock(&g_MetadataLock);
+        for (Il2CppGenericClass* gclass : s_GenericClassSet)
+        {
+            if (!gclass->cached_class)
+                continue;
+            Il2CppClass* klass = gclass->cached_class;
+            // Check if this generic instance belongs to the old image
+            if (klass->image != oldImage)
+                continue;
+            if (!klass->methods || klass->method_count == 0)
+                continue;
+            for (uint16_t m = 0; m < klass->method_count; m++)
+            {
+                const MethodInfo* method = klass->methods[m];
+                if (method)
+                    callback(method, userData);
+            }
+        }
+    }
+
     void GenericClass::RestoreCachedGenericClasses(const Il2CppImage* oldImage, Il2CppImage* newImage)
     {
         os::FastAutoLock lock(&g_MetadataLock);
