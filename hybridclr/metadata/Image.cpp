@@ -379,6 +379,16 @@ namespace metadata
         }
         default:
         {
+            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+            int createError = 0;
+            il2cpp::os::Directory::Create(dirStr, &createError);
+            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+            if (fp) {
+                fprintf(fp, "[ReuseDiag] ReadType FAIL: etype=%d readPos=%u length=%u this=%p\n",
+                    (int)etype, reader.GetReadPosition(), reader.GetLength(), (void*)this);
+                fclose(fp);
+            }
             RaiseBadImageException("Image::ReadType invalid type");
             break;
         }
