@@ -2833,8 +2833,6 @@ namespace metadata
 				fclose(fp);
 			}
 		}
-		key += ")->";
-		key += TypeToSigString(returnType);
 		return FindReusableMethod(key);
 	}
 
