@@ -577,6 +577,11 @@ namespace vm
             }
             if (!shouldCollect)
                 continue;
+            // Ensure methods are set up before collecting
+            if (!klass->methods && klass->method_count > 0)
+            {
+                il2cpp::vm::Class::SetupMethods(klass);
+            }
             if (!klass->methods || klass->method_count == 0)
                 continue;
             for (uint16_t m = 0; m < klass->method_count; m++)
