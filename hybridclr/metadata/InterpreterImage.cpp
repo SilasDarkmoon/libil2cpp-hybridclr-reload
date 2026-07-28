@@ -2815,13 +2815,9 @@ namespace metadata
 			FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
 			if (fp) {
 				fprintf(fp, "[Reuse] TryReuse key='%s' mapSize=%zu\n", key.c_str(), _reuseMethodMap.size());
-				// Print first few keys in the map for comparison
-				int count = 0;
-				for (auto& kv : _reuseMethodMap)
-				{
-					if (count++ >= 3) break;
-					fprintf(fp, "[Reuse]   mapKey='%s'\n", kv.first.c_str());
-				}
+				// Check if key exists in map
+				auto it = _reuseMethodMap.find(key);
+			 fprintf(fp, "[Reuse]   key found=%s\n", it != _reuseMethodMap.end() ? "YES" : "NO");
 				fclose(fp);
 			}
 		}
