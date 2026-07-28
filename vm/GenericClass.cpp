@@ -57,76 +57,92 @@ namespace vm
             MethodInfo* reused = nullptr;
             if (reuseImage)
             {
-                // Build parameter type array for signature lookup
-                const Il2CppType** paramTypes = nullptr;
-                if (methodDefinition->parameters_count > 0)
-                {
-                    paramTypes = (const Il2CppType**)alloca(methodDefinition->parameters_count * sizeof(Il2CppType*));
-                    for (uint16_t pi = 0; pi < methodDefinition->parameters_count; pi++)
-                        paramTypes[pi] = methodDefinition->parameters[pi];
-                }
-                reused = reuseImage->TryReuseMethodFromMetadata(
-                    genericInstanceType, methodDefinition->name,
-                    methodDefinition->return_type,
-                    paramTypes, methodDefinition->parameters_count);
-            }
-            if (reused)
-            {
-                // First, inflate the method definition to get correct
-                // inflated return_type, parameters, methodPointer, etc.
+                // First inflate to get correct parameter/return types
                 const MethodInfo* inflated = metadata::GenericMetadata::Inflate(
                     methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
 
-                // Log to file for debugging
+                // Build parameter type array from INFLATED method (not methodDefinition)
+                const Il2CppType** paramTypes = nullptr;
+                if (inflated->parameters_count > 0)
                 {
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp) {
-                        fprintf(fp, "[Reuse] GenericMethod REUSED: '%s.%s' method='%s' klass=%p reused=%p inflated=%p methodPtr=%p\n",
-                            genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
-                            genericInstanceType->name ? genericInstanceType->name : "",
-                            methodDefinition->name ? methodDefinition->name : "",
-                            (void*)genericInstanceType, (void*)reused, (void*)inflated,
-                            (void*)inflated->methodPointer);
-                        fclose(fp);
-                    }
+                    paramTypes = (const Il2CppType**)alloca(inflated->parameters_count * sizeof(Il2CppType*));
+                    for (uint16_t pi = 0; pi < inflated->parameters_count; pi++)
+                        paramTypes[pi] = inflated->parameters[pi];
                 }
+                reused = reuseImage->TryReuseMethodFromMetadata(
+                    genericInstanceType, inflated->name,
+                    inflated->return_type,
+                    paramTypes, inflated->parameters_count);
 
-                // Update the old MethodInfo with inflated data
-                reused->name = inflated->name;
-                reused->klass = genericInstanceType;
-                reused->return_type = inflated->return_type;
-                reused->parameters_count = inflated->parameters_count;
-                // Allocate fresh parameters array from inflated method
-                const Il2CppType** params = (const Il2CppType**)MetadataCalloc(
-                    inflated->parameters_count, sizeof(Il2CppType*));
-                for (uint16_t pi = 0; pi < inflated->parameters_count; pi++)
-                    params[pi] = inflated->parameters[pi];
-                reused->parameters = params;
-                reused->flags = inflated->flags;
-                reused->iflags = inflated->iflags;
-                reused->slot = inflated->slot;
-                reused->token = inflated->token;
-                reused->methodMetadataHandle = inflated->methodMetadataHandle;
-                reused->genericContainerHandle = inflated->genericContainerHandle;
-                reused->is_generic = inflated->is_generic;
-                reused->is_inflated = inflated->is_inflated;
-                if (inflated->genericMethod)
-                    reused->genericMethod = inflated->genericMethod;
-                reused->methodPointer = inflated->methodPointer;
-                reused->virtualMethodPointer = inflated->virtualMethodPointer;
-                reused->methodPointerCallByInterp = nullptr;
-                reused->virtualMethodPointerCallByInterp = nullptr;
-                reused->initInterpCallMethodPointer = false;
-                reused->interpData = nullptr;
-                reused->invoker_method = inflated->invoker_method;
-                reused->isInterpterImpl = inflated->isInterpterImpl;
+                // If reused, we already have the inflated MethodInfo
+                if (reused)
+                {
+                    // Update the old MethodInfo with inflated data
+                    reused->name = inflated->name;
+                    reused->klass = genericInstanceType;
+                    reused->return_type = inflated->return_type;
+                    reused->parameters_count = inflated->parameters_count;
+                    const Il2CppType** params = (const Il2CppType**)MetadataCalloc(
+                        inflated->parameters_count, sizeof(Il2CppType*));
+                    for (uint16_t pi = 0; pi < inflated->parameters_count; pi++)
+                        params[pi] = inflated->parameters[pi];
+                    reused->parameters = params;
+                    reused->flags = inflated->flags;
+                    reused->iflags = inflated->iflags;
+                    reused->slot = inflated->slot;
+                    reused->token = inflated->token;
+                    reused->methodMetadataHandle = inflated->methodMetadataHandle;
+                    reused->genericContainerHandle = inflated->genericContainerHandle;
+                    reused->is_generic = inflated->is_generic;
+                    reused->is_inflated = inflated->is_inflated;
+                    if (inflated->genericMethod)
+                        reused->genericMethod = inflated->genericMethod;
+                    reused->methodPointer = inflated->methodPointer;
+                    reused->virtualMethodPointer = inflated->virtualMethodPointer;
+                    reused->methodPointerCallByInterp = nullptr;
+                    reused->virtualMethodPointerCallByInterp = nullptr;
+                    reused->initInterpCallMethodPointer = false;
+                    reused->interpData = nullptr;
+                    reused->invoker_method = inflated->invoker_method;
+                    reused->isInterpterImpl = inflated->isInterpterImpl;
 
-                methods[methodIndex] = reused;
-                continue;
+                    // Log to file for debugging
+                    {
+                        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                        int createError = 0;
+                        il2cpp::os::Directory::Create(dirStr, &createError);
+                        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                        if (fp) {
+                            fprintf(fp, "[Reuse] GenericMethod REUSED: '%s.%s' method='%s'\n",
+                                genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
+                                genericInstanceType->name ? genericInstanceType->name : "",
+                                inflated->name ? inflated->name : "");
+                            fclose(fp);
+                        }
+                    }
+
+                    methods[methodIndex] = reused;
+                    continue;
+                }
+            }
+            // ===}} AssemblyReloadReuse
+
+            // Log when method is NOT reused (new inflated method created)
+            if (reuseImage)
+            {
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) {
+                    fprintf(fp, "[Reuse] GenericMethod NEW: '%s.%s' method='%s'\n",
+                        genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
+                        genericInstanceType->name ? genericInstanceType->name : "",
+                        methodDefinition->name ? methodDefinition->name : "");
+                    fclose(fp);
+                }
             }
             // ===}} AssemblyReloadReuse
 
