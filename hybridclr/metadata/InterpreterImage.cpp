@@ -2804,6 +2804,29 @@ namespace metadata
 		}
 		key += ")->";
 		key += TypeToSigString(returnType);
+
+		// Log the key being looked up (only for generic instance classes)
+		if (klass->generic_class)
+		{
+			const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+			std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+			int createError = 0;
+			il2cpp::os::Directory::Create(dirStr, &createError);
+			FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+			if (fp) {
+				fprintf(fp, "[Reuse] TryReuse key='%s' mapSize=%zu\n", key.c_str(), _reuseMethodMap.size());
+				// Print first few keys in the map for comparison
+				int count = 0;
+				for (auto& kv : _reuseMethodMap)
+				{
+					if (count++ >= 3) break;
+					fprintf(fp, "[Reuse]   mapKey='%s'\n", kv.first.c_str());
+				}
+				fclose(fp);
+			}
+		}
+		key += ")->";
+		key += TypeToSigString(returnType);
 		return FindReusableMethod(key);
 	}
 
