@@ -2814,10 +2814,22 @@ namespace metadata
 			il2cpp::os::Directory::Create(dirStr, &createError);
 			FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
 			if (fp) {
-				fprintf(fp, "[Reuse] TryReuse key='%s' mapSize=%zu\n", key.c_str(), _reuseMethodMap.size());
-				// Check if key exists in map
 				auto it = _reuseMethodMap.find(key);
-			 fprintf(fp, "[Reuse]   key found=%s\n", it != _reuseMethodMap.end() ? "YES" : "NO");
+				bool found = it != _reuseMethodMap.end();
+				fprintf(fp, "[Reuse] TryReuse key='%s' found=%s\n", key.c_str(), found ? "YES" : "NO");
+				if (!found)
+				{
+					// Find keys that start with the same class name
+					std::string className = BuildClassFullName(klass);
+				 for (auto& kv : _reuseMethodMap)
+				 {
+					 if (kv.first.find(className) != std::string::npos)
+					 {
+						 fprintf(fp, "[Reuse]   similar mapKey='%s'\n", kv.first.c_str());
+						 break;
+					 }
+				 }
+				}
 				fclose(fp);
 			}
 		}
