@@ -584,6 +584,21 @@ namespace vm
             }
             if (!klass->methods || klass->method_count == 0)
                 continue;
+            // Log for debugging
+            {
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) {
+                    fprintf(fp, "[Reuse] CollectGeneric: '%s.%s' method_count=%u methods=%p\n",
+                        klass->namespaze ? klass->namespaze : "",
+                        klass->name ? klass->name : "",
+                        (unsigned)klass->method_count, (void*)klass->methods);
+                    fclose(fp);
+                }
+            }
             for (uint16_t m = 0; m < klass->method_count; m++)
             {
                 const MethodInfo* method = klass->methods[m];
