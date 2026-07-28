@@ -2894,6 +2894,16 @@ namespace metadata
 					if (ctx->methodMap->find(sigKey) == ctx->methodMap->end())
 					{
 						(*ctx->methodMap)[sigKey] = const_cast<MethodInfo*>(method);
+						// Log the key being added (only for .ctor methods to reduce noise)
+						if (method->name && strstr(method->name, ".ctor"))
+						{
+							const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+							std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+							int createError = 0;
+							il2cpp::os::Directory::Create(dirStr, &createError);
+							FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+							if (fp) { fprintf(fp, "[Reuse] CollectMethod key='%s'\n", sigKey.c_str()); fclose(fp); }
+						}
 					}
 				}, &ctx);
 		}
