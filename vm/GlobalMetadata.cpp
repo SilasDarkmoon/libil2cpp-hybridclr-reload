@@ -1818,6 +1818,17 @@ Il2CppGenericParameterInfo il2cpp::vm::GlobalMetadata::GetGenericParameterInfo(I
 {
     const Il2CppGenericParameter* genericParameter = reinterpret_cast<const Il2CppGenericParameter*>(handle);
 
+    if (!genericParameter)
+    {
+        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+        int createError = 0;
+        il2cpp::os::Directory::Create(dirStr, &createError);
+        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+        if (fp) { fprintf(fp, "[ReuseDiag] GetGenericParameterInfo: handle=NULL (genericParameterHandle is null)\n"); fclose(fp); }
+        return { nullptr, "<null>", 0, 0 };
+    }
+
     return {
             reinterpret_cast<Il2CppMetadataGenericContainerHandle>(GetGenericContainerFromIndexInternal(genericParameter->ownerIndex)),
             GetStringFromIndex(genericParameter->nameIndex),
