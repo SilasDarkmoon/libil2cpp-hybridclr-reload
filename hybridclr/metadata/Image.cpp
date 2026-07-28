@@ -803,9 +803,28 @@ namespace metadata
                 {
                     TbStandAloneSig sigData = _rawImage->ReadStandAloneSig(DecodeTokenRowIndex(methodHeader->localVarSigToken));
 
+                    const Il2CppGenericContainer* klassGC = GetGenericContainerByTypeDefRawIndex(DecodeMetadataIndex(methodDef.declaringType));
+                    // Log if klassGC is null (which causes genericParameterHandle to be null)
+                    if (!klassGC)
+                    {
+                        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                        int createError = 0;
+                        il2cpp::os::Directory::Create(dirStr, &createError);
+                        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                        if (fp) {
+                            const char* mname = GetStringFromIndex(methodDef.nameIndex);
+                            fprintf(fp, "[ReuseDiag] ReadMethodBody klassGC=NULL: method='%s' declaringType=%u decoded=%u this=%p\n",
+                                mname ? mname : "<null>",
+                                (unsigned)methodDef.declaringType,
+                                (unsigned)DecodeMetadataIndex(methodDef.declaringType),
+                                (void*)this);
+                            fclose(fp);
+                        }
+                    }
                     BlobReader reader = _rawImage->GetBlobReaderByRawIndex(sigData.signature);
                     ReadLocalVarSig(reader,
-                        GetGenericContainerByTypeDefRawIndex(DecodeMetadataIndex(methodDef.declaringType)),
+                        klassGC,
                         GetGenericContainerByRawIndex(DecodeMetadataIndex(methodDef.genericContainerIndex)),
                         body.localVars);
                 }
