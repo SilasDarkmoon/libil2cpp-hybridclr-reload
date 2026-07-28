@@ -39,9 +39,71 @@ namespace vm
 
         const MethodInfo** methods = (const MethodInfo**)MetadataCalloc(methodCount, sizeof(MethodInfo*));
 
+        // ==={{ AssemblyReloadReuse: try to reuse old MethodInfo by signature
+        hybridclr::metadata::InterpreterImage* reuseImage = nullptr;
+        if (hybridclr::metadata::IsInterpreterType(genericInstanceType))
+        {
+            reuseImage = hybridclr::metadata::MetadataModule::GetImage(genericInstanceType);
+            if (reuseImage && !reuseImage->HasReuseData())
+                reuseImage = nullptr;
+        }
+        // ===}} AssemblyReloadReuse
+
         for (uint16_t methodIndex = 0; methodIndex < methodCount; ++methodIndex)
         {
             const MethodInfo* methodDefinition = genericTypeDefinition->methods[methodIndex];
+
+            // ==={{ AssemblyReloadReuse
+            MethodInfo* reused = nullptr;
+            if (reuseImage)
+            {
+                // Build parameter type array for signature lookup
+                const Il2CppType** paramTypes = nullptr;
+                if (methodDefinition->parameters_count > 0)
+                {
+                    paramTypes = (const Il2CppType**)alloca(methodDefinition->parameters_count * sizeof(Il2CppType*));
+                    for (uint16_t pi = 0; pi < methodDefinition->parameters_count; pi++)
+                        paramTypes[pi] = methodDefinition->parameters[pi];
+                }
+                reused = reuseImage->TryReuseMethodFromMetadata(
+                    genericInstanceType, methodDefinition->name,
+                    methodDefinition->return_type,
+                    paramTypes, methodDefinition->parameters_count);
+            }
+            if (reused)
+            {
+                // Update the old MethodInfo's fields to point to new data
+                reused->name = methodDefinition->name;
+                reused->klass = genericInstanceType;
+                reused->return_type = methodDefinition->return_type;
+                reused->parameters_count = methodDefinition->parameters_count;
+                // Allocate fresh parameters array
+                const Il2CppType** params = (const Il2CppType**)MetadataCalloc(
+                    methodDefinition->parameters_count, sizeof(Il2CppType*));
+                for (uint16_t pi = 0; pi < methodDefinition->parameters_count; pi++)
+                    params[pi] = methodDefinition->parameters[pi];
+                reused->parameters = params;
+                reused->flags = methodDefinition->flags;
+                reused->iflags = methodDefinition->iflags;
+                reused->slot = methodDefinition->slot;
+                reused->token = methodDefinition->token;
+                reused->methodMetadataHandle = methodDefinition->methodMetadataHandle;
+                reused->genericContainerHandle = methodDefinition->genericContainerHandle;
+                reused->is_generic = methodDefinition->is_generic;
+                reused->methodPointer = methodDefinition->methodPointer;
+                reused->virtualMethodPointer = methodDefinition->virtualMethodPointer;
+                reused->methodPointerCallByInterp = nullptr;
+                reused->virtualMethodPointerCallByInterp = nullptr;
+                reused->initInterpCallMethodPointer = false;
+                reused->interpData = nullptr;
+                reused->invoker_method = methodDefinition->invoker_method;
+                reused->isInterpterImpl = methodDefinition->isInterpterImpl;
+
+                methods[methodIndex] = reused;
+                continue;
+            }
+            // ===}} AssemblyReloadReuse
+
             methods[methodIndex] = metadata::GenericMetadata::Inflate(methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
         }
 
@@ -426,6 +488,8 @@ namespace vm
 
             // Reset lazily-initialised fields and init flags, then
             // immediately re-initialise from the new metadata.
+            // MethodInfo reuse is handled in SetupMethodsLocked (via
+            // HasReuseData/FindReusableMethod) during Class::Init.
             klass->fields = nullptr;
             klass->methods = nullptr;
             klass->properties = nullptr;

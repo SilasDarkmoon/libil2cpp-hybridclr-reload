@@ -839,7 +839,7 @@ namespace metadata
 			return nullptr;
 		}
 
-		bool HasReuseData() const { return !_reuseClassMap.empty(); }
+		bool HasReuseData() const { return !_reuseClassMap.empty() || !_reuseMethodMap.empty(); }
 
 		// Build the full name of an Il2CppClass, e.g. "System.String" or
 		// "MyNs.Outer+Inner".
