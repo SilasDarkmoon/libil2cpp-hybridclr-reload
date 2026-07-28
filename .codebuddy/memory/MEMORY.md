@@ -22,3 +22,7 @@
 - 泛型实例复用：`GenericClass::RestoreCachedGenericClasses` 遍历 `s_GenericClassSet`，更新 `cached_class->image` 指向新 image 并重置懒加载字段。
 - vtable 变化处理：new vtable_count ≤ vtable_allocated_count → 正常复用；超出 → MSVC 上试 `_expand()` 原地扩容，其他平台放弃复用并写日志。
 - 类型签名构建（`TypeToSigString`）：不触发类加载，直接读 TypeDef 的 nameIndex/namespaceIndex。
+
+## ShouldRestoreGenericClass 修复（2026-07-28）
+- **问题**：`RestoreReusedClasses` 更新了泛型定义类的 `klass->image` 指向新 image，但 `gclass->type->data.typeHandle` 仍指向旧 image 的 `Il2CppTypeDefinition`。导致 `ShouldRestoreGenericClass` 无法识别这些泛型实例类需要恢复 → 泛型实例类的 `klass->image` 未更新 → `GetUnderlyingInterpreterImage` 返回旧 image 但 method token 来自新 image → `GetMethodBody` 在旧 image 上用新 token 查找 → 读到错误方法体 → 崩溃。
+- **修复**：`ShouldRestoreGenericClass` 和 `ShouldRestoreType` 增加回退检查：当 `typeDef` 来自旧 image 时，通过旧 image 的 `GetTypeInfoFromTypeDefinitionRawIndex` 解析 `Il2CppClass*`，检查其 `image` 是否已被更新为 `newImage`。

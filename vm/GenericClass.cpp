@@ -425,10 +425,17 @@ namespace vm
     // whose definition or any generic argument depends on newImage.
     static bool ShouldRestoreType(const Il2CppType* type, const Il2CppImage* newImage);
 
-    static bool ShouldRestoreGenericClass(Il2CppGenericClass* gclass, const Il2CppImage* newImage)
+    static bool ShouldRestoreGenericClass(Il2CppClass* cachedClass, Il2CppGenericClass* gclass, const Il2CppImage* newImage)
     {
         if (!gclass || !gclass->type)
             return false;
+
+        // Fast path: if the cached class's image already points to newImage,
+        // it was already restored (or is from newImage).  This catches the
+        // common case where RestoreReusedClasses has already updated the
+        // generic type definition's Il2CppClass in-place.
+        if (cachedClass && cachedClass->image == newImage)
+            return true;
 
         // Check generic type definition WITHOUT triggering class resolution
         // (GetTypeDefinition would call Class::FromIl2CppType which may
@@ -444,6 +451,20 @@ namespace vm
                     hybridclr::metadata::MetadataModule::GetImage(typeDef);
                 if (img && img->GetIl2CppImage() == newImage)
                     return true;
+
+                // The typeDef may still point to the OLD image even though
+                // the generic type definition's Il2CppClass was reused in
+                // RestoreReusedClasses (which updates klass->image but not
+                // gclass->type->data.typeHandle).  Resolve the class from
+                // the old image's _classList and check if its image was
+                // updated to newImage.
+                if (img)
+                {
+                    uint32_t rawIndex = hybridclr::metadata::DecodeMetadataIndex(typeDef->byvalTypeIndex);
+                    Il2CppClass* resolvedKlass = img->GetTypeInfoFromTypeDefinitionRawIndex(rawIndex);
+                    if (resolvedKlass && resolvedKlass->image == newImage)
+                        return true;
+                }
             }
         }
 
@@ -483,6 +504,18 @@ namespace vm
                     hybridclr::metadata::MetadataModule::GetImage(typeDef);
                 if (img && img->GetIl2CppImage() == newImage)
                     return true;
+
+                // typeDef may still point to the OLD image even though the
+                // class was reused in RestoreReusedClasses.  Resolve the
+                // class from the old image's _classList and check if its
+                // image was updated to newImage.
+                if (img)
+                {
+                    uint32_t rawIndex = hybridclr::metadata::DecodeMetadataIndex(typeDef->byvalTypeIndex);
+                    Il2CppClass* resolvedKlass = img->GetTypeInfoFromTypeDefinitionRawIndex(rawIndex);
+                    if (resolvedKlass && resolvedKlass->image == newImage)
+                        return true;
+                }
             }
             return false;
         }
@@ -490,7 +523,7 @@ namespace vm
         {
             const Il2CppGenericClass* gclass = type->data.generic_class;
             if (gclass)
-                return ShouldRestoreGenericClass(const_cast<Il2CppGenericClass*>(gclass), newImage);
+                return ShouldRestoreGenericClass(nullptr, const_cast<Il2CppGenericClass*>(gclass), newImage);
             return false;
         }
         case IL2CPP_TYPE_SZARRAY:
@@ -623,7 +656,7 @@ namespace vm
             // Use recursive check: does this generic instance (or any of
             // its generic arguments) depend on a type from the reloaded
             // interpreter image?
-            bool shouldRestore = ShouldRestoreGenericClass(gclass, newImage);
+            bool shouldRestore = ShouldRestoreGenericClass(klass, gclass, newImage);
 
             if (!shouldRestore)
                 continue;
