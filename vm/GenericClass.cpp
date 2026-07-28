@@ -514,8 +514,68 @@ namespace vm
             if (!gclass->cached_class)
                 continue;
             Il2CppClass* klass = gclass->cached_class;
-            // Check if this generic instance belongs to the old image
-            if (klass->image != oldImage)
+            // Check if this generic instance depends on the old image.
+            // Use the same recursive logic as ShouldRestoreGenericClass,
+            // but check against oldImage (before RestoreReusedClasses updates
+            // definition->image to newImage).
+            bool shouldCollect = false;
+            // Check if klass->image is the old image
+            if (klass->image == oldImage)
+                shouldCollect = true;
+            // Also check if the generic type definition's image is oldImage
+            if (!shouldCollect && gclass->type)
+            {
+                const Il2CppType* defType = gclass->type;
+                if (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE)
+                {
+                    const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)defType->data.typeHandle;
+                    if (typeDef && hybridclr::metadata::IsInterpreterType(typeDef))
+                    {
+                        hybridclr::metadata::InterpreterImage* img =
+                            hybridclr::metadata::MetadataModule::GetImage(typeDef);
+                        if (img && img->GetIl2CppImage() == oldImage)
+                            shouldCollect = true;
+                    }
+                }
+                // Check generic arguments recursively
+                if (!shouldCollect)
+                {
+                    const Il2CppGenericInst* inst = gclass->context.class_inst;
+                    if (inst)
+                    {
+                        for (uint32_t i = 0; i < inst->type_argc; i++)
+                        {
+                            const Il2CppType* argType = inst->type_argv[i];
+                            if (argType && (argType->type == IL2CPP_TYPE_CLASS || argType->type == IL2CPP_TYPE_VALUETYPE))
+                            {
+                                const Il2CppTypeDefinition* argTypeDef = (const Il2CppTypeDefinition*)argType->data.typeHandle;
+                                if (argTypeDef && hybridclr::metadata::IsInterpreterType(argTypeDef))
+                                {
+                                    hybridclr::metadata::InterpreterImage* argImg =
+                                        hybridclr::metadata::MetadataModule::GetImage(argTypeDef);
+                                    if (argImg && argImg->GetIl2CppImage() == oldImage)
+                                    {
+                                        shouldCollect = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            // Also check nested generic instances
+                            if (argType && argType->type == IL2CPP_TYPE_GENERICINST)
+                            {
+                                const Il2CppGenericClass* nestedGclass = argType->data.generic_class;
+                                if (nestedGclass && nestedGclass->cached_class &&
+                                    nestedGclass->cached_class->image == oldImage)
+                                {
+                                    shouldCollect = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (!shouldCollect)
                 continue;
             if (!klass->methods || klass->method_count == 0)
                 continue;
