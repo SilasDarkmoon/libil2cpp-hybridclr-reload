@@ -2962,6 +2962,15 @@ namespace metadata
 			_reuseClassMap.erase(it);
 		}
 
+		// --- Generic Pass 1: Update image pointers for generic instance
+		// classes that depend on the reloaded image. Run AFTER non-generic
+		// Pass 1 so that reused type definition classes have correct
+		// klass->image when ShouldRestoreGenericClass checks them. ---
+		if (_oldImageForReuse)
+		{
+			il2cpp::vm::GenericClass::RestoreCachedGenericClassesPass1(_oldImageForReuse, _il2cppImage);
+		}
+
 		// === Pass 2: Reset lazy-init fields and init flags for all reused
 		// classes. Done in a separate pass so all classes have correct
 		// external pointers before any reset happens. ===
@@ -3000,10 +3009,21 @@ namespace metadata
 			klass->unity_user_data = nullptr;
 		}
 
+		// --- Generic Pass 2: Reset lazy-init fields for generic instance
+		// classes. Run BEFORE non-generic Pass 3 so that cctors triggered
+		// during non-generic Class::Init will properly re-initialize any
+		// generic instance classes they touch. ---
+		if (_oldImageForReuse)
+		{
+			il2cpp::vm::GenericClass::RestoreCachedGenericClassesPass2();
+		}
+
 		// === Pass 3: Call Class::Init on all reused classes. At this point,
-		// all reused classes have correct external pointers and reset flags.
-		// cctors triggered during Class::Init can safely reference other
-		// reused classes (they have correct image/typeMetadataHandle/etc.). ===
+		// all reused classes (both non-generic and generic) have correct
+		// external pointers and reset flags. cctors triggered during
+		// Class::Init can safely reference other reused classes and generic
+		// instance classes (they have been reset and will be properly
+		// initialized by Class::Init when accessed). ===
 		for (size_t i = 0; i < _typesDefines.size(); i++)
 		{
 			if (!_classList[i])
@@ -3013,12 +3033,13 @@ namespace metadata
 			il2cpp::vm::Class::Init(klass);
 		}
 
-		// --- Restore generic instance classes ---
-		// Iterate the generic-class cache (s_GenericClassSet) and update any
-		// cached Il2CppClass whose image still points to the old image.
+		// --- Generic Pass 3: Call Class::Init on all generic instance
+		// classes that were reset in Generic Pass 2. Classes that were
+		// already initialized during non-generic Pass 3 (via cctor side
+		// effects) will be skipped by Class::Init (initialized==1). ---
 		if (_oldImageForReuse)
 		{
-			il2cpp::vm::GenericClass::RestoreCachedGenericClasses(_oldImageForReuse, _il2cppImage);
+			il2cpp::vm::GenericClass::RestoreCachedGenericClassesPass3();
 		}
 	}
 

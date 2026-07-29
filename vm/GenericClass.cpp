@@ -20,6 +20,7 @@
 #include "il2cpp-class-internals.h"
 #include "il2cpp-runtime-metadata.h"
 #include "il2cpp-runtime-stats.h"
+#include <vector>
 
 namespace il2cpp
 {
@@ -561,32 +562,29 @@ namespace vm
         }
     }
 
-    void GenericClass::RestoreCachedGenericClasses(const Il2CppImage* oldImage, Il2CppImage* newImage)
+    // ==={{ AssemblyReloadReuse
+    // Static vector to track classes that need restoration across passes.
+    static std::vector<Il2CppClass*> s_GenericClassesToRestore;
+
+    void GenericClass::RestoreCachedGenericClassesPass1(const Il2CppImage* oldImage, Il2CppImage* newImage)
     {
         os::FastAutoLock lock(&g_MetadataLock);
-        int restoredCount = 0;
-        int scannedCount = 0;
+        s_GenericClassesToRestore.clear();
+
         for (Il2CppGenericClass* gclass : s_GenericClassSet)
         {
             if (!gclass->cached_class)
                 continue;
-            scannedCount++;
+
             Il2CppClass* klass = gclass->cached_class;
 
-            // Use recursive check: does this generic instance (or any of
-            // its generic arguments) depend on a type from the reloaded
-            // interpreter image?
             bool shouldRestore = ShouldRestoreGenericClass(klass, gclass, newImage);
-
             if (!shouldRestore)
                 continue;
 
-            // Only update klass->image to newImage if the generic type
-            // definition is from an interpreter image.  If the generic type
-            // definition is from the AOT, klass->image must stay as the
-            // AOT image, because the method tokens are AOT tokens and
-            // GetUnderlyingInterpreterImage uses klass->image to determine
-            // which image to look up method bodies on.
+            // Only update klass->image if the generic type definition is
+            // from an interpreter image.  AOT generic definitions must keep
+            // their AOT image so method tokens resolve correctly.
             bool defIsInterp = false;
             {
                 const Il2CppType* defType = gclass->type;
@@ -598,12 +596,15 @@ namespace vm
             }
             if (defIsInterp)
                 klass->image = newImage;
-            restoredCount++;
 
-            // Reset lazily-initialised fields and init flags, then
-            // immediately re-initialise from the new metadata.
-            // MethodInfo reuse is handled in SetupMethodsLocked (via
-            // HasReuseData/FindReusableMethod) during Class::Init.
+            s_GenericClassesToRestore.push_back(klass);
+        }
+    }
+
+    void GenericClass::RestoreCachedGenericClassesPass2()
+    {
+        for (Il2CppClass* klass : s_GenericClassesToRestore)
+        {
             klass->fields = nullptr;
             klass->methods = nullptr;
             klass->properties = nullptr;
@@ -613,7 +614,9 @@ namespace vm
             klass->interfaceOffsets = nullptr;
             klass->static_fields = nullptr;
             klass->rgctx_data = nullptr;
+            klass->parent = nullptr;
             klass->typeHierarchy = nullptr;
+            klass->typeHierarchyDepth = 0;
             klass->gc_desc = nullptr;
             klass->initialized = 0;
             klass->initialized_and_no_error = 0;
@@ -627,9 +630,18 @@ namespace vm
             klass->genericRecursionDepth = 0;
             klass->initializationExceptionGCHandle = 0;
             klass->unity_user_data = nullptr;
+        }
+    }
 
+    void GenericClass::RestoreCachedGenericClassesPass3()
+    {
+        int restoredCount = (int)s_GenericClassesToRestore.size();
+        for (Il2CppClass* klass : s_GenericClassesToRestore)
+        {
             il2cpp::vm::Class::Init(klass);
         }
+        s_GenericClassesToRestore.clear();
+
         // Log to file only
         {
             const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
@@ -637,9 +649,17 @@ namespace vm
             int createError = 0;
             il2cpp::os::Directory::Create(dirStr, &createError);
             FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) { fprintf(fp, "[Reuse] GenericClass restore: scanned=%d restored=%d\n", scannedCount, restoredCount); fclose(fp); }
+            if (fp) { fprintf(fp, "[Reuse] GenericClass restore: restored=%d\n", restoredCount); fclose(fp); }
         }
     }
+
+    void GenericClass::RestoreCachedGenericClasses(const Il2CppImage* oldImage, Il2CppImage* newImage)
+    {
+        RestoreCachedGenericClassesPass1(oldImage, newImage);
+        RestoreCachedGenericClassesPass2();
+        RestoreCachedGenericClassesPass3();
+    }
+    // ===}} AssemblyReloadReuse
     // ===}} AssemblyReloadReuse
 
 } /* namespace vm */
