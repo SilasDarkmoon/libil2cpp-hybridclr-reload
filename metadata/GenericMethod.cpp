@@ -21,6 +21,8 @@
 #include "il2cpp-class-internals.h"
 #include "il2cpp-runtime-metadata.h"
 #include "il2cpp-runtime-stats.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 #include <string>
 
 #include "hybridclr/metadata/MetadataUtil.h"
@@ -480,6 +482,19 @@ namespace metadata
 
     void GenericMethod::ClearStatics()
     {
+        // ==={{ AssemblyReloadReuse: diagnostic log
+        {
+            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+            int createError = 0;
+            il2cpp::os::Directory::Create(dirStr, &createError);
+            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+            if (fp) {
+                fprintf(fp, "[ReuseDiag] GenericMethod::ClearStatics called\n");
+                fclose(fp);
+            }
+        }
+        // ===}} AssemblyReloadReuse
         s_GenericMethodMap.Clear();
     }
 } /* namespace vm */

@@ -62,11 +62,12 @@ namespace transform
 				il2cpp::os::Directory::Create(dirStr, &createError);
 				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
 				if (fp) {
-					fprintf(fp, "[ReuseDiag] MethodBody null: klass='%s.%s' method='%s' token=0x%08X rowIndex=%u image=%p isInterpType=%d isInterpImpl=%d is_inflated=%d is_generic=%d\n",
+					fprintf(fp, "[ReuseDiag] MethodBody null: klass='%s.%s' method='%s' token=0x%08X rowIndex=%u image=%p klassImageName='%s' isInterpType=%d isInterpImpl=%d is_inflated=%d is_generic=%d\n",
 						methodInfo->klass->namespaze ? methodInfo->klass->namespaze : "",
 						methodInfo->klass->name ? methodInfo->klass->name : "",
 						methodInfo->name ? methodInfo->name : "",
 						(unsigned)methodInfo->token, rowIdx, (void*)image,
+						methodInfo->klass->image && methodInfo->klass->image->name ? methodInfo->klass->image->name : "?",
 						(int)hybridclr::metadata::IsInterpreterType(methodInfo->klass),
 						(int)methodInfo->isInterpterImpl,
 						(int)methodInfo->is_inflated,

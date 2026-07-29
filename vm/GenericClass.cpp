@@ -32,6 +32,24 @@ namespace vm
         uint16_t methodCount = genericTypeDefinition->method_count;
         IL2CPP_ASSERT(genericTypeDefinition->method_count == genericInstanceType->method_count);
 
+        // ==={{ AssemblyReloadReuse: diagnostic log
+        {
+            const char* kname = genericInstanceType->name ? genericInstanceType->name : "";
+            const char* kns = genericInstanceType->namespaze ? genericInstanceType->namespaze : "";
+            const char* imgName = genericInstanceType->image && genericInstanceType->image->name ? genericInstanceType->image->name : "?";
+            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+            int createError = 0;
+            il2cpp::os::Directory::Create(dirStr, &createError);
+            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+            if (fp) {
+                fprintf(fp, "[ReuseDiag] GenericClass::SetupMethods: klass='%s.%s' image='%s' methodCount=%u\n",
+                    kns, kname, imgName, (unsigned)methodCount);
+                fclose(fp);
+            }
+        }
+        // ===}} AssemblyReloadReuse
+
         if (methodCount == 0)
         {
             genericInstanceType->methods = NULL;
@@ -627,7 +645,28 @@ namespace vm
 
             bool shouldRestore = ShouldRestoreGenericClass(klass, gclass, newImage);
             if (!shouldRestore)
+            {
+                // ==={{ AssemblyReloadReuse: diagnostic log for skipped classes
+                // Only log if the class name contains "ProxyPropertyInfo" to avoid log explosion
+                if (klass->name && strstr(klass->name, "ProxyPropertyInfo"))
+                {
+                    const char* kns = klass->namespaze ? klass->namespaze : "";
+                    const char* kname = klass->name ? klass->name : "";
+                    const char* imgName = klass->image && klass->image->name ? klass->image->name : "?";
+                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                    int createError = 0;
+                    il2cpp::os::Directory::Create(dirStr, &createError);
+                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                    if (fp) {
+                        fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass=false: klass='%s.%s' image='%s' newImage='%s'\n",
+                            kns, kname, imgName, newImage->name ? newImage->name : "?");
+                        fclose(fp);
+                    }
+                }
+                // ===}} AssemblyReloadReuse
                 continue;
+            }
 
             // Only update klass->image if the generic type definition is
             // from an interpreter image.  AOT generic definitions must keep
