@@ -2992,7 +2992,9 @@ namespace metadata
 			klass->interfaceOffsets = nullptr;
 			klass->static_fields = nullptr;
 			klass->rgctx_data = nullptr;
+			klass->parent = nullptr;
 			klass->typeHierarchy = nullptr;
+			klass->typeHierarchyDepth = 0;
 			klass->gc_desc = nullptr;
 
 			klass->initialized = 0;
