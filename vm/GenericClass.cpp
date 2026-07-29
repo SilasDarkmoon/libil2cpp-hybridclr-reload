@@ -377,37 +377,20 @@ namespace vm
         const Il2CppType* defType = gclass->type;
         // ==={{ AssemblyReloadReuse: diagnostic log
         {
-            const char* defTypeName = "";
-            if (defType)
-            {
-                if (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE)
-                {
-                    const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)defType->data.typeHandle;
-                    if (typeDef)
-                    {
-                        const char* ns = hybridclr::metadata::MetadataModule::GetStringFromEncodeIndex(typeDef->namespaceIndex);
-                        const char* nm = hybridclr::metadata::MetadataModule::GetStringFromEncodeIndex(typeDef->nameIndex);
-                        char buf[512];
-                        snprintf(buf, sizeof(buf), "%s.%s", ns ? ns : "", nm ? nm : "");
-                        defTypeName = strdup(buf);
-                    }
-                }
-            }
             const char* cachedName = cachedClass && cachedClass->name ? cachedClass->name : "<null>";
-            bool isInterpType = false;
+            int defTypeType = defType ? (int)defType->type : -1;
+            const Il2CppTypeDefinition* typeDef2 = nullptr;
             if (defType && (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE))
-            {
-                const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)defType->data.typeHandle;
-                isInterpType = typeDef && hybridclr::metadata::IsInterpreterType(typeDef);
-            }
+                typeDef2 = (const Il2CppTypeDefinition*)defType->data.typeHandle;
+            bool isInterpType = typeDef2 && hybridclr::metadata::IsInterpreterType(typeDef2);
             const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
             std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
             int createError = 0;
             il2cpp::os::Directory::Create(dirStr, &createError);
             FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
             if (fp) {
-                fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass: cachedName='%s' defType=%p defType->type=%d defTypeName='%s' isInterpType=%d cachedClassImg=%p newImage=%p\n",
-                    cachedName, (void*)defType, defType ? (int)defType->type : -1, defTypeName, (int)isInterpType,
+                fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass: cachedName='%s' defType=%p defType->type=%d typeDef=%p isInterpType=%d cachedClassImg=%p newImage=%p\n",
+                    cachedName, (void*)defType, defTypeType, (void*)typeDef2, (int)isInterpType,
                     cachedClass ? (void*)cachedClass->image : nullptr, (void*)newImage);
                 fclose(fp);
             }
