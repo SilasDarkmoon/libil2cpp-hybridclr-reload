@@ -617,8 +617,23 @@ namespace vm
             if (!shouldRestore)
                 continue;
 
-            // Update image pointer to the new image.
-            klass->image = newImage;
+            // Only update klass->image to newImage if the generic type
+            // definition is from an interpreter image.  If the generic type
+            // definition is from the AOT, klass->image must stay as the
+            // AOT image, because the method tokens are AOT tokens and
+            // GetUnderlyingInterpreterImage uses klass->image to determine
+            // which image to look up method bodies on.
+            bool defIsInterp = false;
+            {
+                const Il2CppType* defType = gclass->type;
+                if (defType && (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE))
+                {
+                    const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)defType->data.typeHandle;
+                    defIsInterp = typeDef && hybridclr::metadata::IsInterpreterType(typeDef);
+                }
+            }
+            if (defIsInterp)
+                klass->image = newImage;
             restoredCount++;
 
             // Reset lazily-initialised fields and init flags, then
