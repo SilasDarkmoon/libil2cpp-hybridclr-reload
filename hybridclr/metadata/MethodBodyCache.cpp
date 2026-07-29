@@ -65,20 +65,6 @@ namespace metadata
 		{
 			return it->second;
 		}
-		// ==={{ AssemblyReloadReuse: diagnostic log
-		{
-			const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-			std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-			int createError = 0;
-			il2cpp::os::Directory::Create(dirStr, &createError);
-			FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-			if (fp) {
-				fprintf(fp, "[ReuseDiag] GetOrInitMethodBodyCache: image=%p token=0x%08X\n",
-					(void*)image, (unsigned)token);
-				fclose(fp);
-			}
-		}
-		// ===}} AssemblyReloadReuse
 		MethodBody* methodBody = image->GetMethodBody(token);
 		MethodBodyCacheInfo* ci = (MethodBodyCacheInfo*)HYBRIDCLR_MALLOC_ZERO(sizeof(MethodBodyCacheInfo));
 		*ci = { methodBody, s_methodBodyCacheVersion, 0, InlineMode::None};

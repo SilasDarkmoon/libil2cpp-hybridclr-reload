@@ -794,7 +794,8 @@ namespace metadata
                     TbStandAloneSig sigData = _rawImage->ReadStandAloneSig(DecodeTokenRowIndex(methodHeader->localVarSigToken));
 
                     int32_t typeDefIdx = DecodeMetadataIndex(methodDef.declaringType);
-                    // ==={{ AssemblyReloadReuse: diagnostic log
+                    // ==={{ AssemblyReloadReuse: diagnostic log (only on suspicious values)
+                    if (typeDefIdx <= 0 || methodDef.declaringType == 0)
                     {
                         const char* mname = il2cpp::vm::GlobalMetadata::GetStringFromIndex(methodDef.nameIndex);
                         const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
@@ -803,7 +804,7 @@ namespace metadata
                         il2cpp::os::Directory::Create(dirStr, &createError);
                         FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
                         if (fp) {
-                            fprintf(fp, "[ReuseDiag] ReadMethodBody ENTER: method='%s' declaringType=%u decoded=%d this=%p\n",
+                            fprintf(fp, "[ReuseDiag] ReadMethodBody SUSPICIOUS: method='%s' declaringType=%u decoded=%d this=%p\n",
                                 mname ? mname : "<null>",
                                 (unsigned)methodDef.declaringType, (int)typeDefIdx, (void*)this);
                             fclose(fp);

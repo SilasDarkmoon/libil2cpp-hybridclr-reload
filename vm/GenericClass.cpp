@@ -375,27 +375,6 @@ namespace vm
         // trigger Class::Init during restore). Instead, check the type's
         // typeHandle directly.
         const Il2CppType* defType = gclass->type;
-        // ==={{ AssemblyReloadReuse: diagnostic log
-        {
-            const char* cachedName = cachedClass && cachedClass->name ? cachedClass->name : "<null>";
-            int defTypeType = defType ? (int)defType->type : -1;
-            const Il2CppTypeDefinition* typeDef2 = nullptr;
-            if (defType && (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE))
-                typeDef2 = (const Il2CppTypeDefinition*)defType->data.typeHandle;
-            bool isInterpType = typeDef2 && hybridclr::metadata::IsInterpreterType(typeDef2);
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) {
-                fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass: cachedName='%s' defType=%p defType->type=%d typeDef=%p isInterpType=%d cachedClassImg=%p newImage=%p\n",
-                    cachedName, (void*)defType, defTypeType, (void*)typeDef2, (int)isInterpType,
-                    cachedClass ? (void*)cachedClass->image : nullptr, (void*)newImage);
-                fclose(fp);
-            }
-        }
-        // ===}} AssemblyReloadReuse
 
         if (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE)
         {
@@ -417,21 +396,6 @@ namespace vm
                 {
                     uint32_t rawIndex = hybridclr::metadata::DecodeMetadataIndex(typeDef->byvalTypeIndex);
                     Il2CppClass* resolvedKlass = img->GetTypeInfoFromTypeDefinitionRawIndex(rawIndex);
-                    // ==={{ AssemblyReloadReuse: diagnostic log
-                    {
-                        const std::string tmpCache2 = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                        std::string dirStr2 = !tmpCache2.empty() ? tmpCache2 : "log";
-                        int createError2 = 0;
-                        il2cpp::os::Directory::Create(dirStr2, &createError2);
-                        FILE* fp2 = fopen((dirStr2 + "/assembly_reload_reuse.log").c_str(), "a");
-                        if (fp2) {
-                            fprintf(fp2, "[ReuseDiag] ShouldRestoreGenericClass: rawIndex=%u resolvedKlass=%p resolvedImg=%p newImage=%p match=%d\n",
-                                rawIndex, (void*)resolvedKlass, resolvedKlass ? (void*)resolvedKlass->image : nullptr,
-                                (void*)newImage, (resolvedKlass && resolvedKlass->image == newImage) ? 1 : 0);
-                            fclose(fp2);
-                        }
-                    }
-                    // ===}} AssemblyReloadReuse
                     if (resolvedKlass && resolvedKlass->image == newImage)
                         return true;
                 }
