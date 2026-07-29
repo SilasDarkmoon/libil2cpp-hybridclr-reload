@@ -40,3 +40,9 @@
   - `GetMethodBody` OOB 日志增加 `imageName` 字段
   - `HiTransform::Transform` 在 methodBody 为 null 时打印 klass/method/token/image/isInterpType/isInterpImpl/is_inflated/is_generic
   - `GenericClass::SetupMethods` 在 `inflated->token != methodDefinition->token` 时打印 TokenMismatch 日志（复用和非复用路径都有）
+
+## typeHierarchy 在 Pass 2 重置、Pass 3 通过 Class::Init 重建（2026-07-29）
+- **问题**：Pass 2 重置 `typeHierarchy = nullptr` 和 `typeHierarchyDepth = 0` 后，`IsInst`（类型转换检查）直接读这两个字段，导致 `InvalidCastException: EnumEqualityComparer→EqualityComparer`
+- **关键发现**：`IsInst` → `Object::IsInst` → `Class::IsAssignableFrom` → **`Class::Init`**（第660-661行）。所以 `IsInst` 确实会触发 `Class::Init`，Pass 3 的 `Class::Init` 会通过 `InitLocked` → `SetupTypeHierarchyLocked` 重建继承树
+- **修复**：Pass 2 只重置（`typeHierarchy = nullptr`, `typeHierarchyDepth = 0`），Pass 3 通过 `Class::Init` 重建。Pass 3 在 `Class::Init` 之前重新解析 parent，确保继承链变化后正确
+- **机制**：与第一遍加载使用相同机制（`Class::Init` → `InitLocked` → `SetupTypeHierarchyLocked`）

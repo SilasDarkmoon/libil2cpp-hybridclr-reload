@@ -706,13 +706,14 @@ namespace vm
             klass->implementedInterfaces = nullptr;
             klass->interfaceOffsets = nullptr;
             klass->static_fields = nullptr;
-            klass->rgctx_data = nullptr;
-            // NOTE: Do NOT reset klass->parent here.  InitLocked does not
-            // rebuild it — it is set during class creation from the TypeDef's
-            // parentIndex.  Resetting it breaks the type hierarchy.
-            klass->typeHierarchy = nullptr;
-            klass->typeHierarchyDepth = 0;
-            klass->gc_desc = nullptr;
+		klass->rgctx_data = nullptr;
+		// NOTE: Do NOT reset klass->parent here.  InitLocked does not
+		// rebuild it — it is set during class creation from the TypeDef's
+		// parentIndex.  Pass 3 re-resolves parent and calls Class::Init
+		// which rebuilds the type hierarchy via SetupTypeHierarchyLocked.
+		klass->typeHierarchy = nullptr;
+		klass->typeHierarchyDepth = 0;
+		klass->gc_desc = nullptr;
             klass->initialized = 0;
             klass->initialized_and_no_error = 0;
             klass->init_pending = 0;

@@ -2995,10 +2995,10 @@ namespace metadata
 			klass->implementedInterfaces = nullptr;
 			klass->interfaceOffsets = nullptr;
 			klass->static_fields = nullptr;
-			klass->rgctx_data = nullptr;
-			klass->typeHierarchy = nullptr;
-			klass->typeHierarchyDepth = 0;
-			klass->gc_desc = nullptr;
+		klass->rgctx_data = nullptr;
+		klass->typeHierarchy = nullptr;
+		klass->typeHierarchyDepth = 0;
+		klass->gc_desc = nullptr;
 
 			klass->initialized = 0;
 			klass->initialized_and_no_error = 0;
