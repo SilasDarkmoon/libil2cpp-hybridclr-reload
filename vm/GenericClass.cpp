@@ -62,6 +62,26 @@ namespace vm
                 const MethodInfo* inflated = metadata::GenericMetadata::Inflate(
                     methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
 
+                // ==={{ AssemblyReloadReuse: diagnostic log for token mismatch
+                if (inflated->token != methodDefinition->token)
+                {
+                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                    int createError = 0;
+                    il2cpp::os::Directory::Create(dirStr, &createError);
+                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                    if (fp) {
+                        fprintf(fp, "[ReuseDiag] TokenMismatch: klass='%s.%s' method='%s' defToken=0x%08X inflatedToken=0x%08X is_inflated=%d\n",
+                            genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
+                            genericInstanceType->name ? genericInstanceType->name : "",
+                            methodDefinition->name ? methodDefinition->name : "",
+                            (unsigned)methodDefinition->token, (unsigned)inflated->token,
+                            (int)inflated->is_inflated);
+                        fclose(fp);
+                    }
+                }
+                // ===}} AssemblyReloadReuse
+
                 // Build parameter type array from INFLATED method (not methodDefinition)
                 const Il2CppType** paramTypes = nullptr;
                 if (inflated->parameters_count > 0)
@@ -100,9 +120,17 @@ namespace vm
                         reused->genericMethod = inflated->genericMethod;
                     reused->methodPointer = inflated->methodPointer;
                     reused->virtualMethodPointer = inflated->virtualMethodPointer;
-                    reused->methodPointerCallByInterp = nullptr;
-                    reused->virtualMethodPointerCallByInterp = nullptr;
-                    reused->initInterpCallMethodPointer = false;
+                    // ==={{ AssemblyReloadReuse: inherit interp call pointers from
+                    // inflated method instead of resetting to nullptr. Resetting
+                    // would force re-init via InitAndGetInterpreterDirectlyCallMethodPointerSlow,
+                    // but IsImplementedByInterpreter returns false for interpreter
+                    // assemblies (no AOTHomologousImage), so re-init would fail
+                    // and methodPointerCallByInterp would stay null, causing
+                    // RaiseAOTGenericMethodNotInstantiatedException. ===
+                    reused->methodPointerCallByInterp = inflated->methodPointerCallByInterp;
+                    reused->virtualMethodPointerCallByInterp = inflated->virtualMethodPointerCallByInterp;
+                    reused->initInterpCallMethodPointer = inflated->initInterpCallMethodPointer;
+                    // ===}} AssemblyReloadReuse
                     reused->interpData = nullptr;
                     reused->invoker_method = inflated->invoker_method;
                     reused->isInterpterImpl = inflated->isInterpterImpl;
@@ -113,7 +141,26 @@ namespace vm
             }
             // ===}} AssemblyReloadReuse
 
-            methods[methodIndex] = metadata::GenericMetadata::Inflate(methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
+            const MethodInfo* inflated2 = metadata::GenericMetadata::Inflate(methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
+            // ==={{ AssemblyReloadReuse: diagnostic log for token mismatch (non-reuse path)
+            if (inflated2->token != methodDefinition->token)
+            {
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) {
+                    fprintf(fp, "[ReuseDiag] TokenMismatch(non-reuse): klass='%s.%s' method='%s' defToken=0x%08X inflatedToken=0x%08X\n",
+                        genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
+                        genericInstanceType->name ? genericInstanceType->name : "",
+                        methodDefinition->name ? methodDefinition->name : "",
+                        (unsigned)methodDefinition->token, (unsigned)inflated2->token);
+                    fclose(fp);
+                }
+            }
+            // ===}} AssemblyReloadReuse
+            methods[methodIndex] = inflated2;
         }
 
         genericInstanceType->methods = methods;

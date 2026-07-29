@@ -26,3 +26,17 @@
 ## ShouldRestoreGenericClass 修复（2026-07-28）
 - **问题**：`RestoreReusedClasses` 更新了泛型定义类的 `klass->image` 指向新 image，但 `gclass->type->data.typeHandle` 仍指向旧 image 的 `Il2CppTypeDefinition`。导致 `ShouldRestoreGenericClass` 无法识别这些泛型实例类需要恢复 → 泛型实例类的 `klass->image` 未更新 → `GetUnderlyingInterpreterImage` 返回旧 image 但 method token 来自新 image → `GetMethodBody` 在旧 image 上用新 token 查找 → 读到错误方法体 → 崩溃。
 - **修复**：`ShouldRestoreGenericClass` 和 `ShouldRestoreType` 增加回退检查：当 `typeDef` 来自旧 image 时，通过旧 image 的 `GetTypeInfoFromTypeDefinitionRawIndex` 解析 `Il2CppClass*`，检查其 `image` 是否已被更新为 `newImage`。
+
+## s_GenericMethodMap 缓存陈旧 token + methodPointerCallByInterp 置空修复（2026-07-29）
+- **问题**：reload 后泛型实例方法出现 `GetMethodBody OOB` 和 `RaiseAOTGenericMethodNotInstantiatedException`。有两个层面：
+  1. `s_GenericMethodMap` 缓存了 reload 前的 inflated `MethodInfo`，其 `token` 来自旧 image。`GenericClass::SetupMethods` 调用 `GenericMetadata::Inflate` 时可能命中旧缓存，返回旧 token → `GetMethodBody(newImage, oldToken)` → OOB
+  2. 泛型复用路径中 `reused->methodPointerCallByInterp = nullptr` + `initInterpCallMethodPointer = false`，强制走 `InitAndGetInterpreterDirectlyCallMethodPointerSlow` 重新初始化。但 `IsImplementedByInterpreter` 对解释器程序集返回 false（因为 `AOTHomologousImage::FindImageByAssembly` 找不到解释器程序集），导致重新初始化失败 → `methodPointerCallByInterp` 保持 null → `RaiseAOTGenericMethodNotInstantiatedException`
+- **关键背景**：`IsImplementedByInterpreter` 只检查 `AOTHomologousImage::FindImageByAssembly`，不覆盖解释器程序集。解释器方法的 `methodPointerCallByInterp` 在 `CreateMethodLocked` 中通过 `isInterpMethod` 检查设置，不走 `InitAndGetInterpreterDirectlyCallMethodPointerSlow`。非泛型复用路径 (`SetupMethodsLocked`) 正确设置了 `methodPointerCallByInterp = methodPointer` + `initInterpCallMethodPointer = true`。
+- **修复**：
+  1. `RestoreReusedClasses()` 开头调用 `GenericMethod::ClearStatics()` 清除 `s_GenericMethodMap`，强制重新 inflate
+  2. 泛型复用路径从 inflated method 继承 `methodPointerCallByInterp`/`virtualMethodPointerCallByInterp`/`initInterpCallMethodPointer`，而非置空
+  3. `interpData` 仍置空以强制重新 Transform
+- **诊断日志**：
+  - `GetMethodBody` OOB 日志增加 `imageName` 字段
+  - `HiTransform::Transform` 在 methodBody 为 null 时打印 klass/method/token/image/isInterpType/isInterpImpl/is_inflated/is_generic
+  - `GenericClass::SetupMethods` 在 `inflated->token != methodDefinition->token` 时打印 TokenMismatch 日志（复用和非复用路径都有）

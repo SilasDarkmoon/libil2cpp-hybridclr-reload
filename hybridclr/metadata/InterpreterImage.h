@@ -196,8 +196,9 @@ namespace metadata
 				il2cpp::os::Directory::Create(dirStr, &createError);
 				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
 				if (fp) {
-					fprintf(fp, "[ReuseDiag] GetMethodBody OOB: token=0x%08X rowIndex=%u methodDefinesSize=%zu this=%p\n",
-						(unsigned)token, (unsigned)rowIndex, _methodDefines.size(), (void*)this);
+					fprintf(fp, "[ReuseDiag] GetMethodBody OOB: token=0x%08X rowIndex=%u methodDefinesSize=%zu this=%p imageName=%s\n",
+						(unsigned)token, (unsigned)rowIndex, _methodDefines.size(), (void*)this,
+						_il2cppImage && _il2cppImage->name ? _il2cppImage->name : "?");
 					fclose(fp);
 				}
 				return nullptr;

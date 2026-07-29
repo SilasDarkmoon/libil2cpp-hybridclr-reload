@@ -29,6 +29,7 @@
 #include "metadata/FieldLayout.h"
 #include "metadata/Il2CppTypeCompare.h"
 #include "metadata/GenericMetadata.h"
+#include "metadata/GenericMethod.h"
 #if HYBRIDCLR_UNITY_2021_OR_NEW
 #include "metadata/CustomAttributeCreator.h"
 #endif
@@ -2799,6 +2800,15 @@ namespace metadata
 
 	void InterpreterImage::RestoreReusedClasses()
 	{
+		// ==={{ AssemblyReloadReuse: Clear generic method cache to avoid
+		// stale inflated methods with old image tokens. After reuse,
+		// methodDefinition->token is updated, but cached inflated methods
+		// in s_GenericMethodMap still have the old token. This causes
+		// GetMethodBody to be called with the old token on the new image,
+		// resulting in OOB errors. ===
+		il2cpp::metadata::GenericMethod::ClearStatics();
+		// ===}} AssemblyReloadReuse
+
 		// Iterate the new type-definition table; for each entry whose full name
 		// matches a reusable Il2CppClass, update the old object's external
 	// pointers to the new image, reset lazily-initialised fields, and store
