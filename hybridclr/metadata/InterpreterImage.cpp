@@ -2930,17 +2930,11 @@ namespace metadata
 
 
 
-			// --- Update parent / declaring type / element_class ---
-			// These must be set from the new type definition immediately
-			// (not lazily), because Unity native code walks the parent chain
-			// to check MonoBehaviour / ScriptableObject derivation before
-			// Class::Init is called.
-			if (typeDef.parentIndex != kTypeIndexInvalid)
-				klass->parent = il2cpp::vm::Class::FromIl2CppType(
-					il2cpp::vm::GlobalMetadata::GetIl2CppTypeFromIndex(typeDef.parentIndex));
-			else
-				klass->parent = nullptr;
-
+			// --- Update declaring type / element_class ---
+			// parent is resolved in Pass 3 (before Class::Init) to avoid
+			// triggering class creation during Pass 1 when the reuse list
+			// is still being built.  During reload we hold g_MetadataLock,
+			// so no concurrent Unity native code can check the parent chain.
 			if (typeDef.declaringTypeIndex != kTypeIndexInvalid)
 				klass->declaringType = il2cpp::vm::Class::FromIl2CppType(
 					il2cpp::vm::GlobalMetadata::GetIl2CppTypeFromIndex(typeDef.declaringTypeIndex));
@@ -2992,7 +2986,6 @@ namespace metadata
 			klass->interfaceOffsets = nullptr;
 			klass->static_fields = nullptr;
 			klass->rgctx_data = nullptr;
-			klass->parent = nullptr;
 			klass->typeHierarchy = nullptr;
 			klass->typeHierarchyDepth = 0;
 			klass->gc_desc = nullptr;
@@ -3032,6 +3025,18 @@ namespace metadata
 				continue;
 
 			Il2CppClass* klass = _classList[i];
+
+			// Re-resolve parent from the new type definition, in case the
+			// inheritance structure changed after reload.
+			{
+				const Il2CppTypeDefinition& typeDef = _typesDefines[i];
+				if (typeDef.parentIndex != kTypeIndexInvalid)
+					klass->parent = il2cpp::vm::Class::FromIl2CppType(
+						il2cpp::vm::GlobalMetadata::GetIl2CppTypeFromIndex(typeDef.parentIndex));
+				else
+					klass->parent = nullptr;
+			}
+
 			il2cpp::vm::Class::Init(klass);
 		}
 

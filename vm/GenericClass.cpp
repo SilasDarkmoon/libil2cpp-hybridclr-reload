@@ -597,6 +597,13 @@ namespace vm
             if (defIsInterp)
                 klass->image = newImage;
 
+            // NOTE: parent re-resolution is deferred to Pass 3 (before
+            // Class::Init) because Class::FromIl2CppType and
+            // GenericMetadata::InflateIfNeeded can trigger class creation,
+            // which is unsafe during Pass 1 when the reuse list is still
+            // being built and classes may not have correct external
+            // pointers yet.
+
             s_GenericClassesToRestore.push_back(klass);
         }
     }
@@ -614,7 +621,9 @@ namespace vm
             klass->interfaceOffsets = nullptr;
             klass->static_fields = nullptr;
             klass->rgctx_data = nullptr;
-            klass->parent = nullptr;
+            // NOTE: Do NOT reset klass->parent here.  InitLocked does not
+            // rebuild it — it is set during class creation from the TypeDef's
+            // parentIndex.  Resetting it breaks the type hierarchy.
             klass->typeHierarchy = nullptr;
             klass->typeHierarchyDepth = 0;
             klass->gc_desc = nullptr;
@@ -638,6 +647,29 @@ namespace vm
         int restoredCount = (int)s_GenericClassesToRestore.size();
         for (Il2CppClass* klass : s_GenericClassesToRestore)
         {
+            // Re-resolve parent from the generic type definition before
+            // Class::Init, so that inheritance changes after reload are
+            // picked up.  At this point (Pass 3), all reused classes have
+            // correct external pointers (Pass 1) and reset fields (Pass 2),
+            // so it's safe to trigger class resolution.
+            Il2CppGenericClass* gclass = klass->generic_class;
+            if (gclass)
+            {
+                Il2CppClass* genericTypeDefinition = GetTypeDefinition(gclass);
+                if (genericTypeDefinition && genericTypeDefinition->parent)
+                {
+                    Il2CppGenericContext* context = &gclass->context;
+                    const Il2CppType* inflatedParentType = metadata::GenericMetadata::InflateIfNeeded(
+                        &genericTypeDefinition->parent->byval_arg, context, false);
+                    if (inflatedParentType)
+                        klass->parent = Class::FromIl2CppType(inflatedParentType);
+                }
+                else if (genericTypeDefinition && !genericTypeDefinition->parent)
+                {
+                    klass->parent = nullptr;
+                }
+            }
+
             il2cpp::vm::Class::Init(klass);
         }
         s_GenericClassesToRestore.clear();
