@@ -318,7 +318,21 @@ namespace metadata
 
 		Il2CppGenericContainer* GetGenericContainerByTypeDefRawIndex(int32_t typeDefIndex) override
 		{
-			IL2CPP_ASSERT(typeDefIndex < (int32_t)_typeDetails.size());
+			if (typeDefIndex < 0 || typeDefIndex >= (int32_t)_typeDetails.size())
+			{
+				// Bounds check failed — log and return nullptr instead of crashing
+				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+				int createError = 0;
+				il2cpp::os::Directory::Create(dirStr, &createError);
+				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+				if (fp) {
+					fprintf(fp, "[ReuseDiag] GetGenericContainerByTypeDefRawIndex OOB: typeDefIndex=%d typeDetailsSize=%zu this=%p\n",
+						(int)typeDefIndex, _typeDetails.size(), (void*)this);
+					fclose(fp);
+				}
+				return nullptr;
+			}
 			return GetGenericContainerByTypeDefinition(&_typesDefines[typeDefIndex]);
 		}
 
@@ -409,47 +423,12 @@ namespace metadata
 		const Il2CppFieldDefaultValue* GetFieldDefaultValueEntryByRawIndex(uint32_t index)
 		{
 			if (index >= (uint32_t)_fieldDetails.size())
-			{
-				char buf[512];
-				snprintf(buf, sizeof(buf), "GetFieldDefaultValueEntryByRawIndex: index=%u OUT OF BOUNDS _fieldDetails.size=%zu",
-					index, _fieldDetails.size());
-				fprintf(stderr, "[ReuseDiag] %s\n", buf);
-				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-				int createError = 0;
-				il2cpp::os::Directory::Create(dirStr, &createError);
-				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-				if (fp) { fprintf(fp, "[ReuseDiag] %s\n", buf); fclose(fp); }
 				return nullptr;
-			}
 			uint32_t fdvIndex = _fieldDetails[index].defaultValueIndex;
 			if (fdvIndex == kDefaultValueIndexNull)
-			{
-				char buf[512];
-				snprintf(buf, sizeof(buf), "GetFieldDefaultValueEntryByRawIndex: index=%u fdvIndex=NULL (no default value)", index);
-				fprintf(stderr, "[ReuseDiag] %s\n", buf);
-				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-				int createError = 0;
-				il2cpp::os::Directory::Create(dirStr, &createError);
-				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-				if (fp) { fprintf(fp, "[ReuseDiag] %s\n", buf); fclose(fp); }
 				return nullptr;
-			}
 			if (fdvIndex >= (uint32_t)_fieldDefaultValues.size())
-			{
-				char buf[512];
-				snprintf(buf, sizeof(buf), "GetFieldDefaultValueEntryByRawIndex: fdvIndex=%u OUT OF BOUNDS _fieldDefaultValues.size=%zu",
-					fdvIndex, _fieldDefaultValues.size());
-				fprintf(stderr, "[ReuseDiag] %s\n", buf);
-				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-				int createError = 0;
-				il2cpp::os::Directory::Create(dirStr, &createError);
-				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-				if (fp) { fprintf(fp, "[ReuseDiag] %s\n", buf); fclose(fp); }
 				return nullptr;
-			}
 			return &_fieldDefaultValues[fdvIndex];
 		}
 

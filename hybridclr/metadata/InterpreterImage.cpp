@@ -47,48 +47,6 @@ namespace hybridclr
 {
 namespace metadata
 {
-	// ==={{ AssemblyReloadReuse: logging helper
-	static void ReuseLog(const char* fmt, ...)
-	{
-		// Build timestamp
-		std::time_t nowTime = std::time(NULL);
-		struct tm tmNow;
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable: 4996)
-#endif
-		tmNow = *std::gmtime(&nowTime);
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
-		char timeBuf[32];
-		std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &tmNow);
-
-		// Format message
-		char msgBuf[2048];
-		va_list args;
-		va_start(args, fmt);
-		vsnprintf(msgBuf, sizeof(msgBuf), fmt, args);
-		va_end(args);
-
-		// Write to stderr
-		fprintf(stderr, "[%s] %s\n", timeBuf, msgBuf);
-
-		// Write to file
-		const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-		std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-		int createError = 0;
-		il2cpp::os::Directory::Create(dirStr, &createError);
-		std::string filePath = dirStr + "/assembly_reload_reuse.log";
-		FILE* fp = fopen(filePath.c_str(), "a");
-		if (fp)
-		{
-			fprintf(fp, "[%s] %s\n", timeBuf, msgBuf);
-			fclose(fp);
-		}
-	}
-	// ===}} AssemblyReloadReuse
-
 	static uint32_t s_nextImageIndexByKind[4] = { (1u << kMetadataImageIndexExtraShiftBitsA), 0, 0, 0};
 
 	InterpreterImage* InterpreterImage::s_images[kMaxMetadataImageCount] = {};
@@ -1922,21 +1880,6 @@ namespace metadata
 		{
 			return klass;
 		}
-		// _classList[index] is null — type was NOT reused.
-		// A new Il2CppClass* will be created. Log this.
-		if (!_reuseClassMap.empty())
-		{
-			const Il2CppTypeDefinition& typeDef = _typesDefines[index];
-			const char* ns = MetadataModule::GetStringFromEncodeIndex(typeDef.namespaceIndex);
-			const char* nm = MetadataModule::GetStringFromEncodeIndex(typeDef.nameIndex);
-			const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-			std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-			int createError = 0;
-			il2cpp::os::Directory::Create(dirStr, &createError);
-			FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-			if (fp) { fprintf(fp, "[ReuseDiag] NEW class created (not reused): '%s.%s' index=%u\n",
-				ns ? ns : "", nm ? nm : "", index); fclose(fp); }
-		}
 		klass = il2cpp::vm::GlobalMetadata::FromTypeDefinition(EncodeWithIndex(index));
 		IL2CPP_ASSERT(klass->interfaces_count <= klass->interface_offsets_count || _typesDefines[index].interfaceOffsetsStart == 0);
 		il2cpp::os::Atomic::FullMemoryBarrier();
@@ -2275,21 +2218,6 @@ namespace metadata
 		IL2CPP_ASSERT(indexInClass >= 0 && indexInClass < typeDefinition->method_count);
 		Il2CppClass* klass = il2cpp::vm::GlobalMetadata::GetTypeInfoFromHandle((Il2CppMetadataTypeHandle)typeDefinition);
 		il2cpp::vm::Class::SetupMethods(klass);
-		// Log if methods is null or index out of bounds
-		if (!klass->methods || indexInClass >= (int32_t)klass->method_count)
-		{
-			const char* ns = MetadataModule::GetStringFromEncodeIndex(typeDefinition->namespaceIndex);
-			const char* nm = MetadataModule::GetStringFromEncodeIndex(typeDefinition->nameIndex);
-			const char* mname = MetadataModule::GetStringFromEncodeIndex(methodDefinition->nameIndex);
-			const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-			std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-			int createError = 0;
-			il2cpp::os::Directory::Create(dirStr, &createError);
-			FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-			if (fp) { fprintf(fp, "[ReuseDiag] GetMethodInfo FAIL: class='%s.%s' method='%s' methods=%p method_count=%u indexInClass=%d initialized=%d\n",
-				ns ? ns : "", nm ? nm : "", mname ? mname : "",
-				(void*)klass->methods, (unsigned)klass->method_count, indexInClass, (int)klass->initialized); fclose(fp); }
-		}
 		return klass->methods[indexInClass];
 	}
 
@@ -2805,34 +2733,6 @@ namespace metadata
 		key += ")->";
 		key += TypeToSigString(returnType);
 
-		// Log the key being looked up (only for generic instance classes)
-		if (klass->generic_class)
-		{
-			const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-			std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-			int createError = 0;
-			il2cpp::os::Directory::Create(dirStr, &createError);
-			FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-			if (fp) {
-				auto it = _reuseMethodMap.find(key);
-				bool found = it != _reuseMethodMap.end();
-				fprintf(fp, "[Reuse] TryReuse key='%s' found=%s\n", key.c_str(), found ? "YES" : "NO");
-				if (!found)
-				{
-					// Find keys that start with the same class name
-					std::string className = BuildClassFullName(klass);
-				 for (auto& kv : _reuseMethodMap)
-				 {
-					 if (kv.first.find(className) != std::string::npos)
-					 {
-						 fprintf(fp, "[Reuse]   similar mapKey='%s'\n", kv.first.c_str());
-						 break;
-					 }
-				 }
-				}
-				fclose(fp);
-			}
-		}
 		return FindReusableMethod(key);
 	}
 
@@ -2892,22 +2792,9 @@ namespace metadata
 					if (ctx->methodMap->find(sigKey) == ctx->methodMap->end())
 					{
 						(*ctx->methodMap)[sigKey] = const_cast<MethodInfo*>(method);
-						// Log the key being added (only for .ctor methods to reduce noise)
-						if (method->name && strstr(method->name, ".ctor"))
-						{
-							const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-							std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-							int createError = 0;
-							il2cpp::os::Directory::Create(dirStr, &createError);
-							FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-							if (fp) { fprintf(fp, "[Reuse] CollectMethod key='%s'\n", sigKey.c_str()); fclose(fp); }
-						}
 					}
 				}, &ctx);
 		}
-
-		ReuseLog("CollectReusable: total classes=%zu total methods=%zu this=%p",
-			_reuseClassMap.size(), _reuseMethodMap.size(), (void*)this);
 	}
 
 	void InterpreterImage::RestoreReusedClasses()
@@ -2988,41 +2875,6 @@ namespace metadata
 #endif
 				if (!expanded)
 				{
-					// Log to console and file (same pattern as
-					// ComputeVTableAllocatedSlotCount in Class.cpp).
-					std::time_t nowTime = std::time(NULL);
-					struct tm tmNow;
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable: 4996)
-#endif
-					tmNow = *std::gmtime(&nowTime);
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
-					char timeBuf[32];
-					std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &tmNow);
-
-					const char* ns2 = (ns && *ns) ? ns : "";
-					const char* nm2 = nm ? nm : "<unknown>";
-
-					fprintf(stderr, "[%s] vtable-reuse-discard: type='%s.%s' new_slots=%u old_capacity=%u\n",
-						timeBuf, ns2, nm2, (unsigned)newVtableCount, (unsigned)klass->vtable_allocated_count);
-
-					// Also log to vtable_overflow.log (reuse the same file).
-					const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-					std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-					int createError = 0;
-					il2cpp::os::Directory::Create(dirStr, &createError);
-					std::string filePath = dirStr + "/vtable_overflow.log";
-					FILE* fp = fopen(filePath.c_str(), "a");
-					if (fp)
-					{
-						fprintf(fp, "[%s] vtable-reuse-discard: type='%s.%s' new_slots=%u old_capacity=%u\n",
-							timeBuf, ns2, nm2, (unsigned)newVtableCount, (unsigned)klass->vtable_allocated_count);
-						fclose(fp);
-					}
-
 					// Cannot reuse this class.
 					_reuseClassMap.erase(it);
 					continue;
@@ -3159,11 +3011,6 @@ namespace metadata
 
 			Il2CppClass* klass = _classList[i];
 			il2cpp::vm::Class::Init(klass);
-
-			ReuseLog("RestoreReused: class='%s.%s' klass=%p initialized=%d",
-				klass->namespaze ? klass->namespaze : "",
-				klass->name ? klass->name : "",
-				(void*)klass, (int)klass->initialized);
 		}
 
 		// --- Restore generic instance classes ---

@@ -102,41 +102,5 @@ namespace vm
         RaiseExceptionForNotFoundInterface(klass, itf, slot);
         IL2CPP_UNREACHABLE;
     }
-
-    // ==={{ AssemblyReloadReuse: diagnostic for HasParentUnsafe failures
-    void ClassInlines::HasParentUnsafeFailSlowPath(const Il2CppClass* klass, const Il2CppClass* parent)
-    {
-        // Only log for types whose name contains "Operation" to reduce noise
-        const char* kName = klass->name ? klass->name : "";
-        const char* pName = parent->name ? parent->name : "";
-        if (!strstr(kName, "Operation") && !strstr(pName, "Operation"))
-            return;
-
-        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-        int createError = 0;
-        il2cpp::os::Directory::Create(dirStr, &createError);
-        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-        if (fp) {
-            // Print typeHierarchy entries to see what's actually stored
-            fprintf(fp, "[ReuseDiag] HasParentUnsafe FAIL: parent='%s.%s'(d=%d,h=%p) klass='%s.%s'(d=%d,h=%p,gc=%p)\n",
-                parent->namespaze ? parent->namespaze : "", pName,
-                (int)parent->typeHierarchyDepth, (void*)parent->typeHierarchy,
-                klass->namespaze ? klass->namespaze : "", kName,
-                (int)klass->typeHierarchyDepth, (void*)klass->typeHierarchy,
-                (void*)klass->generic_class);
-            // Dump typeHierarchy contents
-            if (klass->typeHierarchy && klass->typeHierarchyDepth > 0) {
-                for (uint8_t i = 0; i < klass->typeHierarchyDepth; i++) {
-                    Il2CppClass* entry = klass->typeHierarchy[i];
-                    fprintf(fp, "  hierarchy[%d] = %p ('%s.%s')\n", (int)i, (void*)entry,
-                        entry ? (entry->namespaze ? entry->namespaze : "") : "null",
-                        entry ? (entry->name ? entry->name : "null") : "null");
-                }
-            }
-            fclose(fp);
-        }
-    }
-    // ===}} AssemblyReloadReuse
 }
 }

@@ -14,10 +14,7 @@ namespace vm
     public:
         // we assume that the Il2CppClass's have already been initialized in this case, like in code generation
         static inline bool HasParentUnsafe(const Il2CppClass* klass, const Il2CppClass* parent) {
-            bool result = klass->typeHierarchyDepth >= parent->typeHierarchyDepth && klass->typeHierarchy[parent->typeHierarchyDepth - 1] == parent;
-            if (!result)
-                HasParentUnsafeFailSlowPath(klass, parent);
-            return result;
+            return klass->typeHierarchyDepth >= parent->typeHierarchyDepth && klass->typeHierarchy[parent->typeHierarchyDepth - 1] == parent;
         }
 
         // This function is critical for performance, before optimization it
@@ -83,7 +80,6 @@ namespace vm
         // we don't want this method to get inlined because that makes GetInterfaceInvokeDataFromVTable method itself very large and performance suffers
         static IL2CPP_NO_INLINE const VirtualInvokeData& GetInterfaceInvokeDataFromVTableSlowPath(Il2CppObject* obj, const Il2CppClass* itf, Il2CppMethodSlot slot);
         static IL2CPP_NO_INLINE const VirtualInvokeData* GetInterfaceInvokeDataFromVTableSlowPath(const Il2CppClass* klass, const Il2CppClass* itf, Il2CppMethodSlot slot);
-        static IL2CPP_NO_INLINE void HasParentUnsafeFailSlowPath(const Il2CppClass* klass, const Il2CppClass* parent);
     };
 }
 }

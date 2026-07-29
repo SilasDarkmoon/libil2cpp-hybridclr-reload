@@ -106,62 +106,11 @@ namespace vm
                     reused->invoker_method = inflated->invoker_method;
                     reused->isInterpterImpl = inflated->isInterpterImpl;
 
-                    // Log to file for debugging
-                    {
-                        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                        int createError = 0;
-                        il2cpp::os::Directory::Create(dirStr, &createError);
-                        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                        if (fp) {
-                            fprintf(fp, "[Reuse] GenericMethod REUSED: '%s.%s' method='%s'\n",
-                                genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
-                                genericInstanceType->name ? genericInstanceType->name : "",
-                                inflated->name ? inflated->name : "");
-                            fclose(fp);
-                        }
-                    }
-
                     methods[methodIndex] = reused;
                     continue;
                 }
             }
             // ===}} AssemblyReloadReuse
-
-            // Log when method is NOT reused (new inflated method created)
-            if (reuseImage)
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) {
-                    fprintf(fp, "[Reuse] GenericMethod NEW: '%s.%s' method='%s'\n",
-                        genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
-                        genericInstanceType->name ? genericInstanceType->name : "",
-                        methodDefinition->name ? methodDefinition->name : "");
-                    fclose(fp);
-                }
-            }
-            // ===}} AssemblyReloadReuse
-
-            // Log when method is NOT reused (new inflated method created)
-            if (reuseImage)
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) {
-                    fprintf(fp, "[Reuse] GenericMethod NEW (no reuse match): '%s.%s' method='%s'\n",
-                        genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
-                        genericInstanceType->name ? genericInstanceType->name : "",
-                        methodDefinition->name ? methodDefinition->name : "");
-                    fclose(fp);
-                }
-            }
 
             methods[methodIndex] = metadata::GenericMetadata::Inflate(methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
         }
@@ -314,22 +263,6 @@ namespace vm
         }
         if (!gclass->cached_class)
         {
-            // ==={{ AssemblyReloadReuse: log new generic instance creation (filtered)
-            {
-                const char* defNm = definition->name ? definition->name : "";
-                if (hybridclr::metadata::IsInterpreterType(definition) &&
-                    (strstr(defNm, "Operation") || strstr(defNm, "Provider")))
-                {
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp) { fprintf(fp, "[ReuseDiag] NEW generic instance: '%s.%s'\n",
-                        definition->namespaze ? definition->namespaze : "", defNm); fclose(fp); }
-                }
-            }
-            // ===}} AssemblyReloadReuse
             // Il2CppClass uses a fixed-length layout (IL2CPP_MAX_VTABLE_SLOT_COUNT inline vtable slots) for types
             // whose vtable fits, otherwise a variable-length allocation of (vtable_count + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT)
             // slots. ComputeVTableAllocatedSlotCount returns the allocated slot count and logs the variable case.
@@ -618,20 +551,6 @@ namespace vm
             if (!klass->methods || klass->method_count == 0)
                 continue;
             // Log for debugging
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) {
-                    fprintf(fp, "[Reuse] CollectGeneric: '%s.%s' method_count=%u methods=%p\n",
-                        klass->namespaze ? klass->namespaze : "",
-                        klass->name ? klass->name : "",
-                        (unsigned)klass->method_count, (void*)klass->methods);
-                    fclose(fp);
-                }
-            }
             for (uint16_t m = 0; m < klass->method_count; m++)
             {
                 const MethodInfo* method = klass->methods[m];
@@ -660,21 +579,6 @@ namespace vm
 
             if (!shouldRestore)
                 continue;
-
-            // Log to file only (name filter to reduce noise)
-            {
-                const char* nm = klass->name ? klass->name : "";
-                if (strstr(nm, "Operation") || strstr(nm, "Provider"))
-                {
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp) { fprintf(fp, "[Reuse] GenericClass restore: '%s.%s' klass=%p\n",
-                        klass->namespaze ? klass->namespaze : "", nm, (void*)klass); fclose(fp); }
-                }
-            }
 
             // Update image pointer to the new image.
             klass->image = newImage;
@@ -708,38 +612,9 @@ namespace vm
             klass->initializationExceptionGCHandle = 0;
             klass->unity_user_data = nullptr;
 
-            // Log before and after Class::Init, write to file
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) {
-                    fprintf(fp, "[ReuseDiag] GenericClass BEFORE Init: '%s.%s' klass=%p\n",
-                        klass->namespaze ? klass->namespaze : "",
-                        klass->name ? klass->name : "",
-                        (void*)klass);
-                    fclose(fp);
-                }
-            }
             il2cpp::vm::Class::Init(klass);
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) {
-                    fprintf(fp, "[ReuseDiag] GenericClass AFTER Init: '%s.%s' klass=%p initialized=%d\n",
-                        klass->namespaze ? klass->namespaze : "",
-                        klass->name ? klass->name : "",
-                        (void*)klass, (int)klass->initialized);
-                    fclose(fp);
-                }
-            }
         }
-        fprintf(stderr, "[Reuse] GenericClass restore: scanned=%d restored=%d\n", scannedCount, restoredCount);
+        // Log to file only
         {
             const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
             std::string dirStr = !tmpCache.empty() ? tmpCache : "log";

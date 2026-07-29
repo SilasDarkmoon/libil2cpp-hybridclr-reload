@@ -379,16 +379,6 @@ namespace metadata
         }
         default:
         {
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) {
-                fprintf(fp, "[ReuseDiag] ReadType FAIL: etype=%d readPos=%u length=%u this=%p\n",
-                    (int)etype, reader.GetReadPosition(), reader.GetLength(), (void*)this);
-                fclose(fp);
-            }
             RaiseBadImageException("Image::ReadType invalid type");
             break;
         }
@@ -803,25 +793,24 @@ namespace metadata
                 {
                     TbStandAloneSig sigData = _rawImage->ReadStandAloneSig(DecodeTokenRowIndex(methodHeader->localVarSigToken));
 
-                    const Il2CppGenericContainer* klassGC = GetGenericContainerByTypeDefRawIndex(DecodeMetadataIndex(methodDef.declaringType));
-                    // Log if klassGC is null (which causes genericParameterHandle to be null)
-                    if (!klassGC)
+                    int32_t typeDefIdx = DecodeMetadataIndex(methodDef.declaringType);
+                    // ==={{ AssemblyReloadReuse: diagnostic log
                     {
+                        const char* mname = il2cpp::vm::GlobalMetadata::GetStringFromIndex(methodDef.nameIndex);
                         const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
                         std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
                         int createError = 0;
                         il2cpp::os::Directory::Create(dirStr, &createError);
                         FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
                         if (fp) {
-                            const char* mname = il2cpp::vm::GlobalMetadata::GetStringFromIndex(methodDef.nameIndex);
-                            fprintf(fp, "[ReuseDiag] ReadMethodBody klassGC=NULL: method='%s' declaringType=%u decoded=%u this=%p\n",
+                            fprintf(fp, "[ReuseDiag] ReadMethodBody ENTER: method='%s' declaringType=%u decoded=%d this=%p\n",
                                 mname ? mname : "<null>",
-                                (unsigned)methodDef.declaringType,
-                                (unsigned)DecodeMetadataIndex(methodDef.declaringType),
-                                (void*)this);
+                                (unsigned)methodDef.declaringType, (int)typeDefIdx, (void*)this);
                             fclose(fp);
                         }
                     }
+                    // ===}} AssemblyReloadReuse
+                    const Il2CppGenericContainer* klassGC = GetGenericContainerByTypeDefRawIndex(typeDefIdx);
                     BlobReader reader = _rawImage->GetBlobReaderByRawIndex(sigData.signature);
                     ReadLocalVarSig(reader,
                         klassGC,

@@ -68,71 +68,7 @@ namespace vm
     {
         if (vtableCount + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT > IL2CPP_MAX_VTABLE_SLOT_COUNT)
         {
-            const uint32_t allocated = vtableCount + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT;
-            const char* ns = (namespaze && namespaze[0]) ? namespaze : "";
-            const char* nm = name ? name : "<unknown>";
-
-            // Build a UTC timestamp, e.g. "2026-07-23 14:05:09".
-            // gmtime is part of standard C and available on all platforms (Windows/iOS/Android).
-            // MSVC deprecates it in favor of gmtime_s, so we silence that specific warning locally;
-            // other compilers simply ignore the pragma.
-            std::time_t nowTime = std::time(NULL);
-            struct tm tmNow;
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable: 4996)
-#endif
-            tmNow = *std::gmtime(&nowTime);
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
-            char timeBuf[32];
-            std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &tmNow);
-
-            il2cpp::utils::Logging::Write("[%s] Info: vtable of type '%s%s%s' has %u slots which exceeds the fixed capacity %d; using the variable-length Il2CppClass layout with %u allocated slots.",
-                timeBuf,
-                ns,
-                (namespaze && namespaze[0]) ? "." : "",
-                nm,
-                (unsigned int)vtableCount,
-                (int)IL2CPP_MAX_VTABLE_SLOT_COUNT,
-                (unsigned int)allocated);
-
-            // Also dump the info to a file so it can be inspected after the run.
-            // Preferred location is Unity's Application.temporaryCachePath. Since libil2cpp (C++) cannot
-            // read that managed property directly, the managed side may publish it via the
-            // UNITY_TEMPORARY_CACHE_PATH environment variable (e.g. Environment.SetEnvironmentVariable
-            // at startup, before il2cpp loads metadata). If it is not available, fall back to a "log"
-            // subdirectory of the current working directory. Failures are non-fatal.
-            static std::string s_overflowLogDir;
-            static bool s_overflowLogDirResolved = false;
-            if (!s_overflowLogDirResolved)
-            {
-                s_overflowLogDirResolved = true;
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                if (!tmpCache.empty())
-                    s_overflowLogDir = tmpCache;
-                else
-                    s_overflowLogDir = "log";
-            }
-
-            static int s_createError = 0;
-            il2cpp::os::Directory::Create(s_overflowLogDir, &s_createError);
-            const std::string filePath = s_overflowLogDir + "/vtable_overflow.log";
-            FILE* fp = fopen(filePath.c_str(), "a");
-            if (fp != NULL)
-            {
-                fprintf(fp, "[%s] vtable variable-layout: type='%s.%s' slots=%u capacity=%d allocated=%u\n",
-                    timeBuf,
-                    ns,
-                    nm,
-                    (unsigned int)vtableCount,
-                    (int)IL2CPP_MAX_VTABLE_SLOT_COUNT,
-                    (unsigned int)allocated);
-                fclose(fp);
-            }
-
-            return allocated;
+            return vtableCount + IL2CPP_PRESERVED_VTABLE_SLOT_COUNT;
         }
         return IL2CPP_MAX_VTABLE_SLOT_COUNT;
     }
@@ -762,29 +698,7 @@ namespace vm
                     return true;
             }
 
-            // ==={{ AssemblyReloadReuse: diagnostic - only log for "Operation" types
-            bool assignResult = ClassInlines::HasParentUnsafe(oklass, klass);
-            if (!assignResult)
-            {
-                const char* kName = klass->name ? klass->name : "";
-                const char* oName = oklass->name ? oklass->name : "";
-                if (strstr(kName, "Operation") || strstr(oName, "Operation"))
-                {
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp) {
-                        fprintf(fp, "[ReuseDiag] IsAssignableFrom FAIL: '%s.%s'(d=%d) <- '%s.%s'(d=%d,p=%p)\n",
-                            klass->namespaze ? klass->namespaze : "", kName, (int)klass->typeHierarchyDepth,
-                            oklass->namespaze ? oklass->namespaze : "", oName, (int)oklass->typeHierarchyDepth, (void*)oklass->parent);
-                        fclose(fp);
-                    }
-                }
-            }
-            return assignResult;
-            // ===}} AssemblyReloadReuse
+            return ClassInlines::HasParentUnsafe(oklass, klass);
         }
 
         if (klass->generic_class != NULL)
@@ -1233,17 +1147,6 @@ namespace vm
             }
             if (reuseImage)
             {
-                const char* kName = klass->name ? klass->name : "";
-                if (strstr(kName, "LogManager") || strstr(kName, "MainThreadExecutor"))
-                {
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp) { fprintf(fp, "[ReuseDiag] SetupMethods: '%s.%s' method_count=%u\n",
-                        klass->namespaze ? klass->namespaze : "", kName, (unsigned)klass->method_count); fclose(fp); }
-                }
             }
             // ===}} AssemblyReloadReuse
 
@@ -1328,44 +1231,10 @@ namespace vm
 
                         klass->methods[index] = reused;
 
-                        fprintf(stderr, "[Reuse]   method[%u] REUSED name='%s' slot=%u reused=%p methodPtr=%p\n",
-                            (unsigned)index, methodInfo.name ? methodInfo.name : "<null>",
-                            (unsigned)reused->slot, (void*)reused, (void*)reused->methodPointer);
-                        // Also log to file for LogManager
-                        {
-                            const char* kName = klass->name ? klass->name : "";
-                            if (strstr(kName, "LogManager") && methodInfo.name && strstr(methodInfo.name, "GetLogger"))
-                            {
-                                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                                int createError = 0;
-                                il2cpp::os::Directory::Create(dirStr, &createError);
-                                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                                if (fp) { fprintf(fp, "[ReuseDiag] Method REUSED: '%s' on '%s.%s' methodPtr=%p\n",
-                                    methodInfo.name, klass->namespaze ? klass->namespaze : "", kName, (void*)reused->methodPointer); fclose(fp); }
-                            }
-                        }
-
                         continue;  // Skip creating a new MethodInfo for this slot.
                     }
                     else
                     {
-                        fprintf(stderr, "[Reuse]   method[%u] NEW (no reuse match) name='%s'\n",
-                            (unsigned)index, methodInfo.name ? methodInfo.name : "<null>");
-                        // Also log to file for LogManager
-                        {
-                            const char* kName = klass->name ? klass->name : "";
-                            if (strstr(kName, "LogManager") && methodInfo.name && strstr(methodInfo.name, "GetLogger"))
-                            {
-                                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                                int createError = 0;
-                                il2cpp::os::Directory::Create(dirStr, &createError);
-                                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                                if (fp) { fprintf(fp, "[ReuseDiag] Method NEW (no reuse): '%s' on '%s.%s'\n",
-                                    methodInfo.name, klass->namespaze ? klass->namespaze : "", kName); fclose(fp); }
-                            }
-                        }
                     }
                 }
                 // ===}} AssemblyReloadReuse

@@ -1103,70 +1103,31 @@ static int CompareFieldDefaultValues(const void* pkey, const void* pelem)
     return (int)(((Il2CppFieldDefaultValue*)pkey)->fieldIndex - ((Il2CppFieldDefaultValue*)pelem)->fieldIndex);
 }
 
-// ==={{ AssemblyReloadReuse: file+stderr logging helper
-static void ReuseDiagLog(const char* fmt, ...)
-{
-    char msgBuf[2048];
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(msgBuf, sizeof(msgBuf), fmt, args);
-    va_end(args);
-
-    fprintf(stderr, "[ReuseDiag] %s\n", msgBuf);
-
-    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-    int createError = 0;
-    il2cpp::os::Directory::Create(dirStr, &createError);
-    std::string filePath = dirStr + "/assembly_reload_reuse.log";
-    FILE* fp = fopen(filePath.c_str(), "a");
-    if (fp)
-    {
-        fprintf(fp, "[ReuseDiag] %s\n", msgBuf);
-        fclose(fp);
-    }
-}
-// ===}} AssemblyReloadReuse
 
 static const Il2CppFieldDefaultValue* GetFieldDefaultValueEntry(const FieldInfo* field)
 {
     Il2CppClass* parent = field->parent;
 
-    // ==={{ AssemblyReloadReuse: diagnostic + fix
-    if (parent && parent->fields && parent->field_count > 0)
+    // ==={{ AssemblyReloadReuse: fix stale field pointer after reload
+    if (parent && parent->fields && field->token)
     {
         FieldInfo* fieldsStart = parent->fields;
         FieldInfo* fieldsEnd = fieldsStart + parent->field_count;
         if (field < fieldsStart || field >= fieldsEnd)
         {
-            // field is a stale pointer from before reload (old fields array).
+            // field is a stale pointer from before reload.
             // Use field->token to compute the correct fieldIndex instead.
-            ReuseDiagLog("GetFieldDefaultValueEntry: stale field=%p, using token=%u to compute index, parent='%s.%s'",
-                (void*)field, field->token,
-                parent->namespaze ? parent->namespaze : "",
-                parent->name ? parent->name : "");
-
-            // Resolve parent to type definition (for generic instances)
             Il2CppClass* typeDefParent = parent;
             if (il2cpp::vm::Type::IsGenericInstance(&parent->byval_arg))
                 typeDefParent = il2cpp::vm::GenericClass::GetTypeDefinition(parent->generic_class);
 
             const Il2CppTypeDefinition* typeDef = reinterpret_cast<const Il2CppTypeDefinition*>(typeDefParent->typeMetadataHandle);
-            // fieldStart is encoded: EncodeWithIndex(rawFieldStart)
-            // token encodes: EncodeToken(TableType::FIELD, rowIndex) where rowIndex is 1-based
-            // The raw field index = (rowIndex - 1)
             uint32_t rowIndex = hybridclr::metadata::DecodeTokenRowIndex(field->token);
             FieldIndex fieldIndexFromToken = (FieldIndex)(rowIndex - 1);
 
             if (hybridclr::metadata::IsInterpreterIndex((uint32_t)fieldIndexFromToken) ||
                 hybridclr::metadata::IsInterpreterIndex((uint32_t)typeDef->fieldStart))
             {
-                // For interpreter images, fieldStart is encoded.
-                // The global field index = EncodeWithIndex(rawFieldStart + fieldOffsetInClass)
-                // But we can also compute it as: fieldIndexFromToken + typeDef->fieldStart
-                // where fieldIndexFromToken is the raw row index - 1.
-                // Actually, for interpreter images, the field's raw index in _fieldDetails
-                // is just (rowIndex - 1). So we can use that directly.
                 uint32_t imgIdx = hybridclr::metadata::DecodeImageIndex((uint32_t)typeDef->fieldStart);
                 uint32_t rawFieldIdx = rowIndex - 1;
                 uint32_t encodedIdx = hybridclr::metadata::EncodeImageAndMetadataIndex(imgIdx, rawFieldIdx);
@@ -1820,12 +1781,6 @@ Il2CppGenericParameterInfo il2cpp::vm::GlobalMetadata::GetGenericParameterInfo(I
 
     if (!genericParameter)
     {
-        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-        int createError = 0;
-        il2cpp::os::Directory::Create(dirStr, &createError);
-        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-        if (fp) { fprintf(fp, "[ReuseDiag] GetGenericParameterInfo: handle=NULL (genericParameterHandle is null)\n"); fclose(fp); }
         return { nullptr, "<null>", 0, 0 };
     }
 
