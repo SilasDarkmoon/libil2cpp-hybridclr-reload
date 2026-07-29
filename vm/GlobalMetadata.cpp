@@ -1785,7 +1785,7 @@ Il2CppGenericParameterInfo il2cpp::vm::GlobalMetadata::GetGenericParameterInfo(I
     }
 
     return {
-            reinterpret_cast<Il2CppMetadataGenericContainerHandle>(GetGenericContainerFromIndexInternal(genericParameter->ownerIndex)),
+            reinterpret_cast<Il2CppMetadataGenericContainerHandle>(GetGenericContainerFromIndex(genericParameter->ownerIndex)),
             GetStringFromIndex(genericParameter->nameIndex),
             genericParameter->num,
             genericParameter->flags

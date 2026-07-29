@@ -186,8 +186,23 @@ namespace metadata
 		{
 			IL2CPP_ASSERT(DecodeTokenTableType(token) == TableType::METHOD);
 			uint32_t rowIndex = DecodeTokenRowIndex(token);
-			IL2CPP_ASSERT(rowIndex > 0 && rowIndex <= (uint32_t)_methodDefines.size());
 
+			// ==={{ AssemblyReloadReuse: runtime bounds check
+			if (rowIndex == 0 || rowIndex > (uint32_t)_methodDefines.size())
+			{
+				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+				int createError = 0;
+				il2cpp::os::Directory::Create(dirStr, &createError);
+				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+				if (fp) {
+					fprintf(fp, "[ReuseDiag] GetMethodBody OOB: token=0x%08X rowIndex=%u methodDefinesSize=%zu this=%p\n",
+						(unsigned)token, (unsigned)rowIndex, _methodDefines.size(), (void*)this);
+					fclose(fp);
+				}
+				return nullptr;
+			}
+			// ===}} AssemblyReloadReuse
 
 			const Il2CppMethodDefinition* methodDef = &_methodDefines[rowIndex - 1];
 			bool isGenericMethod = methodDef->genericContainerIndex != kGenericContainerIndexInvalid || _typesDefines[DecodeMetadataIndex(methodDef->declaringType)].genericContainerIndex != kGenericContainerIndexInvalid;
