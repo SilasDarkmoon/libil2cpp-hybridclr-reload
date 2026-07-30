@@ -352,7 +352,7 @@ namespace vm
         // Collect all entries, clear the set, and re-insert them.
         // This recomputes hashes with the updated byval_arg.data.typeHandle.
         std::vector<Il2CppGenericClass*> entries;
-        for (Il2CppClassSet::iterator it = s_GenericClassSet.begin(); it != s_GenericClassSet.end(); ++it)
+        for (Il2CppGenericClassSet::const_iterator it = s_GenericClassSet.begin(); it != s_GenericClassSet.end(); ++it)
             entries.push_back(*it);
         s_GenericClassSet.clear();
         for (Il2CppGenericClass* entry : entries)
