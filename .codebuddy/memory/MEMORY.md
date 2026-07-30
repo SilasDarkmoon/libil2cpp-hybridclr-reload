@@ -45,4 +45,7 @@
 - **问题**：Pass 2 重置 `typeHierarchy = nullptr` 和 `typeHierarchyDepth = 0` 后，`IsInst`（类型转换检查）直接读这两个字段，导致 `InvalidCastException: EnumEqualityComparer→EqualityComparer`
 - **关键发现**：`IsInst` → `Object::IsInst` → `Class::IsAssignableFrom` → **`Class::Init`**（第660-661行）。所以 `IsInst` 确实会触发 `Class::Init`，Pass 3 的 `Class::Init` 会通过 `InitLocked` → `SetupTypeHierarchyLocked` 重建继承树
 - **修复**：Pass 2 只重置（`typeHierarchy = nullptr`, `typeHierarchyDepth = 0`），Pass 3 通过 `Class::Init` 重建。Pass 3 在 `Class::Init` 之前重新解析 parent，确保继承链变化后正确
-- **机制**：与第一遍加载使用相同机制（`Class::Init` → `InitLocked` → `SetupTypeHierarchyLocked`）
+
+## klass->image 被错误设为 newImage（2026-07-29）
+- **问题**：`ShouldRestoreGenericClass` 递归检查泛型参数。如果泛型参数来自正在 reload 的 DLL，返回 true。但 Pass 1 `klass->image = newImage` 把 image 设成了当前 reload 的 DLL，而非泛型定义所在的 DLL。导致 `GetMethodBody` 在错误 image 上用 token 查找 → OOB
+- **修复**：Pass 1 中，当 `defIsInterp` 为 true 时，把 `klass->image` 设为泛型定义类的 `image`（`defKlass->image`），而非 `newImage`

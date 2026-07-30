@@ -668,9 +668,11 @@ namespace vm
                 continue;
             }
 
-            // Only update klass->image if the generic type definition is
-            // from an interpreter image.  AOT generic definitions must keep
-            // their AOT image so method tokens resolve correctly.
+            // Update klass->image to point to the image of the generic type
+            // definition (NOT newImage).  The class may be restored because
+            // a generic argument depends on newImage, but klass->image must
+            // always point to the image where the type definition lives so
+            // that method tokens resolve correctly.
             bool defIsInterp = false;
             {
                 const Il2CppType* defType = gclass->type;
@@ -678,10 +680,18 @@ namespace vm
                 {
                     const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)defType->data.typeHandle;
                     defIsInterp = typeDef && hybridclr::metadata::IsInterpreterType(typeDef);
+                    if (defIsInterp)
+                    {
+                        // Set klass->image to the image of the generic type
+                        // definition, not newImage.  The definition's class
+                        // (already restored by RestoreReusedClasses) has the
+                        // correct image.
+                        Il2CppClass* defKlass = GetTypeDefinition(gclass);
+                        if (defKlass && defKlass->image)
+                            klass->image = defKlass->image;
+                    }
                 }
             }
-            if (defIsInterp)
-                klass->image = newImage;
 
             // NOTE: parent re-resolution is deferred to Pass 3 (before
             // Class::Init) because Class::FromIl2CppType and
