@@ -52,3 +52,18 @@
 ## klass->image 被错误设为 newImage（2026-07-29）
 - **问题**：`ShouldRestoreGenericClass` 递归检查泛型参数。如果泛型参数来自正在 reload 的 DLL，返回 true。但 Pass 1 `klass->image = newImage` 把 image 设成了当前 reload 的 DLL，而非泛型定义所在的 DLL。导致 `GetMethodBody` 在错误 image 上用 token 查找 → OOB
 - **修复**：Pass 1 中，当 `defIsInterp` 为 true 时，把 `klass->image` 设为泛型定义类的 `image`（`defKlass->image`），而非 `newImage`
+
+## rehash 仅重算 hash 但未更新陈旧指针（2026-07-30）
+- **问题**：Pass 1 更新 `klass->byval_arg.data.typeHandle` 指向新 `Il2CppTypeDefinition`，但 `Il2CppGenericClass->type` 和 `Il2CppGenericInst->type_argv[i]` 可能指向旧 image 类型表中的 `Il2CppType` 对象（其 `data.typeHandle` 未被 Pass 1 更新）。rehash 仅重算 hash，但用的仍是旧 `typeHandle` → 新 lookup 用新 `typeHandle` → hash 不匹配 → 创建重复条目 → `ParentMismatch`
+- **根因分析**：
+  - `Il2CppTypeHash::Hash` 对 CLASS/VALUETYPE 用 `data.typeHandle` 指针值
+  - `Il2CppGenericInstHash` 调 `Il2CppTypeHash::Hash(type_argv[i])`
+  - `Il2CppGenericClassHash` 调 `Il2CppTypeHash::Hash(item->type)` + `Il2CppGenericContextHash::Hash(&item->context)`
+  - 如果 `type_argv[i]` 或 `gclass->type` 指向旧 image 类型表条目，其 `typeHandle` 是旧值
+  - rehash 重算 hash 用旧值；新 lookup（从 `&klass->byval_arg`）用新值 → 不匹配
+- **修复**：在三个 rehash 函数中，遍历条目时更新陈旧指针：
+  1. `RehashGenericInstSet`（MetadataCache.cpp）：对每个 `Il2CppGenericInst`，遍历 `type_argv[i]`，若 CLASS/VALUETYPE 且 `klass->byval_arg.data.typeHandle != t->data.typeHandle`，则更新 `type_argv[i] = &klass->byval_arg`
+  2. `RehashGenericClassSet`（GenericMetadata.cpp）：对每个 `Il2CppGenericClass`，若 `gclass->type` 是 CLASS/VALUETYPE 且类被复用，更新 `gclass->type = &klass->byval_arg`
+  3. `RehashGenericTypeSet`（GenericClass.cpp）：同上
+  - 查找类用 `MetadataCache::GetTypeInfoFromType(defType)` → `GlobalMetadata::GetTypeInfoFromType` → `GetTypeInfoFromHandle(typeHandle)` → `GetIndexForTypeDefinitionInternal` → `GetTypeInfoFromTypeDefinitionIndex`
+  - 即使 `typeHandle` 是旧值，`IsInterpreterType` 仍能识别，`GetTypeEncodeIndex` 仍能返回编码索引，最终返回被复用的 `Il2CppClass*`（其 `byval_arg.data.typeHandle` 已是新值）

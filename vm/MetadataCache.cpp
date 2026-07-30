@@ -350,10 +350,34 @@ void il2cpp::vm::MetadataCache::Clear()
 void il2cpp::vm::MetadataCache::RehashGenericInstSet()
 {
     size_t count = 0;
+    size_t updated = 0;
     std::vector<const Il2CppGenericInst*> entries;
     for (Il2CppGenericInstSet::const_iterator it = s_GenericInstSet.begin(); it != s_GenericInstSet.end(); ++it)
     {
-        entries.push_back(*it);
+        const Il2CppGenericInst* inst = *it;
+        // Update type_argv[i] pointers that reference stale Il2CppType objects.
+        // Pass 1 updates klass->byval_arg.data.typeHandle but does NOT update
+        // Il2CppType objects in the old image's type table. If type_argv[i]
+        // points to such a stale Il2CppType, the hash/compare will use the old
+        // typeHandle, causing lookups to miss and create duplicate entries.
+        for (uint32_t i = 0; i < inst->type_argc; i++)
+        {
+            const Il2CppType* t = inst->type_argv[i];
+            if (t && (t->type == IL2CPP_TYPE_CLASS || t->type == IL2CPP_TYPE_VALUETYPE))
+            {
+                Il2CppClass* klass = GlobalMetadata::GetTypeInfoFromType(t);
+                if (klass && &klass->byval_arg != t &&
+                    klass->byval_arg.data.typeHandle != t->data.typeHandle)
+                {
+                    // Class was reused: byval_arg.data.typeHandle was updated
+                    // to the new Il2CppTypeDefinition. Repoint type_argv[i]
+                    // to &klass->byval_arg so hash/compare use the new value.
+                    const_cast<Il2CppGenericInst*>(inst)->type_argv[i] = &klass->byval_arg;
+                    updated++;
+                }
+            }
+        }
+        entries.push_back(inst);
         count++;
     }
     s_GenericInstSet.clear();
@@ -366,7 +390,7 @@ void il2cpp::vm::MetadataCache::RehashGenericInstSet()
         il2cpp::os::Directory::Create(dirStr, &createError);
         FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
         if (fp) {
-            fprintf(fp, "[ReuseDiag] RehashGenericInstSet: rehashed %zu entries\n", count);
+            fprintf(fp, "[ReuseDiag] RehashGenericInstSet: rehashed %zu entries, updated %zu type_argv pointers\n", count, updated);
             fclose(fp);
         }
     }

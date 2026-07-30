@@ -432,10 +432,25 @@ namespace metadata
     {
         FastAutoLock lock(&s_GenericClassMutex);
         size_t count = 0;
+        size_t updated = 0;
         std::vector<Il2CppGenericClass*> entries;
         for (Il2CppGenericClassSet::iterator it = s_GenericClassSet.begin(); it != s_GenericClassSet.end(); ++it)
         {
-            entries.push_back((*it).key);
+            Il2CppGenericClass* gclass = (*it).key;
+            // Update gclass->type to &klass->byval_arg for CLASS/VALUETYPE
+            // types whose class was reused (byval_arg.data.typeHandle changed).
+            const Il2CppType* defType = gclass->type;
+            if (defType && (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE))
+            {
+                Il2CppClass* klass = MetadataCache::GetTypeInfoFromType(defType);
+                if (klass && &klass->byval_arg != defType &&
+                    klass->byval_arg.data.typeHandle != defType->data.typeHandle)
+                {
+                    gclass->type = &klass->byval_arg;
+                    updated++;
+                }
+            }
+            entries.push_back(gclass);
             count++;
         }
         s_GenericClassSet.clear();
@@ -448,7 +463,7 @@ namespace metadata
             il2cpp::os::Directory::Create(dirStr, &createError);
             FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
             if (fp) {
-                fprintf(fp, "[ReuseDiag] RehashGenericClassSet: rehashed %zu entries\n", count);
+                fprintf(fp, "[ReuseDiag] RehashGenericClassSet: rehashed %zu entries, updated %zu type pointers\n", count, updated);
                 fclose(fp);
             }
         }

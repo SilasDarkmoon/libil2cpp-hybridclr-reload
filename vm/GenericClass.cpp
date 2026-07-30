@@ -351,12 +351,40 @@ namespace vm
     {
         // Collect all entries, clear the set, and re-insert them.
         // This recomputes hashes with the updated byval_arg.data.typeHandle.
+        // Also update gclass->type to &klass->byval_arg for CLASS/VALUETYPE
+        // types whose class was reused, so hash/compare use the new typeHandle.
+        size_t count = 0, updated = 0;
         std::vector<Il2CppGenericClass*> entries;
         for (Il2CppGenericClassSet::const_iterator it = s_GenericClassSet.begin(); it != s_GenericClassSet.end(); ++it)
             entries.push_back((*it).key);
         s_GenericClassSet.clear();
-        for (Il2CppGenericClass* entry : entries)
-            s_GenericClassSet.insert(entry);
+        for (Il2CppClass* gclass : entries)
+        {
+            const Il2CppType* defType = gclass->type;
+            if (defType && (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE))
+            {
+                Il2CppClass* klass = MetadataCache::GetTypeInfoFromType(defType);
+                if (klass && &klass->byval_arg != defType &&
+                    klass->byval_arg.data.typeHandle != defType->data.typeHandle)
+                {
+                    gclass->type = &klass->byval_arg;
+                    updated++;
+                }
+            }
+            s_GenericClassSet.insert(gclass);
+            count++;
+        }
+        {
+            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+            int createError = 0;
+            il2cpp::os::Directory::Create(dirStr, &createError);
+            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+            if (fp) {
+                fprintf(fp, "[ReuseDiag] RehashGenericTypeSet: rehashed %zu entries, updated %zu type pointers\n", count, updated);
+                fclose(fp);
+            }
+        }
     }
     // ===}} AssemblyReloadReuse
 
