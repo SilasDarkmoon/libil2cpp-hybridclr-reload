@@ -1,6 +1,8 @@
 #include "il2cpp-config.h"
 #include "il2cpp-runtime-stats.h"
 #include "os/Mutex.h"
+#include "os/Environment.h"
+#include "os/Directory.h"
 #include "vm/Class.h"
 #include "vm/GenericClass.h"
 #include "vm/Image.h"
@@ -22,6 +24,7 @@
 #include "vm/MetadataCache.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-tabledefs.h"
+#include <string>
 #include <vector>
 
 #include "Baselib.h"
@@ -192,24 +195,14 @@ namespace metadata
 
         // ==={{ AssemblyReloadReuse: diagnostic log for new generic class creation
         {
-            const char* typeName = "?";
-            if (genericTypeDefinition->type == IL2CPP_TYPE_CLASS || genericTypeDefinition->type == IL2CPP_TYPE_VALUETYPE)
-            {
-                const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)genericTypeDefinition->data.typeHandle;
-                if (typeDef)
-                {
-                    const Il2CppImage* img = il2cpp::vm::MetadataCache::GetImageFromTypeDefinition(typeDef);
-                    if (img && img->name) typeName = img->name;
-                }
-            }
             const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
             std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
             int createError = 0;
             il2cpp::os::Directory::Create(dirStr, &createError);
             FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
             if (fp) {
-                fprintf(fp, "[ReuseDiag] GetGenericClass: NEW entry created, typeHandle=%p image='%s'\n",
-                    (void*)genericTypeDefinition->data.typeHandle, typeName);
+                fprintf(fp, "[ReuseDiag] GetGenericClass: NEW entry created, typeHandle=%p\n",
+                    (void*)genericTypeDefinition->data.typeHandle);
                 fclose(fp);
             }
         }
