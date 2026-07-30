@@ -53,6 +53,11 @@ namespace vm
         // whose image matches oldImage. Calls callback for each method.
         typedef void (*CollectMethodCallback)(const MethodInfo* method, void* userData);
         static void CollectMethodsFromGenericClasses(const Il2CppImage* oldImage, CollectMethodCallback callback, void* userData);
+
+        // Rehash the internal generic-class cache after byval_arg.data.typeHandle
+        // has been updated by Pass 1. The hash of Il2CppGenericClass entries depends
+        // on typeHandle, so after updating it we must rehash to keep lookups working.
+        static void RehashGenericTypeSet();
         // ===}} AssemblyReloadReuse
 
         static bool HasSameGenericTypeDefinition(const Il2CppGenericClass* gclass1, const Il2CppGenericClass* gclass2)

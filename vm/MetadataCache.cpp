@@ -343,6 +343,18 @@ void il2cpp::vm::MetadataCache::Clear()
     il2cpp::vm::GlobalMetadata::Clear();
 }
 
+// ==={{ AssemblyReloadReuse
+void il2cpp::vm::MetadataCache::RehashGenericInstSet()
+{
+    std::vector<Il2CppGenericInst*> entries;
+    for (Il2CppGenericInstSet::iterator it = s_GenericInstSet.begin(); it != s_GenericInstSet.end(); ++it)
+        entries.push_back(*it);
+    s_GenericInstSet.clear();
+    for (Il2CppGenericInst* entry : entries)
+        s_GenericInstSet.insert(entry);
+}
+// ===}} AssemblyReloadReuse
+
 void il2cpp::vm::MetadataCache::InitializeUnresolvedSignatureTable()
 {
     s_pUnresolvedSignatureMap = new Il2CppUnresolvedSignatureMap();

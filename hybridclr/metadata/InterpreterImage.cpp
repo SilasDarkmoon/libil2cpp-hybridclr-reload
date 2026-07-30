@@ -2973,6 +2973,15 @@ namespace metadata
 		if (_oldImageForReuse)
 		{
 			il2cpp::vm::GenericClass::RestoreCachedGenericClassesPass1(_oldImageForReuse, _il2cppImage);
+			// ==={{ AssemblyReloadReuse: Rehash generic caches after Pass 1.
+			// Pass 1 updates byval_arg.data.typeHandle, which is used by
+			// Il2CppGenericClassHash and Il2CppGenericInstHash for hashing.
+			// The old hash entries are stale. Rehash to keep lookups working
+			// in Pass 3 when Class::FromIl2CppType resolves parent. ===
+			il2cpp::vm::MetadataCache::RehashGenericInstSet();
+			il2cpp::metadata::GenericMetadata::RehashGenericClassSet();
+			il2cpp::vm::GenericClass::RehashGenericTypeSet();
+			// ===}} AssemblyReloadReuse
 		}
 
 		// === Pass 2: Reset lazy-init fields and init flags for all reused

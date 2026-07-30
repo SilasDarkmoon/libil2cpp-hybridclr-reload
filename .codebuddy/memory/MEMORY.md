@@ -44,9 +44,10 @@
 ## typeHierarchy 在 Pass 2 重置、Pass 3 通过 Class::Init 重建（2026-07-29）
 - **问题**：Pass 2 重置 `typeHierarchy = nullptr` 和 `typeHierarchyDepth = 0` 后，`IsInst` → `IsAssignableFrom` → `Class::Init` → `SetupTypeHierarchyLocked` 重建继承树
 - **关键发现**：`HasParentUnsafe` 使用 `typeHierarchy` 和 `typeHierarchyDepth`，`IsAssignableFrom` 调用 `Class::Init` 确保重建
-- **泛型 Pass 3 重新解析 parent**：从 generic type definition 的 parent inflate，调用 `Class::FromIl2CppType`。添加 `ParentMismatch` 诊断日志确认是否返回了不同的类
-- **非泛型 Pass 3 也重新解析 parent**（从 TypeDef parentIndex）
-- **查找机制**：`Il2CppGenericClassHash`/`Il2CppGenericClassCompare` 按值比较，`Il2CppTypeCompare` 对 CLASS/VALUETYPE 比较 `typeHandle` 指针，`Il2CppGenericInstCompare` 逐个比较 `type_argv[i]`
+- **泛型 Pass 3 重新解析 parent**：从 generic type definition 的 parent inflate，调用 `Class::FromIl2ptype`
+- **Pass 1 后 rehash 三个缓存**：`s_GenericInstSet`、`GenericMetadata::s_GenericClassSet`、`GenericClass::s_GenericClassSet`
+  - 原因：Pass 1 更新 `byval_arg.data.typeHandle`，`Il2CppTypeHash::Hash` 对 CLASS/VALUETYPE 用 `typeHandle` 指针值做 hash。旧条目 hash 失效，新 lookup hash 不同 → 创建新类 → `ParentMismatch` → `InvalidCastException`
+  - 修复：Pass 1 后清除并重新插入所有条目，用新 `typeHandle` 重新计算 hash
 
 ## klass->image 被错误设为 newImage（2026-07-29）
 - **问题**：`ShouldRestoreGenericClass` 递归检查泛型参数。如果泛型参数来自正在 reload 的 DLL，返回 true。但 Pass 1 `klass->image = newImage` 把 image 设成了当前 reload 的 DLL，而非泛型定义所在的 DLL。导致 `GetMethodBody` 在错误 image 上用 token 查找 → OOB

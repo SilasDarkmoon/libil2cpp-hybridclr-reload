@@ -49,6 +49,13 @@ namespace metadata
 
 
         static void Clear();
+
+        // ==={{ AssemblyReloadReuse
+        // Rehash the internal generic class set after byval_arg.data.typeHandle
+        // has been updated. The hash depends on typeHandle, so after updating
+        // it we must rehash to keep lookups working.
+        static void RehashGenericClassSet();
+        // ===}} AssemblyReloadReuse
     };
 } /* namespace vm */
 } /* namespace il2cpp */

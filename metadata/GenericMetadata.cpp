@@ -409,6 +409,19 @@ namespace metadata
         s_GenericClassSet.clear();
     }
 
+    // ==={{ AssemblyReloadReuse
+    void GenericMetadata::RehashGenericClassSet()
+    {
+        FastAutoLock lock(&s_GenericClassMutex);
+        std::vector<Il2CppGenericClass*> entries;
+        for (Il2CppGenericClassSet::iterator it = s_GenericClassSet.begin(); it != s_GenericClassSet.end(); ++it)
+            entries.push_back(*it);
+        s_GenericClassSet.clear();
+        for (Il2CppGenericClass* entry : entries)
+            s_GenericClassSet.insert(entry);
+    }
+    // ===}} AssemblyReloadReuse
+
     static int s_MaximumRuntimeGenericDepth;
     static int s_GenericVirtualIterations;
 

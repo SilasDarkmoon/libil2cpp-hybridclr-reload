@@ -346,6 +346,20 @@ namespace vm
         return gclass->cached_class;
     }
 
+    // ==={{ AssemblyReloadReuse
+    void GenericClass::RehashGenericTypeSet()
+    {
+        // Collect all entries, clear the set, and re-insert them.
+        // This recomputes hashes with the updated byval_arg.data.typeHandle.
+        std::vector<Il2CppGenericClass*> entries;
+        for (Il2CppClassSet::iterator it = s_GenericClassSet.begin(); it != s_GenericClassSet.end(); ++it)
+            entries.push_back(*it);
+        s_GenericClassSet.clear();
+        for (Il2CppGenericClass* entry : entries)
+            s_GenericClassSet.insert(entry);
+    }
+    // ===}} AssemblyReloadReuse
+
     Il2CppGenericContext* GenericClass::GetContext(Il2CppGenericClass *gclass)
     {
         return &gclass->context;

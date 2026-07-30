@@ -69,6 +69,13 @@ namespace vm
 
         static void Clear();
 
+        // ==={{ AssemblyReloadReuse
+        // Rehash the internal generic inst set after byval_arg.data.typeHandle
+        // has been updated. The hash depends on typeHandle, so after updating
+        // it we must rehash to keep lookups working.
+        static void RehashGenericInstSet();
+        // ===}} AssemblyReloadReuse
+
         static void ExecuteEagerStaticClassConstructors();
         static void ExecuteModuleInitializers();
 
