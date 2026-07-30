@@ -471,6 +471,20 @@ const Il2CppGenericInst* il2cpp::vm::MetadataCache::GetGenericInst(const Il2CppT
 		return *it;
 	}
 
+	// ==={{ AssemblyReloadReuse: diagnostic log for new generic inst creation
+	{
+		const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+		std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+		int createError = 0;
+		il2cpp::os::Directory::Create(dirStr, &createError);
+		FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+		if (fp) {
+			fprintf(fp, "[ReuseDiag] GetGenericInst: NEW inst created, typeCount=%u\n", typeCount);
+			fclose(fp);
+		}
+	}
+	// ===}} AssemblyReloadReuse
+
     Il2CppGenericInst* newInst = NULL;
     newInst  = (Il2CppGenericInst*)MetadataMalloc(sizeof(Il2CppGenericInst));
     newInst->type_argc = typeCount;
