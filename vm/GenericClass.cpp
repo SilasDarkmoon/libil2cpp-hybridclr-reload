@@ -358,7 +358,7 @@ namespace vm
         for (Il2CppGenericClassSet::const_iterator it = s_GenericClassSet.begin(); it != s_GenericClassSet.end(); ++it)
             entries.push_back((*it).key);
         s_GenericClassSet.clear();
-        for (Il2CppClass* gclass : entries)
+        for (Il2CppGenericClass* gclass : entries)
         {
             const Il2CppType* defType = gclass->type;
             if (defType && (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE))
