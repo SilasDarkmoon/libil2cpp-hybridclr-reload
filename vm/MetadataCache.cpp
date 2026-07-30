@@ -5,6 +5,7 @@
 #include <map>
 #include <unordered_set>
 #include <limits>
+#include <string>
 #include "il2cpp-tabledefs.h"
 #include "il2cpp-runtime-stats.h"
 #include "gc/GarbageCollector.h"
@@ -12,6 +13,8 @@
 #include "metadata/GenericMetadata.h"
 #include "metadata/GenericMethod.h"
 #include "os/Atomic.h"
+#include "os/Environment.h"
+#include "os/Directory.h"
 #include "os/Mutex.h"
 #include "utils/CallOnce.h"
 #include "utils/Collections.h"
@@ -346,12 +349,27 @@ void il2cpp::vm::MetadataCache::Clear()
 // ==={{ AssemblyReloadReuse
 void il2cpp::vm::MetadataCache::RehashGenericInstSet()
 {
+    size_t count = 0;
     std::vector<const Il2CppGenericInst*> entries;
     for (Il2CppGenericInstSet::const_iterator it = s_GenericInstSet.begin(); it != s_GenericInstSet.end(); ++it)
+    {
         entries.push_back(*it);
+        count++;
+    }
     s_GenericInstSet.clear();
     for (const Il2CppGenericInst* entry : entries)
         s_GenericInstSet.insert(entry);
+    {
+        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+        int createError = 0;
+        il2cpp::os::Directory::Create(dirStr, &createError);
+        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+        if (fp) {
+            fprintf(fp, "[ReuseDiag] RehashGenericInstSet: rehashed %zu entries\n", count);
+            fclose(fp);
+        }
+    }
 }
 // ===}} AssemblyReloadReuse
 
