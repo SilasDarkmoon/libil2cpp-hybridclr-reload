@@ -42,9 +42,11 @@
   - `GenericClass::SetupMethods` 在 `inflated->token != methodDefinition->token` 时打印 TokenMismatch 日志（复用和非复用路径都有）
 
 ## typeHierarchy 在 Pass 2 重置、Pass 3 通过 Class::Init 重建（2026-07-29）
-- **问题**：Pass 2 重置 `typeHierarchy = nullptr` 和 `typeHierarchyDepth = 0` 后，`IsInst`（类型转换检查）直接读这两个字段，导致 `InvalidCastException: EnumEqualityComparer→EqualityComparer`
-- **关键发现**：`IsInst` → `Object::IsInst` → `Class::IsAssignableFrom` → **`Class::Init`**（第660-661行）。所以 `IsInst` 确实会触发 `Class::Init`，Pass 3 的 `Class::Init` 会通过 `InitLocked` → `SetupTypeHierarchyLocked` 重建继承树
-- **修复**：Pass 2 只重置（`typeHierarchy = nullptr`, `typeHierarchyDepth = 0`），Pass 3 通过 `Class::Init` 重建。Pass 3 在 `Class::Init` 之前重新解析 parent，确保继承链变化后正确
+- **问题**：Pass 2 重置 `typeHierarchy = nullptr` 和 `typeHierarchyDepth = 0` 后，`IsInst` → `IsAssignableFrom` → `Class::Init` → `SetupTypeHierarchyLocked` 重建继承树
+- **关键发现**：`HasParentUnsafe` 使用 `typeHierarchy` 和 `typeHierarchyDepth`，`IsAssignableFrom` 调用 `Class::Init` 确保重建
+- **泛型 Pass 3 重新解析 parent**：从 generic type definition 的 parent inflate，调用 `Class::FromIl2CppType`。添加 `ParentMismatch` 诊断日志确认是否返回了不同的类
+- **非泛型 Pass 3 也重新解析 parent**（从 TypeDef parentIndex）
+- **查找机制**：`Il2CppGenericClassHash`/`Il2CppGenericClassCompare` 按值比较，`Il2CppTypeCompare` 对 CLASS/VALUETYPE 比较 `typeHandle` 指针，`Il2CppGenericInstCompare` 逐个比较 `type_argv[i]`
 
 ## klass->image 被错误设为 newImage（2026-07-29）
 - **问题**：`ShouldRestoreGenericClass` 递归检查泛型参数。如果泛型参数来自正在 reload 的 DLL，返回 true。但 Pass 1 `klass->image = newImage` 把 image 设成了当前 reload 的 DLL，而非泛型定义所在的 DLL。导致 `GetMethodBody` 在错误 image 上用 token 查找 → OOB

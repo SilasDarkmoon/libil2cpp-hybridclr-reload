@@ -32,24 +32,6 @@ namespace vm
         uint16_t methodCount = genericTypeDefinition->method_count;
         IL2CPP_ASSERT(genericTypeDefinition->method_count == genericInstanceType->method_count);
 
-        // ==={{ AssemblyReloadReuse: diagnostic log
-        {
-            const char* kname = genericInstanceType->name ? genericInstanceType->name : "";
-            const char* kns = genericInstanceType->namespaze ? genericInstanceType->namespaze : "";
-            const char* imgName = genericInstanceType->image && genericInstanceType->image->name ? genericInstanceType->image->name : "?";
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) {
-                fprintf(fp, "[ReuseDiag] GenericClass::SetupMethods: klass='%s.%s' image='%s' methodCount=%u\n",
-                    kns, kname, imgName, (unsigned)methodCount);
-                fclose(fp);
-            }
-        }
-        // ===}} AssemblyReloadReuse
-
         if (methodCount == 0)
         {
             genericInstanceType->methods = NULL;
@@ -79,26 +61,6 @@ namespace vm
                 // First inflate to get correct parameter/return types
                 const MethodInfo* inflated = metadata::GenericMetadata::Inflate(
                     methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
-
-                // ==={{ AssemblyReloadReuse: diagnostic log for token mismatch
-                if (inflated->token != methodDefinition->token)
-                {
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp) {
-                        fprintf(fp, "[ReuseDiag] TokenMismatch: klass='%s.%s' method='%s' defToken=0x%08X inflatedToken=0x%08X is_inflated=%d\n",
-                            genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
-                            genericInstanceType->name ? genericInstanceType->name : "",
-                            methodDefinition->name ? methodDefinition->name : "",
-                            (unsigned)methodDefinition->token, (unsigned)inflated->token,
-                            (int)inflated->is_inflated);
-                        fclose(fp);
-                    }
-                }
-                // ===}} AssemblyReloadReuse
 
                 // Build parameter type array from INFLATED method (not methodDefinition)
                 const Il2CppType** paramTypes = nullptr;
@@ -160,24 +122,6 @@ namespace vm
             // ===}} AssemblyReloadReuse
 
             const MethodInfo* inflated2 = metadata::GenericMetadata::Inflate(methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
-            // ==={{ AssemblyReloadReuse: diagnostic log for token mismatch (non-reuse path)
-            if (inflated2->token != methodDefinition->token)
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) {
-                    fprintf(fp, "[ReuseDiag] TokenMismatch(non-reuse): klass='%s.%s' method='%s' defToken=0x%08X inflatedToken=0x%08X\n",
-                        genericInstanceType->namespaze ? genericInstanceType->namespaze : "",
-                        genericInstanceType->name ? genericInstanceType->name : "",
-                        methodDefinition->name ? methodDefinition->name : "",
-                        (unsigned)methodDefinition->token, (unsigned)inflated2->token);
-                    fclose(fp);
-                }
-            }
-            // ===}} AssemblyReloadReuse
             methods[methodIndex] = inflated2;
         }
 
@@ -645,28 +589,7 @@ namespace vm
 
             bool shouldRestore = ShouldRestoreGenericClass(klass, gclass, newImage);
             if (!shouldRestore)
-            {
-                // ==={{ AssemblyReloadReuse: diagnostic log for skipped classes
-                // Only log if the class name contains "ProxyPropertyInfo" to avoid log explosion
-                if (klass->name && strstr(klass->name, "ProxyPropertyInfo"))
-                {
-                    const char* kns = klass->namespaze ? klass->namespaze : "";
-                    const char* kname = klass->name ? klass->name : "";
-                    const char* imgName = klass->image && klass->image->name ? klass->image->name : "?";
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp) {
-                        fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass=false: klass='%s.%s' image='%s' newImage='%s'\n",
-                            kns, kname, imgName, newImage->name ? newImage->name : "?");
-                        fclose(fp);
-                    }
-                }
-                // ===}} AssemblyReloadReuse
                 continue;
-            }
 
             // Update klass->image to point to the image of the generic type
             // definition (NOT newImage).  The class may be restored because
@@ -746,20 +669,41 @@ namespace vm
         {
             // Re-resolve parent from the generic type definition before
             // Class::Init, so that inheritance changes after reload are
-            // picked up.  At this point (Pass 3), all reused classes have
-            // correct external pointers (Pass 1) and reset fields (Pass 2),
-            // so it's safe to trigger class resolution.
+            // picked up.
             Il2CppGenericClass* gclass = klass->generic_class;
             if (gclass)
             {
                 Il2CppClass* genericTypeDefinition = GetTypeDefinition(gclass);
                 if (genericTypeDefinition && genericTypeDefinition->parent)
                 {
+                    Il2CppClass* oldParent = klass->parent;
                     Il2CppGenericContext* context = &gclass->context;
                     const Il2CppType* inflatedParentType = metadata::GenericMetadata::InflateIfNeeded(
                         &genericTypeDefinition->parent->byval_arg, context, false);
                     if (inflatedParentType)
-                        klass->parent = Class::FromIl2CppType(inflatedParentType);
+                    {
+                        Il2CppClass* newParent = Class::FromIl2CppType(inflatedParentType);
+                        // ==={{ AssemblyReloadReuse: diagnostic log for parent mismatch
+                        if (oldParent && newParent && oldParent != newParent)
+                        {
+                            const char* kname = klass->name ? klass->name : "";
+                            const char* kns = klass->namespaze ? klass->namespaze : "";
+                            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                            int createError = 0;
+                            il2cpp::os::Directory::Create(dirStr, &createError);
+                            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                            if (fp) {
+                                fprintf(fp, "[ReuseDiag] ParentMismatch: klass='%s.%s' oldParent=%p newParent=%p oldParentName='%s.%s' newParentName='%s.%s'\n",
+                                    kns, kname, (void*)oldParent, (void*)newParent,
+                                    oldParent->namespaze ? oldParent->namespaze : "", oldParent->name ? oldParent->name : "",
+                                    newParent->namespaze ? newParent->namespaze : "", newParent->name ? newParent->name : "");
+                                fclose(fp);
+                            }
+                        }
+                        // ===}} AssemblyReloadReuse
+                        klass->parent = newParent;
+                    }
                 }
                 else if (genericTypeDefinition && !genericTypeDefinition->parent)
                 {
