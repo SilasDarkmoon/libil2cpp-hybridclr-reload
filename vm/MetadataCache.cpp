@@ -497,7 +497,16 @@ const Il2CppGenericInst* il2cpp::vm::MetadataCache::GetGenericInst(const Il2CppT
 		il2cpp::os::Directory::Create(dirStr, &createError);
 		FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
 		if (fp) {
-			fprintf(fp, "[ReuseDiag] GetGenericInst: NEW inst created, typeCount=%u\n", typeCount);
+			fprintf(fp, "[ReuseDiag] GetGenericInst: NEW inst created, typeCount=%u", typeCount);
+			for (uint32_t i = 0; i < typeCount && i < 4; i++)
+			{
+				const Il2CppType* t = types[i];
+				fprintf(fp, " arg[%u]=%p(type=%u", i, (void*)t, t->type);
+				if (t->type == IL2CPP_TYPE_CLASS || t->type == IL2CPP_TYPE_VALUETYPE)
+					fprintf(fp, " handle=%p", (void*)t->data.typeHandle);
+				fprintf(fp, ")");
+			}
+			fprintf(fp, "\n");
 			fclose(fp);
 		}
 	}
