@@ -13,8 +13,6 @@
 #include "metadata/GenericMetadata.h"
 #include "metadata/GenericMethod.h"
 #include "os/Atomic.h"
-#include "os/Environment.h"
-#include "os/Directory.h"
 #include "os/Mutex.h"
 #include "utils/CallOnce.h"
 #include "utils/Collections.h"
@@ -349,8 +347,6 @@ void il2cpp::vm::MetadataCache::Clear()
 // ==={{ AssemblyReloadReuse
 void il2cpp::vm::MetadataCache::RehashGenericInstSet()
 {
-    size_t count = 0;
-    size_t updated = 0;
     std::vector<const Il2CppGenericInst*> entries;
     for (Il2CppGenericInstSet::const_iterator it = s_GenericInstSet.begin(); it != s_GenericInstSet.end(); ++it)
     {
@@ -373,27 +369,14 @@ void il2cpp::vm::MetadataCache::RehashGenericInstSet()
                     // to the new Il2CppTypeDefinition. Repoint type_argv[i]
                     // to &klass->byval_arg so hash/compare use the new value.
                     const_cast<Il2CppGenericInst*>(inst)->type_argv[i] = &klass->byval_arg;
-                    updated++;
                 }
             }
         }
         entries.push_back(inst);
-        count++;
     }
     s_GenericInstSet.clear();
     for (const Il2CppGenericInst* entry : entries)
         s_GenericInstSet.insert(entry);
-    {
-        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-        int createError = 0;
-        il2cpp::os::Directory::Create(dirStr, &createError);
-        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-        if (fp) {
-            fprintf(fp, "[ReuseDiag] RehashGenericInstSet: rehashed %zu entries, updated %zu type_argv pointers\n", count, updated);
-            fclose(fp);
-        }
-    }
 }
 // ===}} AssemblyReloadReuse
 
@@ -512,29 +495,6 @@ const Il2CppGenericInst* il2cpp::vm::MetadataCache::GetGenericInst(const Il2CppT
 	{
 		return *it;
 	}
-
-	// ==={{ AssemblyReloadReuse: diagnostic log for new generic inst creation
-	{
-		const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-		std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-		int createError = 0;
-		il2cpp::os::Directory::Create(dirStr, &createError);
-		FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-		if (fp) {
-			fprintf(fp, "[ReuseDiag] GetGenericInst: NEW inst created, typeCount=%u", typeCount);
-			for (uint32_t i = 0; i < typeCount && i < 4; i++)
-			{
-				const Il2CppType* t = types[i];
-				fprintf(fp, " arg[%u]=%p(type=%u", i, (void*)t, t->type);
-				if (t->type == IL2CPP_TYPE_CLASS || t->type == IL2CPP_TYPE_VALUETYPE)
-					fprintf(fp, " handle=%p", (void*)t->data.typeHandle);
-				fprintf(fp, ")");
-			}
-			fprintf(fp, "\n");
-			fclose(fp);
-		}
-	}
-	// ===}} AssemblyReloadReuse
 
     Il2CppGenericInst* newInst = NULL;
     newInst  = (Il2CppGenericInst*)MetadataMalloc(sizeof(Il2CppGenericInst));

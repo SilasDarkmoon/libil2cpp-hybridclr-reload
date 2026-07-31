@@ -9,10 +9,6 @@
 #include "metadata/Il2CppTypeCompare.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
-#include "os/Directory.h"
-#include "os/Environment.h"
-#include <cstdio>
-#include <ctime>
 #include "utils/Memory.h"
 #include "utils/StringUtils.h"
 #include "vm/Assembly.h"
@@ -1228,25 +1224,6 @@ namespace vm
                         }
 
                         reused->isInterpterImpl = hybridclr::interpreter::InterpreterModule::IsImplementsByInterpreter(reused);
-
-                        // ==={{ AssemblyReloadReuse: targeted diagnostic
-                        if (!reused->isInterpterImpl && methodInfo.name && strcmp(methodInfo.name, ".ctor") == 0)
-                        {
-                            const char* kName = klass->name ? klass->name : "";
-                            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                            int createError = 0;
-                            il2cpp::os::Directory::Create(dirStr, &createError);
-                            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                            if (fp) {
-                                fprintf(fp, "[ReuseDiag] .ctor isInterpImpl=0: klass='%s.%s' methodPtr=%p vMethodPtr=%p invoker=%p token=0x%08X\n",
-                                    klass->namespaze ? klass->namespaze : "", kName,
-                                    (void*)reused->methodPointer, (void*)reused->virtualMethodPointer,
-                                    (void*)reused->invoker_method, (unsigned)methodInfo.token);
-                                fclose(fp);
-                            }
-                        }
-                        // ===}} AssemblyReloadReuse
 
                         klass->methods[index] = reused;
 

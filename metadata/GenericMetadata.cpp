@@ -1,8 +1,6 @@
 #include "il2cpp-config.h"
 #include "il2cpp-runtime-stats.h"
 #include "os/Mutex.h"
-#include "os/Environment.h"
-#include "os/Directory.h"
 #include "vm/Class.h"
 #include "vm/GenericClass.h"
 #include "vm/Image.h"
@@ -24,7 +22,6 @@
 #include "vm/MetadataCache.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-tabledefs.h"
-#include <string>
 #include <vector>
 
 #include "Baselib.h"
@@ -192,21 +189,6 @@ namespace metadata
         Il2CppGenericClassSet::const_iterator iter = s_GenericClassSet.find(&genericClass);
         if (iter != s_GenericClassSet.end())
             return *iter;
-
-        // ==={{ AssemblyReloadReuse: diagnostic log for new generic class creation
-        {
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) {
-                fprintf(fp, "[ReuseDiag] GetGenericClass: NEW entry created, typeHandle=%p\n",
-                    (void*)genericTypeDefinition->data.typeHandle);
-                fclose(fp);
-            }
-        }
-        // ===}} AssemblyReloadReuse
 
         Il2CppGenericClass* newClass = MetadataAllocGenericClass();
         newClass->type = genericTypeDefinition;
@@ -431,8 +413,6 @@ namespace metadata
     void GenericMetadata::RehashGenericClassSet()
     {
         FastAutoLock lock(&s_GenericClassMutex);
-        size_t count = 0;
-        size_t updated = 0;
         std::vector<Il2CppGenericClass*> entries;
         for (Il2CppGenericClassSet::iterator it = s_GenericClassSet.begin(); it != s_GenericClassSet.end(); ++it)
         {
@@ -447,26 +427,13 @@ namespace metadata
                     klass->byval_arg.data.typeHandle != defType->data.typeHandle)
                 {
                     gclass->type = &klass->byval_arg;
-                    updated++;
                 }
             }
             entries.push_back(gclass);
-            count++;
         }
         s_GenericClassSet.clear();
         for (Il2CppGenericClass* entry : entries)
             s_GenericClassSet.insert(entry);
-        {
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) {
-                fprintf(fp, "[ReuseDiag] RehashGenericClassSet: rehashed %zu entries, updated %zu type pointers\n", count, updated);
-                fclose(fp);
-            }
-        }
     }
     // ===}} AssemblyReloadReuse
 

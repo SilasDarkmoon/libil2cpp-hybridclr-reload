@@ -4,8 +4,6 @@
 #include "metadata/Il2CppGenericClassCompare.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
-#include "os/Directory.h"
-#include "os/Environment.h"
 #include "utils/Memory.h"
 #include "utils/Il2CppHashSet.h"
 #include "vm/Class.h"
@@ -353,7 +351,6 @@ namespace vm
         // This recomputes hashes with the updated byval_arg.data.typeHandle.
         // Also update gclass->type to &klass->byval_arg for CLASS/VALUETYPE
         // types whose class was reused, so hash/compare use the new typeHandle.
-        size_t count = 0, updated = 0;
         std::vector<Il2CppGenericClass*> entries;
         for (Il2CppGenericClassSet::const_iterator it = s_GenericClassSet.begin(); it != s_GenericClassSet.end(); ++it)
             entries.push_back((*it).key);
@@ -368,22 +365,9 @@ namespace vm
                     klass->byval_arg.data.typeHandle != defType->data.typeHandle)
                 {
                     gclass->type = &klass->byval_arg;
-                    updated++;
                 }
             }
             s_GenericClassSet.insert(gclass);
-            count++;
-        }
-        {
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) {
-                fprintf(fp, "[ReuseDiag] RehashGenericTypeSet: rehashed %zu entries, updated %zu type pointers\n", count, updated);
-                fclose(fp);
-            }
         }
     }
     // ===}} AssemblyReloadReuse
@@ -718,32 +702,12 @@ namespace vm
                 Il2CppClass* genericTypeDefinition = GetTypeDefinition(gclass);
                 if (genericTypeDefinition && genericTypeDefinition->parent)
                 {
-                    Il2CppClass* oldParent = klass->parent;
                     Il2CppGenericContext* context = &gclass->context;
                     const Il2CppType* inflatedParentType = metadata::GenericMetadata::InflateIfNeeded(
                         &genericTypeDefinition->parent->byval_arg, context, false);
                     if (inflatedParentType)
                     {
                         Il2CppClass* newParent = Class::FromIl2CppType(inflatedParentType);
-                        // ==={{ AssemblyReloadReuse: diagnostic log for parent mismatch
-                        if (oldParent && newParent && oldParent != newParent)
-                        {
-                            const char* kname = klass->name ? klass->name : "";
-                            const char* kns = klass->namespaze ? klass->namespaze : "";
-                            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                            int createError = 0;
-                            il2cpp::os::Directory::Create(dirStr, &createError);
-                            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                            if (fp) {
-                                fprintf(fp, "[ReuseDiag] ParentMismatch: klass='%s.%s' oldParent=%p newParent=%p oldParentName='%s.%s' newParentName='%s.%s'\n",
-                                    kns, kname, (void*)oldParent, (void*)newParent,
-                                    oldParent->namespaze ? oldParent->namespaze : "", oldParent->name ? oldParent->name : "",
-                                    newParent->namespaze ? newParent->namespaze : "", newParent->name ? newParent->name : "");
-                                fclose(fp);
-                            }
-                        }
-                        // ===}} AssemblyReloadReuse
                         klass->parent = newParent;
                     }
                 }
@@ -756,16 +720,6 @@ namespace vm
             il2cpp::vm::Class::Init(klass);
         }
         s_GenericClassesToRestore.clear();
-
-        // Log to file only
-        {
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) { fprintf(fp, "[Reuse] GenericClass restore: restored=%d\n", restoredCount); fclose(fp); }
-        }
     }
 
     void GenericClass::RestoreCachedGenericClasses(const Il2CppImage* oldImage, Il2CppImage* newImage)

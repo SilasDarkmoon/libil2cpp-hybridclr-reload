@@ -53,7 +53,7 @@
 - **问题**：`ShouldRestoreGenericClass` 递归检查泛型参数。如果泛型参数来自正在 reload 的 DLL，返回 true。但 Pass 1 `klass->image = newImage` 把 image 设成了当前 reload 的 DLL，而非泛型定义所在的 DLL。导致 `GetMethodBody` 在错误 image 上用 token 查找 → OOB
 - **修复**：Pass 1 中，当 `defIsInterp` 为 true 时，把 `klass->image` 设为泛型定义类的 `image`（`defKlass->image`），而非 `newImage`
 
-## rehash 仅重算 hash 但未更新陈旧指针（2026-07-30）
+## rehash 仅重算 hash 但未更新陈旧指针（2026-07-30，已修复）
 - **问题**：Pass 1 更新 `klass->byval_arg.data.typeHandle` 指向新 `Il2CppTypeDefinition`，但 `Il2CppGenericClass->type` 和 `Il2CppGenericInst->type_argv[i]` 可能指向旧 image 类型表中的 `Il2CppType` 对象（其 `data.typeHandle` 未被 Pass 1 更新）。rehash 仅重算 hash，但用的仍是旧 `typeHandle` → 新 lookup 用新 `typeHandle` → hash 不匹配 → 创建重复条目 → `ParentMismatch`
 - **根因分析**：
   - `Il2CppTypeHash::Hash` 对 CLASS/VALUETYPE 用 `data.typeHandle` 指针值
