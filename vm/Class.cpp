@@ -39,7 +39,6 @@
 #include "utils/InitOnce.h"
 #include "utils/StringUtils.h"
 #include "utils/HashUtils.h"
-#include "utils/Logging.h"
 #include <string>
 #include <memory.h>
 #include <algorithm>

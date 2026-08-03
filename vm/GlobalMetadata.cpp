@@ -1,8 +1,6 @@
 #include "GlobalMetadata.h"
 
 #include "il2cpp-config.h"
-#include <cstdarg>
-#include <cstdio>
 
 
 #include <map>
@@ -28,8 +26,6 @@
 #include "metadata/Il2CppSignature.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
-#include "os/Directory.h"
-#include "os/Environment.h"
 #include "utils/CallOnce.h"
 #include "utils/Collections.h"
 #include "utils/HashUtils.h"
@@ -1102,7 +1098,6 @@ static int CompareFieldDefaultValues(const void* pkey, const void* pelem)
 {
     return (int)(((Il2CppFieldDefaultValue*)pkey)->fieldIndex - ((Il2CppFieldDefaultValue*)pelem)->fieldIndex);
 }
-
 
 static const Il2CppFieldDefaultValue* GetFieldDefaultValueEntry(const FieldInfo* field)
 {

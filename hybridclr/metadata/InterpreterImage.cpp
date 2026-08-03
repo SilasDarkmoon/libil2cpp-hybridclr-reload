@@ -5,9 +5,6 @@
 #include <iostream>
 #include <algorithm>
 #include <string>
-#include <ctime>
-#include <cstdio>
-#include <cstdarg>
 
 #include "il2cpp-class-internals.h"
 #include "vm/GlobalMetadata.h"
@@ -23,8 +20,6 @@
 #include "vm/Reflection.h"
 #include "vm/Class.h"
 #include "vm/GenericClass.h"
-#include "os/Directory.h"
-#include "os/Environment.h"
 #include "os/Atomic.h"
 #include "metadata/FieldLayout.h"
 #include "metadata/Il2CppTypeCompare.h"
@@ -33,7 +28,6 @@
 #if HYBRIDCLR_UNITY_2021_OR_NEW
 #include "metadata/CustomAttributeCreator.h"
 #endif
-#include "os/Atomic.h"
 #include "icalls/mscorlib/System/MonoCustomAttrs.h"
 
 #include "MetadataModule.h"
