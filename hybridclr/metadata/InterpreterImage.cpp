@@ -48,6 +48,7 @@ namespace hybridclr
 {
 namespace metadata
 {
+
 	static uint32_t s_nextImageIndexByKind[4] = { (1u << kMetadataImageIndexExtraShiftBitsA), 0, 0, 0};
 
 	InterpreterImage* InterpreterImage::s_images[kMaxMetadataImageCount] = {};

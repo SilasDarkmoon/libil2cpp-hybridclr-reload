@@ -791,11 +791,9 @@ namespace metadata
                 {
                     TbStandAloneSig sigData = _rawImage->ReadStandAloneSig(DecodeTokenRowIndex(methodHeader->localVarSigToken));
 
-                    int32_t typeDefIdx = DecodeMetadataIndex(methodDef.declaringType);
-                    const Il2CppGenericContainer* klassGC = GetGenericContainerByTypeDefRawIndex(typeDefIdx);
                     BlobReader reader = _rawImage->GetBlobReaderByRawIndex(sigData.signature);
                     ReadLocalVarSig(reader,
-                        klassGC,
+                        GetGenericContainerByTypeDefRawIndex(DecodeMetadataIndex(methodDef.declaringType)),
                         GetGenericContainerByRawIndex(DecodeMetadataIndex(methodDef.genericContainerIndex)),
                         body.localVars);
                 }

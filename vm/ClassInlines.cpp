@@ -5,10 +5,6 @@
 #include "vm/RCW.h"
 #include "gc/GCHandle.h"
 #include "metadata/GenericMethod.h"
-#include <cstdio>
-#include "os/Directory.h"
-#include "os/Environment.h"
-#include "hybridclr/metadata/MetadataUtil.h"
 
 namespace il2cpp
 {
