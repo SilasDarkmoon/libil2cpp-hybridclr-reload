@@ -14,6 +14,7 @@
 #include "vm/Event.h"
 #include "vm/Exception.h"
 #include "vm/Field.h"
+#include "vm/GlobalMetadata.h"
 #include "vm/Image.h"
 #include "vm/MetadataCache.h"
 #include "vm/Method.h"
@@ -275,6 +276,22 @@ namespace vm
     Il2CppReflectionType* Reflection::GetTypeObject(const Il2CppType *type)
     {
         Il2CppReflectionType* object = NULL;
+
+        // ==={{ AssemblyReloadReuse: normalize stale Il2CppType* after reload
+        // After assembly reload, some callers may pass an old Il2CppType*
+        // whose data.typeHandle points to the old Il2CppTypeDefinition.
+        // Normalize it to &klass->byval_arg (the new Il2CppType*) so that
+        // s_TypeMap lookup and Type equality checks work correctly.
+        if (type && (type->type == IL2CPP_TYPE_CLASS || type->type == IL2CPP_TYPE_VALUETYPE) && !type->byref)
+        {
+            Il2CppClass* klass = GlobalMetadata::GetTypeInfoFromHandle(type->data.typeHandle);
+            if (klass && &klass->byval_arg != type &&
+                klass->byval_arg.data.typeHandle != type->data.typeHandle)
+            {
+                type = &klass->byval_arg;
+            }
+        }
+        // ===}} AssemblyReloadReuse
 
         if (s_TypeMap->TryGetValue(type, &object))
             return object;

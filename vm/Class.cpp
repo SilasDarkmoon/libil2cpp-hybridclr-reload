@@ -657,34 +657,6 @@ namespace vm
         Class::Init(klass);
         Class::Init(oklass);
 
-        // ==={{ AssemblyReloadReuse: diagnostic for same-name different-pointer
-        if (klass && oklass && klass->name && oklass->name &&
-            strcmp(klass->name, oklass->name) == 0 &&
-            !klass->generic_class && !oklass->generic_class)
-        {
-            const char* kns = klass->namespaze ? klass->namespaze : "";
-            const char* ons = oklass->namespaze ? oklass->namespaze : "";
-            if (strcmp(kns, ons) == 0)
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) {
-                    fprintf(fp, "[ReuseDiag] SAME_NAME_DIFF_PTR: '%s.%s' klass=%p oklass=%p klass->image=%p oklass->image=%p klass->rank=%d oklass->rank=%d klass->byval_arg.type=%u oklass->byval_arg.type=%u klass->byval_arg.data.typeHandle=%p oklass->byval_arg.data.typeHandle=%p\n",
-                        kns, klass->name,
-                        (void*)klass, (void*)oklass,
-                        (void*)klass->image, (void*)oklass->image,
-                        (int)klass->rank, (int)oklass->rank,
-                        (unsigned)klass->byval_arg.type, (unsigned)oklass->byval_arg.type,
-                        (void*)klass->byval_arg.data.typeHandle, (void*)oklass->byval_arg.data.typeHandle);
-                    fclose(fp);
-                }
-            }
-        }
-        // ===}} AssemblyReloadReuse
-
         // Following checks are always going to fail for interfaces
         if (!IsInterface(klass))
         {

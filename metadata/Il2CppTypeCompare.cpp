@@ -1,6 +1,7 @@
 #include "il2cpp-config.h"
 #include "il2cpp-class-internals.h"
 #include "Il2CppTypeCompare.h"
+#include "vm/GlobalMetadata.h"
 
 namespace il2cpp
 {
@@ -90,7 +91,23 @@ namespace metadata
 
     bool Il2CppTypeEqualityComparer::AreEqual(const Il2CppType* t1, const Il2CppType* t2)
     {
-        return Compare(t1, t2) == 0;
+        if (Compare(t1, t2) == 0)
+            return true;
+
+        // ==={{ AssemblyReloadReuse: fallback for stale typeHandle after reload
+        // After assembly reload, two Il2CppType objects may have different
+        // data.typeHandle pointers (old vs new Il2CppTypeDefinition) that resolve
+        // to the same Il2CppClass. Compare by resolved class as a fallback.
+        if (t1->type == t2->type && !t1->byref && !t2->byref &&
+            (t1->type == IL2CPP_TYPE_CLASS || t1->type == IL2CPP_TYPE_VALUETYPE))
+        {
+            Il2CppClass* k1 = il2cpp::vm::GlobalMetadata::GetTypeInfoFromHandle(t1->data.typeHandle);
+            Il2CppClass* k2 = il2cpp::vm::GlobalMetadata::GetTypeInfoFromHandle(t2->data.typeHandle);
+            return k1 == k2;
+        }
+        // ===}} AssemblyReloadReuse
+
+        return false;
     }
 
     bool Il2CppTypeLess::operator()(const Il2CppType * t1, const Il2CppType * t2) const
