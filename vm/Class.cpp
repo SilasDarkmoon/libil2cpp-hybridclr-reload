@@ -798,6 +798,7 @@ namespace vm
                     {
                         if (iter->interfaceOffsets[i].interfaceType == klass)
                             return true;
+                    }
                 }
             }
         }
