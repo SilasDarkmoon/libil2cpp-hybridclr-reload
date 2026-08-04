@@ -758,16 +758,22 @@ namespace vm
                 if (IsGenericClassAssignableFrom(klass, iter, oklass))
                     return true;
 
-                for (uint16_t i = 0; i < iter->interfaces_count; ++i)
+                if (iter->implementedInterfaces != NULL)
                 {
-                    if (IsGenericClassAssignableFrom(klass, iter->implementedInterfaces[i], oklass))
-                        return true;
+                    for (uint16_t i = 0; i < iter->interfaces_count; ++i)
+                    {
+                        if (IsGenericClassAssignableFrom(klass, iter->implementedInterfaces[i], oklass))
+                            return true;
+                    }
                 }
 
-                for (uint16_t i = 0; i < iter->interface_offsets_count; ++i)
+                if (iter->interfaceOffsets != NULL)
                 {
-                    if (IsGenericClassAssignableFrom(klass, iter->interfaceOffsets[i].interfaceType, oklass))
-                        return true;
+                    for (uint16_t i = 0; i < iter->interface_offsets_count; ++i)
+                    {
+                        if (IsGenericClassAssignableFrom(klass, iter->interfaceOffsets[i].interfaceType, oklass))
+                            return true;
+                    }
                 }
             }
         }
@@ -775,18 +781,23 @@ namespace vm
         {
             for (Il2CppClass* iter = oklass; iter != NULL; iter = iter->parent)
             {
-                for (uint16_t i = 0; i < iter->interfaces_count; ++i)
+                if (iter->implementedInterfaces != NULL)
                 {
-                    if (iter->implementedInterfaces[i] == klass)
-                        return true;
+                    for (uint16_t i = 0; i < iter->interfaces_count; ++i)
+                    {
+                        if (iter->implementedInterfaces[i] == klass)
+                            return true;
+                    }
                 }
 
                 // Check the interfaces we may have grafted on to the type (e.g IList,
                 // ICollection, IEnumerable for array types).
-                for (uint16_t i = 0; i < iter->interface_offsets_count; ++i)
+                if (iter->interfaceOffsets != NULL)
                 {
-                    if (iter->interfaceOffsets[i].interfaceType == klass)
-                        return true;
+                    for (uint16_t i = 0; i < iter->interface_offsets_count; ++i)
+                    {
+                        if (iter->interfaceOffsets[i].interfaceType == klass)
+                            return true;
                 }
             }
         }
