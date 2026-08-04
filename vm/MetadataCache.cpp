@@ -380,6 +380,13 @@ void il2cpp::vm::MetadataCache::RehashGenericInstSet()
 }
 // ===}} AssemblyReloadReuse
 
+// ==={{ AssemblyReloadReuse
+void il2cpp::vm::MetadataCache::ClearGenericMethodSet()
+{
+    s_GenericMethodSet.clear();
+}
+// ===}} AssemblyReloadReuse
+
 void il2cpp::vm::MetadataCache::InitializeUnresolvedSignatureTable()
 {
     s_pUnresolvedSignatureMap = new Il2CppUnresolvedSignatureMap();

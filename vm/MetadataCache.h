@@ -74,6 +74,9 @@ namespace vm
         // has been updated. The hash depends on typeHandle, so after updating
         // it we must rehash to keep lookups working.
         static void RehashGenericInstSet();
+        // Clear the generic method set so stale entries with old context
+        // pointers are not reused after reload.
+        static void ClearGenericMethodSet();
         // ===}} AssemblyReloadReuse
 
         static void ExecuteEagerStaticClassConstructors();

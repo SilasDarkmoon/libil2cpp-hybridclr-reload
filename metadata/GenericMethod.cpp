@@ -481,6 +481,10 @@ namespace metadata
     void GenericMethod::ClearStatics()
     {
         s_GenericMethodMap.Clear();
+        // Also clear s_GenericMethodSet so that stale Il2CppGenericMethod
+        // entries (with old context.class_inst/method_inst pointers) are
+        // not found by GetGenericMethod after reload.
+        MetadataCache::ClearGenericMethodSet();
     }
 } /* namespace vm */
 } /* namespace il2cpp */
