@@ -182,26 +182,6 @@ namespace vm
 
     static void SetupInterfacesLocked(Il2CppClass* klass, const il2cpp::os::FastAutoLock& lock)
     {
-        // ==={{ AssemblyReloadReuse: diagnostic
-        if (klass->generic_class && klass->name && strstr(klass->name, "ProgressResult"))
-        {
-            Il2CppClass* gtd = GenericClass::GetTypeDefinition(klass->generic_class);
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) {
-                fprintf(fp, "[ReuseDiag] SetupInterfacesLocked: '%s.%s' klass->interfaces_count=%u implementedInterfaces=%p gtd=%p gtd->interfaces_count=%u gtd->initialized=%d gtd->image=%p\n",
-                    klass->namespaze ? klass->namespaze : "", klass->name,
-                    (unsigned)klass->interfaces_count, (void*)klass->implementedInterfaces,
-                    (void*)gtd, gtd ? (unsigned)gtd->interfaces_count : 0,
-                    gtd ? (int)gtd->initialized : -1,
-                    gtd ? (void*)gtd->image : NULL);
-                fclose(fp);
-            }
-        }
-        // ===}} AssemblyReloadReuse
         if (klass->generic_class)
         {
             Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(klass->generic_class);
@@ -677,34 +657,26 @@ namespace vm
         Class::Init(klass);
         Class::Init(oklass);
 
-        // ==={{ AssemblyReloadReuse: diagnostic for stale pointers in IsAssignableFrom
-        // Check parent chain for stale pointers
+        // ==={{ AssemblyReloadReuse: diagnostic for BackpackTabType identity issue
+        if (klass && oklass && klass->name && oklass->name &&
+            strcmp(klass->name, oklass->name) == 0 &&
+            klass->namespaze && oklass->namespaze &&
+            strcmp(klass->namespaze, oklass->namespaze) == 0 &&
+            !klass->generic_class && !oklass->generic_class)
         {
-            for (Il2CppClass* iter = oklass; iter != NULL; iter = iter->parent)
-            {
-                bool needLog = false;
-                if (iter->interfaces_count > 0 && iter->implementedInterfaces == NULL)
-                    needLog = true;
-                if (iter->interface_offsets_count > 0 && iter->interfaceOffsets == NULL)
-                    needLog = true;
-                if (needLog)
-                {
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp) {
-                        fprintf(fp, "[ReuseDiag] IsAssignableFrom: iter '%s.%s' interfaces_count=%u implementedInterfaces=%p initialized=%d init_pending=%d initExcGCHandle=%u interface_offsets_count=%u interfaceOffsets=%p klass='%s.%s'\n",
-                            iter->namespaze ? iter->namespaze : "", iter->name ? iter->name : "?",
-                            (unsigned)iter->interfaces_count, (void*)iter->implementedInterfaces,
-                            (int)iter->initialized, (int)iter->init_pending,
-                            (unsigned)iter->initializationExceptionGCHandle,
-                            (unsigned)iter->interface_offsets_count, (void*)iter->interfaceOffsets,
-                            klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "?");
-                        fclose(fp);
-                    }
-                }
+            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+            int createError = 0;
+            il2cpp::os::Directory::Create(dirStr, &createError);
+            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+            if (fp) {
+                fprintf(fp, "[ReuseDiag] IsAssignableFrom SAME_NAME DIFF_PTR: '%s.%s' klass=%p oklass=%p klass->image=%p oklass->image=%p klass->typeHierarchyDepth=%d oklass->typeHierarchyDepth=%d klass->byval_arg.data.typeHandle=%p oklass->byval_arg.data.typeHandle=%p\n",
+                    klass->namespaze, klass->name,
+                    (void*)klass, (void*)oklass,
+                    (void*)klass->image, (void*)oklass->image,
+                    (int)klass->typeHierarchyDepth, (int)oklass->typeHierarchyDepth,
+                    (void*)klass->byval_arg.data.typeHandle, (void*)oklass->byval_arg.data.typeHandle);
+                fclose(fp);
             }
         }
         // ===}} AssemblyReloadReuse
@@ -758,6 +730,10 @@ namespace vm
                 if (IsGenericClassAssignableFrom(klass, iter, oklass))
                     return true;
 
+                // Ensure iter is initialized so implementedInterfaces is populated.
+                if (iter->interfaces_count > 0 && iter->implementedInterfaces == NULL)
+                    Class::Init(iter);
+
                 if (iter->implementedInterfaces != NULL)
                 {
                     for (uint16_t i = 0; i < iter->interfaces_count; ++i)
@@ -781,6 +757,12 @@ namespace vm
         {
             for (Il2CppClass* iter = oklass; iter != NULL; iter = iter->parent)
             {
+                // Ensure iter is initialized so implementedInterfaces is populated.
+                // After assembly reload, Pass 2 may have reset implementedInterfaces=NULL
+                // without Class::Init being called for this iter yet.
+                if (iter->interfaces_count > 0 && iter->implementedInterfaces == NULL)
+                    Class::Init(iter);
+
                 if (iter->implementedInterfaces != NULL)
                 {
                     for (uint16_t i = 0; i < iter->interfaces_count; ++i)
@@ -1653,26 +1635,6 @@ namespace vm
 
     bool Class::InitLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
     {
-        // ==={{ AssemblyReloadReuse: diagnostic for InitLocked entry
-        if (klass->generic_class && klass->name && strstr(klass->name, "ProgressResult"))
-        {
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) {
-                fprintf(fp, "[ReuseDiag] InitLocked ENTRY: '%s.%s' generic_class=%p initialized=%d init_pending=%d initExcGCHandle=%u interfaces_count=%u implementedInterfaces=%p\n",
-                    klass->namespaze ? klass->namespaze : "", klass->name,
-                    (void*)klass->generic_class,
-                    (int)klass->initialized, (int)klass->init_pending,
-                    (unsigned)klass->initializationExceptionGCHandle,
-                    (unsigned)klass->interfaces_count, (void*)klass->implementedInterfaces);
-                fclose(fp);
-            }
-        }
-        // ===}} AssemblyReloadReuse
-
         if (klass->initialized)
             return true;
         if (klass->init_pending)
