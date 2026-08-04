@@ -695,12 +695,12 @@ namespace vm
                     il2cpp::os::Directory::Create(dirStr, &createError);
                     FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
                     if (fp) {
-                        fprintf(fp, "[ReuseDiag] IsAssignableFrom: iter '%s.%s' interfaces_count=%u implementedInterfaces=%p interface_offsets_count=%u interfaceOffsets=%p initialized=%d init_pending=%d size_inited=%d is_generic=%d generic_class=%p klass='%s.%s'\n",
+                        fprintf(fp, "[ReuseDiag] IsAssignableFrom: iter '%s.%s' interfaces_count=%u implementedInterfaces=%p initialized=%d init_pending=%d initExcGCHandle=%u interface_offsets_count=%u interfaceOffsets=%p klass='%s.%s'\n",
                             iter->namespaze ? iter->namespaze : "", iter->name ? iter->name : "?",
                             (unsigned)iter->interfaces_count, (void*)iter->implementedInterfaces,
+                            (int)iter->initialized, (int)iter->init_pending,
+                            (unsigned)iter->initializationExceptionGCHandle,
                             (unsigned)iter->interface_offsets_count, (void*)iter->interfaceOffsets,
-                            (int)iter->initialized, (int)iter->init_pending, (int)iter->size_inited,
-                            (int)iter->is_generic, (void*)iter->generic_class,
                             klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "?");
                         fclose(fp);
                     }
@@ -1641,14 +1641,7 @@ namespace vm
 
     bool Class::InitLocked(Il2CppClass *klass, const il2cpp::os::FastAutoLock& lock)
     {
-        if (klass->initialized)
-            return true;
-        if (klass->init_pending)
-            return true;
-        if (klass->initializationExceptionGCHandle)
-            return false;
-
-        // ==={{ AssemblyReloadReuse: diagnostic for InitLocked early return
+        // ==={{ AssemblyReloadReuse: diagnostic for InitLocked entry
         if (klass->generic_class && klass->name && strstr(klass->name, "ProgressResult"))
         {
             const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
@@ -1657,15 +1650,23 @@ namespace vm
             il2cpp::os::Directory::Create(dirStr, &createError);
             FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
             if (fp) {
-                fprintf(fp, "[ReuseDiag] InitLocked ENTER: '%s.%s' is_generic=%d generic_class=%p interfaces_count=%u implementedInterfaces=%p initialized=%d\n",
+                fprintf(fp, "[ReuseDiag] InitLocked ENTRY: '%s.%s' generic_class=%p initialized=%d init_pending=%d initExcGCHandle=%u interfaces_count=%u implementedInterfaces=%p\n",
                     klass->namespaze ? klass->namespaze : "", klass->name,
-                    (int)klass->is_generic, (void*)klass->generic_class,
-                    (unsigned)klass->interfaces_count, (void*)klass->implementedInterfaces,
-                    (int)klass->initialized);
+                    (void*)klass->generic_class,
+                    (int)klass->initialized, (int)klass->init_pending,
+                    (unsigned)klass->initializationExceptionGCHandle,
+                    (unsigned)klass->interfaces_count, (void*)klass->implementedInterfaces);
                 fclose(fp);
             }
         }
         // ===}} AssemblyReloadReuse
+
+        if (klass->initialized)
+            return true;
+        if (klass->init_pending)
+            return true;
+        if (klass->initializationExceptionGCHandle)
+            return false;
 
         if (klass->generic_class && (klass->flags & TYPE_ATTRIBUTE_EXPLICIT_LAYOUT))
         {
