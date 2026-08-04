@@ -667,15 +667,6 @@ namespace vm
                     needLog = true;
                 if (iter->interface_offsets_count > 0 && iter->interfaceOffsets == NULL)
                     needLog = true;
-                if (iter->interfaces_count > 0 && iter->implementedInterfaces != NULL)
-                {
-                    for (uint16_t i = 0; i < iter->interfaces_count; i++)
-                    {
-                        Il2CppClass* intf = iter->implementedInterfaces[i];
-                        if (intf && intf->name == NULL)
-                            needLog = true;
-                    }
-                }
                 if (needLog)
                 {
                     const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
@@ -684,20 +675,13 @@ namespace vm
                     il2cpp::os::Directory::Create(dirStr, &createError);
                     FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
                     if (fp) {
-                        fprintf(fp, "[ReuseDiag] IsAssignableFrom: iter '%s.%s' interfaces_count=%u implementedInterfaces=%p interface_offsets_count=%u interfaceOffsets=%p klass='%s.%s'\n",
+                        fprintf(fp, "[ReuseDiag] IsAssignableFrom: iter '%s.%s' interfaces_count=%u implementedInterfaces=%p interface_offsets_count=%u interfaceOffsets=%p initialized=%d init_pending=%d size_inited=%d is_generic=%d generic_class=%p klass='%s.%s'\n",
                             iter->namespaze ? iter->namespaze : "", iter->name ? iter->name : "?",
                             (unsigned)iter->interfaces_count, (void*)iter->implementedInterfaces,
                             (unsigned)iter->interface_offsets_count, (void*)iter->interfaceOffsets,
+                            (int)iter->initialized, (int)iter->init_pending, (int)iter->size_inited,
+                            (int)iter->is_generic, (void*)iter->generic_class,
                             klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "?");
-                        if (iter->interfaces_count > 0 && iter->implementedInterfaces != NULL)
-                        {
-                            for (uint16_t i = 0; i < iter->interfaces_count; i++)
-                            {
-                                Il2CppClass* intf = iter->implementedInterfaces[i];
-                                fprintf(fp, "  interface[%u]=%p name=%s\n",
-                                    (unsigned)i, (void*)intf, (intf && intf->name) ? intf->name : "<NULL>");
-                            }
-                        }
                         fclose(fp);
                     }
                 }

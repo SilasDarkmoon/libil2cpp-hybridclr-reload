@@ -21,6 +21,8 @@
 #include "vm/Class.h"
 #include "vm/GenericClass.h"
 #include "os/Atomic.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 #include "metadata/FieldLayout.h"
 #include "metadata/Il2CppTypeCompare.h"
 #include "metadata/GenericMetadata.h"
@@ -2848,7 +2850,24 @@ namespace metadata
 
 			auto it = _reuseClassMap.find(fullName);
 			if (it == _reuseClassMap.end())
+			{
+				// ==={{ AssemblyReloadReuse: diagnostic for unmatched classes
+				if (nm && strstr(nm, "ProgressResult"))
+				{
+					const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+					std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+					int createError = 0;
+					il2cpp::os::Directory::Create(dirStr, &createError);
+					FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+					if (fp) {
+						fprintf(fp, "[ReuseDiag] Pass1 NOMATCH: fullName='%s' ns='%s' nm='%s'\n",
+							fullName.c_str(), ns ? ns : "", nm ? nm : "");
+						fclose(fp);
+					}
+				}
+				// ===}} AssemblyReloadReuse
 				continue;
+			}
 
 			Il2CppClass* klass = it->second;
 			if (!klass)
@@ -2985,7 +3004,30 @@ namespace metadata
 		for (size_t i = 0; i < _typesDefines.size(); i++)
 		{
 			if (!_classList[i])
+			{
+				// ==={{ AssemblyReloadReuse: diagnostic for classes not reused
+				const Il2CppTypeDefinition& typeDef = _typesDefines[i];
+				const char* ns = MetadataModule::GetStringFromEncodeIndex(typeDef.namespaceIndex);
+				const char* nm = MetadataModule::GetStringFromEncodeIndex(typeDef.nameIndex);
+				if (nm && strstr(nm, "ProgressResult"))
+				{
+					std::string fullName;
+					if (ns && *ns) { fullName = ns; fullName += "."; }
+					fullName += nm;
+					const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+					std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+					int createError = 0;
+					il2cpp::os::Directory::Create(dirStr, &createError);
+					FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+					if (fp) {
+						fprintf(fp, "[ReuseDiag] Pass2 SKIP: _classList[%zu]=NULL fullName='%s' ns='%s' nm='%s'\n",
+							i, fullName.c_str(), ns ? ns : "", nm ? nm : "");
+						fclose(fp);
+					}
+				}
+				// ===}} AssemblyReloadReuse
 				continue;
+			}
 
 			Il2CppClass* klass = _classList[i];
 
@@ -3036,7 +3078,30 @@ namespace metadata
 		for (size_t i = 0; i < _typesDefines.size(); i++)
 		{
 			if (!_classList[i])
+			{
+				// ==={{ AssemblyReloadReuse: diagnostic for classes not reused in Pass 3
+				const Il2CppTypeDefinition& typeDef = _typesDefines[i];
+				const char* ns = MetadataModule::GetStringFromEncodeIndex(typeDef.namespaceIndex);
+				const char* nm = MetadataModule::GetStringFromEncodeIndex(typeDef.nameIndex);
+				if (nm && strstr(nm, "ProgressResult"))
+				{
+					std::string fullName;
+					if (ns && *ns) { fullName = ns; fullName += "."; }
+					fullName += nm;
+					const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+					std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+					int createError = 0;
+					il2cpp::os::Directory::Create(dirStr, &createError);
+					FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+					if (fp) {
+						fprintf(fp, "[ReuseDiag] Pass3 SKIP: _classList[%zu]=NULL fullName='%s' ns='%s' nm='%s'\n",
+							i, fullName.c_str(), ns ? ns : "", nm ? nm : "");
+						fclose(fp);
+					}
+				}
+				// ===}} AssemblyReloadReuse
 				continue;
+			}
 
 			Il2CppClass* klass = _classList[i];
 
