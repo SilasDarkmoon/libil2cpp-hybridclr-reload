@@ -62,23 +62,6 @@ namespace metadata
         IL2CPP_ASSERT(gp.num < inst->type_argc);
 
         const Il2CppType* genericArgument = inst->type_argv[gp.num];
-
-        // ==={{ AssemblyReloadReuse: normalize stale Il2CppType* after reload
-        // type_argv[i] may hold an old Il2CppType* whose data.typeHandle
-        // points to the old Il2CppTypeDefinition. Normalize to
-        // &klass->byval_arg so hash/compare use the new typeHandle.
-        if (genericArgument && !genericArgument->byref &&
-            (genericArgument->type == IL2CPP_TYPE_CLASS || genericArgument->type == IL2CPP_TYPE_VALUETYPE))
-        {
-            Il2CppClass* klass = MetadataCache::GetTypeInfoFromType(genericArgument);
-            if (klass && &klass->byval_arg != genericArgument &&
-                klass->byval_arg.data.typeHandle != genericArgument->data.typeHandle)
-            {
-                genericArgument = &klass->byval_arg;
-            }
-        }
-        // ===}} AssemblyReloadReuse
-
         if (genericArgument->attrs == type->attrs && genericArgument->byref == type->byref)
             return genericArgument;
 

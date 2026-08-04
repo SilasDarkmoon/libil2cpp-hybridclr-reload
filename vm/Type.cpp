@@ -1156,22 +1156,6 @@ namespace vm
 
     bool Type::IsEqualToType(const Il2CppType *type, const Il2CppType *otherType)
     {
-        // ==={{ AssemblyReloadReuse: normalize stale typeHandle before comparison
-        if (type && otherType && type->type == otherType->type && !type->byref && !otherType->byref &&
-            (type->type == IL2CPP_TYPE_CLASS || type->type == IL2CPP_TYPE_VALUETYPE) &&
-            type->data.typeHandle != otherType->data.typeHandle)
-        {
-            Il2CppClass* k1 = GlobalMetadata::GetTypeInfoFromHandle(type->data.typeHandle);
-            Il2CppClass* k2 = GlobalMetadata::GetTypeInfoFromHandle(otherType->data.typeHandle);
-            if (k1 && k2 && k1 != k2)
-                return false;
-            if (k1 && k2 && k1 == k2)
-            {
-                type = &k1->byval_arg;
-                otherType = &k2->byval_arg;
-            }
-        }
-        // ===}} AssemblyReloadReuse
         return ::il2cpp::metadata::Il2CppTypeEqualityComparer::AreEqual(type, otherType);
     }
 
