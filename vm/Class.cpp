@@ -9,6 +9,8 @@
 #include "metadata/Il2CppTypeCompare.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 #include "utils/Memory.h"
 #include "utils/StringUtils.h"
 #include "vm/Assembly.h"
@@ -654,6 +656,54 @@ namespace vm
 
         Class::Init(klass);
         Class::Init(oklass);
+
+        // ==={{ AssemblyReloadReuse: diagnostic for stale pointers in IsAssignableFrom
+        // Check parent chain for stale pointers
+        {
+            for (Il2CppClass* iter = oklass; iter != NULL; iter = iter->parent)
+            {
+                bool needLog = false;
+                if (iter->interfaces_count > 0 && iter->implementedInterfaces == NULL)
+                    needLog = true;
+                if (iter->interface_offsets_count > 0 && iter->interfaceOffsets == NULL)
+                    needLog = true;
+                if (iter->interfaces_count > 0 && iter->implementedInterfaces != NULL)
+                {
+                    for (uint16_t i = 0; i < iter->interfaces_count; i++)
+                    {
+                        Il2CppClass* intf = iter->implementedInterfaces[i];
+                        if (intf && intf->name == NULL)
+                            needLog = true;
+                    }
+                }
+                if (needLog)
+                {
+                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                    int createError = 0;
+                    il2cpp::os::Directory::Create(dirStr, &createError);
+                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                    if (fp) {
+                        fprintf(fp, "[ReuseDiag] IsAssignableFrom: iter '%s.%s' interfaces_count=%u implementedInterfaces=%p interface_offsets_count=%u interfaceOffsets=%p klass='%s.%s'\n",
+                            iter->namespaze ? iter->namespaze : "", iter->name ? iter->name : "?",
+                            (unsigned)iter->interfaces_count, (void*)iter->implementedInterfaces,
+                            (unsigned)iter->interface_offsets_count, (void*)iter->interfaceOffsets,
+                            klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "?");
+                        if (iter->interfaces_count > 0 && iter->implementedInterfaces != NULL)
+                        {
+                            for (uint16_t i = 0; i < iter->interfaces_count; i++)
+                            {
+                                Il2CppClass* intf = iter->implementedInterfaces[i];
+                                fprintf(fp, "  interface[%u]=%p name=%s\n",
+                                    (unsigned)i, (void*)intf, (intf && intf->name) ? intf->name : "<NULL>");
+                            }
+                        }
+                        fclose(fp);
+                    }
+                }
+            }
+        }
+        // ===}} AssemblyReloadReuse
 
         // Following checks are always going to fail for interfaces
         if (!IsInterface(klass))
