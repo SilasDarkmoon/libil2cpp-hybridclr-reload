@@ -672,7 +672,7 @@ namespace vm
                 il2cpp::os::Directory::Create(dirStr, &createError);
                 FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
                 if (fp) {
-                    fprintf(fp, "[ReuseDiag] IsAssignableFrom SAME_NAME DIFF_PTR: '%s.%s' klass=%p oklass=%p klass->image=%p oklass->image=%p klass->rank=%d oklass->rank=%d klass->byval_arg.type=%u oklass->byval_arg.type=%u klass->byval_arg.data.typeHandle=%p oklass->byval_arg.data.typeHandle=%p\n",
+                    fprintf(fp, "[ReuseDiag] SAME_NAME_DIFF_PTR: '%s.%s' klass=%p oklass=%p klass->image=%p oklass->image=%p klass->rank=%d oklass->rank=%d klass->byval_arg.type=%u oklass->byval_arg.type=%u klass->byval_arg.data.typeHandle=%p oklass->byval_arg.data.typeHandle=%p\n",
                         kns, klass->name,
                         (void*)klass, (void*)oklass,
                         (void*)klass->image, (void*)oklass->image,

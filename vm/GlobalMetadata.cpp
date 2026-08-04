@@ -26,6 +26,8 @@
 #include "metadata/Il2CppSignature.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 #include "utils/CallOnce.h"
 #include "utils/Collections.h"
 #include "utils/HashUtils.h"
@@ -788,7 +790,26 @@ Il2CppClass* il2cpp::vm::GlobalMetadata::GetTypeInfoFromTypeDefinitionIndex(Type
 Il2CppClass* il2cpp::vm::GlobalMetadata::GetTypeInfoFromHandle(Il2CppMetadataTypeHandle handle)
 {
     const Il2CppTypeDefinition* typeDefinition = reinterpret_cast<const Il2CppTypeDefinition*>(handle);
-    return GetTypeInfoFromTypeDefinitionIndex(GetIndexForTypeDefinitionInternal(typeDefinition));
+    TypeDefinitionIndex index = GetIndexForTypeDefinitionInternal(typeDefinition);
+    Il2CppClass* result = GetTypeInfoFromTypeDefinitionIndex(index);
+
+    // ==={{ AssemblyReloadReuse: diagnostic for BackpackTabType duplicate
+    if (result && result->name && strcmp(result->name, "BackpackTabType") == 0)
+    {
+        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+        int createError = 0;
+        il2cpp::os::Directory::Create(dirStr, &createError);
+        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+        if (fp) {
+            fprintf(fp, "[ReuseDiag] GetTypeInfoFromHandle BackpackTabType: handle=%p typeDef=%p index=%d result=%p result->image=%p\n",
+                (void*)handle, (void*)typeDefinition, (int)index, (void*)result, (void*)result->image);
+            fclose(fp);
+        }
+    }
+    // ===}} AssemblyReloadReuse
+
+    return result;
 }
 
 Il2CppClass* il2cpp::vm::GlobalMetadata::GetTypeInfoFromType(const Il2CppType* type)
