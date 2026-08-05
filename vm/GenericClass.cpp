@@ -3,6 +3,8 @@
 #include "metadata/Il2CppGenericClassHash.h"
 #include "metadata/Il2CppGenericClassCompare.h"
 #include "os/Atomic.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 #include "os/Mutex.h"
 #include "utils/Memory.h"
 #include "utils/Il2CppHashSet.h"
@@ -57,8 +59,42 @@ namespace vm
             if (reuseImage)
             {
                 // First inflate to get correct parameter/return types
+                const Il2CppGenericContext* ctx = GenericClass::GetContext(genericInstanceType->generic_class);
+
+                // ==={{ AssemblyReloadReuse: diagnostic for Action delegate
+                if (genericInstanceType->name && strcmp(genericInstanceType->name, "Action`1") == 0)
+                {
+                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                    int createError = 0;
+                    il2cpp::os::Directory::Create(dirStr, &createError);
+                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                    if (fp) {
+                        fprintf(fp, "[ReuseDiag] SetupMethods Action`1: klass=%p generic_class=%p class_inst=%p type_argc=%u\n",
+                            (void*)genericInstanceType, (void*)genericInstanceType->generic_class,
+                            (void*)(ctx ? ctx->class_inst : NULL),
+                            ctx && ctx->class_inst ? (unsigned)ctx->class_inst->type_argc : 0);
+                        if (ctx && ctx->class_inst)
+                        {
+                            for (uint32_t i = 0; i < ctx->class_inst->type_argc && i < 4; i++)
+                            {
+                                const Il2CppType* t = ctx->class_inst->type_argv[i];
+                                fprintf(fp, "  class_inst type_argv[%u]: type=%u typeHandle=%p", (unsigned)i, (unsigned)t->type, (void*)t->data.typeHandle);
+                                if (t->type == IL2CPP_TYPE_CLASS || t->type == IL2CPP_TYPE_VALUETYPE)
+                                {
+                                    Il2CppClass* k = MetadataCache::GetTypeInfoFromType(t);
+                                    fprintf(fp, " klass=%p klass->byval_arg.data.typeHandle=%p", (void*)k, (void*)k->byval_arg.data.typeHandle);
+                                }
+                                fprintf(fp, "\n");
+                            }
+                        }
+                        fclose(fp);
+                    }
+                }
+                // ===}} AssemblyReloadReuse
+
                 const MethodInfo* inflated = metadata::GenericMetadata::Inflate(
-                    methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
+                    methodDefinition, ctx);
 
                 // Build parameter type array from INFLATED method (not methodDefinition)
                 const Il2CppType** paramTypes = nullptr;
