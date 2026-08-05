@@ -790,7 +790,7 @@ namespace vm
             const Il2CppGenericMethod* gmethod = method->genericMethod;
             if (gmethod)
             {
-                const MethodInfo* newMethod = GenericMethod::GetMethod(gmethod);
+                const MethodInfo* newMethod = il2cpp::metadata::GenericMethod::GetMethod(gmethod);
                 if (newMethod && newMethod != method)
                 {
                     IL2CPP_OBJECT_SETREF(reflMethod, method, const_cast<MethodInfo*>(newMethod));
