@@ -508,6 +508,22 @@ namespace vm
                     }
                     return true;
                 }
+                // ==={{ AssemblyReloadReuse: diagnostic for Action type_argv
+                if (isAction)
+                {
+                    const Il2CppType* t = inst->type_argv[i];
+                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                    int createError = 0;
+                    il2cpp::os::Directory::Create(dirStr, &createError);
+                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                    if (fp) {
+                        fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action: type_argv[%u] type=%u typeHandle=%p -> ShouldRestoreType=false\n",
+                            (unsigned)i, t ? (unsigned)t->type : 0, t ? (void*)t->data.typeHandle : NULL);
+                        fclose(fp);
+                    }
+                }
+                // ===}} AssemblyReloadReuse
             }
         }
 
