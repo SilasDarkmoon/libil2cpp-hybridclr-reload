@@ -785,7 +785,7 @@ namespace vm
         // For inflated generic methods, re-resolve via the generic method
         // infrastructure so we get the new inflated MethodInfo* with
         // up-to-date parameters.
-        if (method->is_inflated && method->is_generic)
+        if (method->is_inflated && method->genericMethod)
         {
             const Il2CppGenericMethod* gmethod = method->genericMethod;
             if (gmethod)
