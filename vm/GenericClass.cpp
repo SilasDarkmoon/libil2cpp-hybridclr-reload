@@ -579,6 +579,25 @@ namespace vm
                     Il2CppClass* resolvedKlass = img->GetTypeInfoFromTypeDefinitionRawIndex(rawIndex);
                     if (resolvedKlass && resolvedKlass->image == newImage)
                         return true;
+
+                    // ==={{ AssemblyReloadReuse: diagnostic for fallback failure
+                    {
+                        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                        int createError = 0;
+                        il2cpp::os::Directory::Create(dirStr, &createError);
+                        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                        if (fp) {
+                            fprintf(fp, "[ReuseDiag] ShouldRestoreType fallback: type=%u typeDef=%p byvalTypeIndex=%u rawIndex=%u img=%p resolvedKlass=%p resolvedImage=%p newImage=%p\n",
+                                (unsigned)type->type, (void*)typeDef, (unsigned)typeDef->byvalTypeIndex,
+                                (unsigned)rawIndex, (void*)img,
+                                (void*)resolvedKlass,
+                                resolvedKlass ? (void*)resolvedKlass->image : NULL,
+                                (void*)newImage);
+                            fclose(fp);
+                        }
+                    }
+                    // ===}} AssemblyReloadReuse
                 }
             }
             return false;
