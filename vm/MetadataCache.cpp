@@ -13,6 +13,8 @@
 #include "metadata/GenericMetadata.h"
 #include "metadata/GenericMethod.h"
 #include "os/Atomic.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 #include "os/Mutex.h"
 #include "utils/CallOnce.h"
 #include "utils/Collections.h"
@@ -347,15 +349,13 @@ void il2cpp::vm::MetadataCache::Clear()
 // ==={{ AssemblyReloadReuse
 void il2cpp::vm::MetadataCache::RehashGenericInstSet()
 {
+    size_t totalCount = 0, updatedCount = 0;
     std::vector<const Il2CppGenericInst*> entries;
     for (Il2CppGenericInstSet::const_iterator it = s_GenericInstSet.begin(); it != s_GenericInstSet.end(); ++it)
     {
         const Il2CppGenericInst* inst = *it;
+        totalCount++;
         // Update type_argv[i] pointers that reference stale Il2CppType objects.
-        // Pass 1 updates klass->byval_arg.data.typeHandle but does NOT update
-        // Il2CppType objects in the old image's type table. If type_argv[i]
-        // points to such a stale Il2CppType, the hash/compare will use the old
-        // typeHandle, causing lookups to miss and create duplicate entries.
         for (uint32_t i = 0; i < inst->type_argc; i++)
         {
             const Il2CppType* t = inst->type_argv[i];
@@ -365,10 +365,8 @@ void il2cpp::vm::MetadataCache::RehashGenericInstSet()
                 if (klass && &klass->byval_arg != t &&
                     klass->byval_arg.data.typeHandle != t->data.typeHandle)
                 {
-                    // Class was reused: byval_arg.data.typeHandle was updated
-                    // to the new Il2CppTypeDefinition. Repoint type_argv[i]
-                    // to &klass->byval_arg so hash/compare use the new value.
                     const_cast<Il2CppGenericInst*>(inst)->type_argv[i] = &klass->byval_arg;
+                    updatedCount++;
                 }
             }
         }
@@ -377,6 +375,16 @@ void il2cpp::vm::MetadataCache::RehashGenericInstSet()
     s_GenericInstSet.clear();
     for (const Il2CppGenericInst* entry : entries)
         s_GenericInstSet.insert(entry);
+
+    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+    int createError = 0;
+    il2cpp::os::Directory::Create(dirStr, &createError);
+    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+    if (fp) {
+        fprintf(fp, "[ReuseDiag] RehashGenericInstSet: total=%zu updated=%zu\n", totalCount, updatedCount);
+        fclose(fp);
+    }
 }
 // ===}} AssemblyReloadReuse
 
