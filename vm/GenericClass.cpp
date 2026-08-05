@@ -562,6 +562,32 @@ namespace vm
                     if (resolvedKlass && &resolvedKlass->byval_arg != type &&
                         resolvedKlass->byval_arg.data.typeHandle != type->data.typeHandle)
                         return true;
+
+                    // ==={{ AssemblyReloadReuse: diagnostic (first 3 only)
+                    {
+                        static int s_count = 0;
+                        if (s_count < 3)
+                        {
+                            s_count++;
+                            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                            int createError = 0;
+                            il2cpp::os::Directory::Create(dirStr, &createError);
+                            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                            if (fp) {
+                                fprintf(fp, "[ReuseDiag] ShouldRestoreType FAIL: type=%u typeHandle=%p resolvedKlass=%p resolvedByvalHandle=%p samePtr=%d sameHandle=%d resolvedImage=%p newImage=%p\n",
+                                    (unsigned)type->type, (void*)type->data.typeHandle,
+                                    (void*)resolvedKlass,
+                                    (void*)(resolvedKlass ? resolvedKlass->byval_arg.data.typeHandle : NULL),
+                                    (int)(&resolvedKlass->byval_arg == type),
+                                    (int)(resolvedKlass && resolvedKlass->byval_arg.data.typeHandle == type->data.typeHandle),
+                                    resolvedKlass ? (void*)resolvedKlass->image : NULL,
+                                    (void*)newImage);
+                                fclose(fp);
+                            }
+                        }
+                    }
+                    // ===}} AssemblyReloadReuse
                 }
             }
             return false;
