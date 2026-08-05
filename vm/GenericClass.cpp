@@ -430,7 +430,7 @@ namespace vm
     // whose definition or any generic argument depends on newImage.
     static bool ShouldRestoreType(const Il2CppType* type, const Il2CppImage* newImage);
 
-    static bool ShouldRestoreGenericClass(Il2CppClass* cachedClass, Il2CppClass* gclass, const Il2CppImage* newImage)
+    static bool ShouldRestoreGenericClass(Il2CppClass* cachedClass, Il2CppGenericClass* gclass, const Il2CppImage* newImage)
     {
         // ==={{ AssemblyReloadReuse: diagnostic for Action delegate
         bool isAction = (cachedClass && cachedClass->name && strncmp(cachedClass->name, "Action`", 7) == 0);
