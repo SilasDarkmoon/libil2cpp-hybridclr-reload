@@ -430,10 +430,25 @@ namespace vm
     // whose definition or any generic argument depends on newImage.
     static bool ShouldRestoreType(const Il2CppType* type, const Il2CppImage* newImage);
 
-    static bool ShouldRestoreGenericClass(Il2CppClass* cachedClass, Il2CppGenericClass* gclass, const Il2CppImage* newImage)
+    static bool ShouldRestoreGenericClass(Il2CppClass* cachedClass, Il2CppClass* gclass, const Il2CppImage* newImage)
     {
+        // ==={{ AssemblyReloadReuse: diagnostic for Action delegate
+        bool isAction = (cachedClass && cachedClass->name && strncmp(cachedClass->name, "Action`", 7) == 0);
+        // ===}} AssemblyReloadReuse
+
         if (!gclass || !gclass->type)
+        {
+            if (isAction)
+            {
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) { fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action: gclass=%p type=NULL -> false\n", (void*)gclass); fclose(fp); }
+            }
             return false;
+        }
 
         // Fast path: if the cached class's image already points to newImage,
         // it was already restored (or is from newImage).  This catches the
@@ -481,7 +496,34 @@ namespace vm
             for (uint32_t i = 0; i < inst->type_argc; i++)
             {
                 if (ShouldRestoreType(inst->type_argv[i], newImage))
+                {
+                    if (isAction)
+                    {
+                        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                        int createError = 0;
+                        il2cpp::os::Directory::Create(dirStr, &createError);
+                        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                        if (fp) { fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action: matched by type_argv[%u] -> true\n", (unsigned)i); fclose(fp); }
+                    }
                     return true;
+                }
+            }
+        }
+
+        if (isAction)
+        {
+            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+            int createError = 0;
+            il2cpp::os::Directory::Create(dirStr, &createError);
+            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+            if (fp) {
+                fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action: cachedClass=%p image=%p newImage=%p gclass=%p type=%p class_inst=%p -> false\n",
+                    (void*)cachedClass, cachedClass ? (void*)cachedClass->image : NULL, (void*)newImage,
+                    (void*)gclass, (void*)gclass->type,
+                    gclass->context.class_inst ? (void*)gclass->context.class_inst : NULL);
+                fclose(fp);
             }
         }
 
