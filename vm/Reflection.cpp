@@ -772,13 +772,38 @@ namespace vm
         s_ParametersMap = new ParametersMap();
     }
 
-    void Reflection::ClearMethodMapForReload()
+    static void FixupMethodMapCallback(Il2CppReflectionMethod** ppMethod)
     {
-        // Rebuild s_MethodMap so stale Il2CppReflectionMethod* entries
-        // (whose method field points to old inflated MethodInfo* with
-        // old Il2CppType* parameters) are not reused.
-        delete s_MethodMap;
-        s_MethodMap = new MethodMap();
+        Il2CppReflectionMethod* reflMethod = *ppMethod;
+        if (!reflMethod)
+            return;
+        const MethodInfo* method = reflMethod->method;
+        if (!method)
+            return;
+
+        // For inflated generic methods, re-resolve via the generic method
+        // infrastructure so we get the new inflated MethodInfo* with
+        // up-to-date parameters.
+        if (method->is_inflated && method->is_generic)
+        {
+            const Il2CppGenericMethod* gmethod = method->genericMethod;
+            if (gmethod)
+            {
+                const MethodInfo* newMethod = MetadataCache::GetGenericMethod(
+                    gmethod->methodDefinition,
+                    gmethod->context.class_inst,
+                    gmethod->context.method_inst);
+                if (newMethod && newMethod != method)
+                {
+                    IL2CPP_OBJECT_SETREF(reflMethod, method, const_cast<MethodInfo*>(newMethod));
+                }
+            }
+        }
+    }
+
+    void Reflection::FixupMethodMapForReload()
+    {
+        s_MethodMap->ForEachValue(&FixupMethodMapCallback);
     }
     // ===}} AssemblyReloadReuse
 

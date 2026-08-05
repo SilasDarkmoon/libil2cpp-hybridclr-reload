@@ -103,6 +103,19 @@ namespace gc
             return true;
         }
 
+        // ==={{ AssemblyReloadReuse
+        // Visits each stored value with a callback.
+        // The callback receives a pointer to the stored value (T*).
+        void ForEachValue(void (*callback)(T*))
+        {
+            os::FastReaderReaderWriterAutoExclusiveLock writeLock(&lock);
+            for (size_t i = 0; i < m_Map.size(); ++i)
+            {
+                callback(&m_Data[i]);
+            }
+        }
+        // ===}} AssemblyReloadReuse
+
     private:
         struct MemCpyData
         {

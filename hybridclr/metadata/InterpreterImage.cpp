@@ -2807,9 +2807,9 @@ namespace metadata
 		// Also clear s_ParametersMap so stale ParameterInfo[] entries
 		// (with old Type objects holding old Il2CppType*) are not reused.
 		il2cpp::vm::Reflection::ClearParametersMapForReload();
-		// Clear s_MethodMap so stale Il2CppReflectionMethod* entries
-		// (pointing to old inflated MethodInfo* with old parameters) are not reused.
-		il2cpp::vm::Reflection::ClearMethodMapForReload();
+		// Fixup s_MethodMap: update inflated MethodInfo* pointers to new
+		// inflated MethodInfo* with up-to-date parameters.
+		il2cpp::vm::Reflection::FixupMethodMapForReload();
 		// ===}} AssemblyReloadReuse
 
 		// Iterate the new type-definition table; for each entry whose full name

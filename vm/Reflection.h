@@ -81,7 +81,7 @@ namespace vm
         static void ClearStatics();
         // ==={{ AssemblyReloadReuse
         static void ClearParametersMapForReload();
-        static void ClearMethodMapForReload();
+        static void FixupMethodMapForReload();
         // ===}} AssemblyReloadReuse
 
         static ReflectionObjInfo GetImageOfReflectionObject(Il2CppObject* obj);
