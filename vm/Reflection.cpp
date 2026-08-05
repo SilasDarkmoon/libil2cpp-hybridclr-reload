@@ -9,6 +9,7 @@
 #include "metadata/CustomAttributeCreator.h"
 #include "metadata/Il2CppTypeCompare.h"
 #include "metadata/Il2CppTypeHash.h"
+#include "metadata/GenericMethod.h"
 #include "vm/Array.h"
 #include "vm/Class.h"
 #include "vm/Event.h"
@@ -789,10 +790,7 @@ namespace vm
             const Il2CppGenericMethod* gmethod = method->genericMethod;
             if (gmethod)
             {
-                const MethodInfo* newMethod = MetadataCache::GetGenericMethod(
-                    gmethod->methodDefinition,
-                    gmethod->context.class_inst,
-                    gmethod->context.method_inst);
+                const MethodInfo* newMethod = GenericMethod::GetMethod(gmethod);
                 if (newMethod && newMethod != method)
                 {
                     IL2CPP_OBJECT_SETREF(reflMethod, method, const_cast<MethodInfo*>(newMethod));
