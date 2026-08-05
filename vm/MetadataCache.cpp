@@ -376,14 +376,21 @@ void il2cpp::vm::MetadataCache::RehashGenericInstSet()
     for (const Il2CppGenericInst* entry : entries)
         s_GenericInstSet.insert(entry);
 
-    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-    int createError = 0;
-    il2cpp::os::Directory::Create(dirStr, &createError);
-    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-    if (fp) {
-        fprintf(fp, "[ReuseDiag] RehashGenericInstSet: total=%zu updated=%zu\n", totalCount, updatedCount);
-        fclose(fp);
+    {
+        static int s_rehashLogCount = 0;
+        if (s_rehashLogCount < 3)
+        {
+            s_rehashLogCount++;
+            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+            int createError = 0;
+            il2cpp::os::Directory::Create(dirStr, &createError);
+            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+            if (fp) {
+                fprintf(fp, "[ReuseDiag] RehashGenericInstSet: total=%zu updated=%zu\n", totalCount, updatedCount);
+                fclose(fp);
+            }
+        }
     }
 }
 // ===}} AssemblyReloadReuse

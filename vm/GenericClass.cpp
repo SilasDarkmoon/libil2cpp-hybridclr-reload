@@ -496,50 +496,28 @@ namespace vm
             for (uint32_t i = 0; i < inst->type_argc; i++)
             {
                 if (ShouldRestoreType(inst->type_argv[i], newImage))
-                {
-                    if (isAction)
-                    {
-                        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                        int createError = 0;
-                        il2cpp::os::Directory::Create(dirStr, &createError);
-                        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                        if (fp) { fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action: matched by type_argv[%u] -> true\n", (unsigned)i); fclose(fp); }
-                    }
                     return true;
-                }
-                // ==={{ AssemblyReloadReuse: diagnostic for Action type_argv
-                if (isAction)
-                {
-                    const Il2CppType* t = inst->type_argv[i];
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp) {
-                        fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action: type_argv[%u] type=%u typeHandle=%p -> ShouldRestoreType=false\n",
-                            (unsigned)i, t ? (unsigned)t->type : 0, t ? (void*)t->data.typeHandle : NULL);
-                        fclose(fp);
-                    }
-                }
-                // ===}} AssemblyReloadReuse
             }
         }
 
         if (isAction)
         {
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) {
-                fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action: cachedClass=%p image=%p newImage=%p gclass=%p type=%p class_inst=%p -> false\n",
-                    (void*)cachedClass, cachedClass ? (void*)cachedClass->image : NULL, (void*)newImage,
-                    (void*)gclass, (void*)gclass->type,
-                    gclass->context.class_inst ? (void*)gclass->context.class_inst : NULL);
-                fclose(fp);
+            static int s_actionFalseLogCount = 0;
+            if (s_actionFalseLogCount < 5)
+            {
+                s_actionFalseLogCount++;
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) {
+                    fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action FALSE: cachedClass=%p image=%p newImage=%p gclass=%p type=%p class_inst=%p\n",
+                        (void*)cachedClass, cachedClass ? (void*)cachedClass->image : NULL, (void*)newImage,
+                        (void*)gclass, (void*)gclass->type,
+                        gclass->context.class_inst ? (void*)gclass->context.class_inst : NULL);
+                    fclose(fp);
+                }
             }
         }
 
@@ -580,21 +558,26 @@ namespace vm
                     if (resolvedKlass && resolvedKlass->image == newImage)
                         return true;
 
-                    // ==={{ AssemblyReloadReuse: diagnostic for fallback failure
+                    // ==={{ AssemblyReloadReuse: diagnostic for fallback failure (first 5 only)
                     {
-                        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                        int createError = 0;
-                        il2cpp::os::Directory::Create(dirStr, &createError);
-                        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                        if (fp) {
-                            fprintf(fp, "[ReuseDiag] ShouldRestoreType fallback: type=%u typeDef=%p byvalTypeIndex=%u rawIndex=%u img=%p resolvedKlass=%p resolvedImage=%p newImage=%p\n",
-                                (unsigned)type->type, (void*)typeDef, (unsigned)typeDef->byvalTypeIndex,
-                                (unsigned)rawIndex, (void*)img,
-                                (void*)resolvedKlass,
-                                resolvedKlass ? (void*)resolvedKlass->image : NULL,
-                                (void*)newImage);
-                            fclose(fp);
+                        static int s_fallbackLogCount = 0;
+                        if (s_fallbackLogCount < 5)
+                        {
+                            s_fallbackLogCount++;
+                            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                            int createError = 0;
+                            il2cpp::os::Directory::Create(dirStr, &createError);
+                            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                            if (fp) {
+                                fprintf(fp, "[ReuseDiag] ShouldRestoreType fallback FAIL: type=%u typeDef=%p byvalTypeIndex=%u rawIndex=%u img=%p resolvedKlass=%p resolvedImage=%p newImage=%p\n",
+                                    (unsigned)type->type, (void*)typeDef, (unsigned)typeDef->byvalTypeIndex,
+                                    (unsigned)rawIndex, (void*)img,
+                                    (void*)resolvedKlass,
+                                    resolvedKlass ? (void*)resolvedKlass->image : NULL,
+                                    (void*)newImage);
+                                fclose(fp);
+                            }
                         }
                     }
                     // ===}} AssemblyReloadReuse
