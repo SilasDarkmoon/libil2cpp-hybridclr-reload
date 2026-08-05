@@ -14,6 +14,7 @@
 #include "vm/Event.h"
 #include "vm/Exception.h"
 #include "vm/Field.h"
+#include "vm/GlobalMetadata.h"
 #include "vm/Image.h"
 #include "vm/MetadataCache.h"
 #include "vm/Method.h"
@@ -27,6 +28,8 @@
 #include "utils/StringUtils.h"
 #include "utils/HashUtils.h"
 #include "gc/AppendOnlyGCHashMap.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 
 
 #include "gc/Allocator.h"
@@ -351,7 +354,33 @@ namespace vm
         for (int i = 0; i < method->parameters_count; ++i)
         {
             Il2CppReflectionParameter* param = (Il2CppReflectionParameter*)Object::New(s_System_Reflection_ParameterInfo);
-            IL2CPP_OBJECT_SETREF(param, ClassImpl, GetTypeObject(method->parameters[i]));
+            Il2CppReflectionType* paramType = GetTypeObject(method->parameters[i]);
+            IL2CPP_OBJECT_SETREF(param, ClassImpl, paramType);
+
+            // ==={{ AssemblyReloadReuse: diagnostic for DoExecute
+            if (method->name && strcmp(method->name, "DoExecute") == 0)
+            {
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp) {
+                    const Il2CppType* pt = method->parameters[i];
+                    fprintf(fp, "[ReuseDiag] GetParamObjects DoExecute param[%d]: type=%u typeHandle=%p paramType=%p paramType->type=%p",
+                        i, (unsigned)pt->type, (void*)pt->data.typeHandle,
+                        (void*)paramType, (void*)paramType->type);
+                    if (pt->type == IL2CPP_TYPE_CLASS || pt->type == IL2CPP_TYPE_VALUETYPE)
+                    {
+                        Il2CppClass* pk = GlobalMetadata::GetTypeInfoFromHandle(pt->data.typeHandle);
+                        fprintf(fp, " klass=%p klass->byval_arg.data.typeHandle=%p",
+                            (void*)pk, (void*)pk->byval_arg.data.typeHandle);
+                    }
+                    fprintf(fp, "\n");
+                    fclose(fp);
+                }
+            }
+            // ===}} AssemblyReloadReuse
             IL2CPP_OBJECT_SETREF(param, MemberImpl, (Il2CppObject*)member);
             const char* parameter_name = Method::GetParamName(method, i);
             IL2CPP_OBJECT_SETREF(param, NameImpl, parameter_name ? String::New(parameter_name) : NULL);
