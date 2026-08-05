@@ -2905,6 +2905,25 @@ namespace metadata
 			klass->this_arg = klass->byval_arg;
 			klass->this_arg.byref = true;
 			klass->this_arg.valuetype = 0;
+
+			// ==={{ AssemblyReloadReuse: diagnostic for type mismatch
+			if (klass->name && (strcmp(klass->name, "BackpackTabType") == 0 || strcmp(klass->name, "BackpackSubTabType") == 0))
+			{
+				const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+				std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+				int createError = 0;
+				il2cpp::os::Directory::Create(dirStr, &createError);
+				FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+				if (fp) {
+					const Il2CppType* newType = GetIl2CppTypeFromRawTypeDefIndex((uint32_t)i);
+					fprintf(fp, "[ReuseDiag] Pass1 type update: '%s.%s' oldType=%u newType=%u newTypeHandle=%p\n",
+						klass->namespaze ? klass->namespaze : "", klass->name,
+						(unsigned)klass->byval_arg.type, (unsigned)newType->type,
+						(void*)newType->data.typeHandle);
+					fclose(fp);
+				}
+			}
+			// ===}} AssemblyReloadReuse
 			klass->interopData = il2cpp::vm::MetadataCache::GetInteropDataForType(&klass->byval_arg);
 
 			// --- Update counts from new type definition ---
