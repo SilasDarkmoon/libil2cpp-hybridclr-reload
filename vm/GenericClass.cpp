@@ -503,7 +503,7 @@ namespace vm
         if (isAction)
         {
             static int s_actionFalseLogCount = 0;
-            if (s_actionFalseLogCount < 5)
+            if (s_actionFalseLogCount < 3)
             {
                 s_actionFalseLogCount++;
                 const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
@@ -512,10 +512,8 @@ namespace vm
                 il2cpp::os::Directory::Create(dirStr, &createError);
                 FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
                 if (fp) {
-                    fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action FALSE: cachedClass=%p image=%p newImage=%p gclass=%p type=%p class_inst=%p\n",
-                        (void*)cachedClass, cachedClass ? (void*)cachedClass->image : NULL, (void*)newImage,
-                        (void*)gclass, (void*)gclass->type,
-                        gclass->context.class_inst ? (void*)gclass->context.class_inst : NULL);
+                    fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action FALSE: cachedClass=%p image=%p newImage=%p\n",
+                        (void*)cachedClass, cachedClass ? (void*)cachedClass->image : NULL, (void*)newImage);
                     fclose(fp);
                 }
             }
@@ -557,30 +555,13 @@ namespace vm
                     Il2CppClass* resolvedKlass = img->GetTypeInfoFromTypeDefinitionRawIndex(rawIndex);
                     if (resolvedKlass && resolvedKlass->image == newImage)
                         return true;
-
-                    // ==={{ AssemblyReloadReuse: diagnostic for fallback failure (first 5 only)
-                    {
-                        static int s_fallbackLogCount = 0;
-                        if (s_fallbackLogCount < 5)
-                        {
-                            s_fallbackLogCount++;
-                            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                            int createError = 0;
-                            il2cpp::os::Directory::Create(dirStr, &createError);
-                            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                            if (fp) {
-                                fprintf(fp, "[ReuseDiag] ShouldRestoreType fallback FAIL: type=%u typeDef=%p byvalTypeIndex=%u rawIndex=%u img=%p resolvedKlass=%p resolvedImage=%p newImage=%p\n",
-                                    (unsigned)type->type, (void*)typeDef, (unsigned)typeDef->byvalTypeIndex,
-                                    (unsigned)rawIndex, (void*)img,
-                                    (void*)resolvedKlass,
-                                    resolvedKlass ? (void*)resolvedKlass->image : NULL,
-                                    (void*)newImage);
-                                fclose(fp);
-                            }
-                        }
-                    }
-                    // ===}} AssemblyReloadReuse
+                    // Also check if the class was reused by ANY reload (not just
+                    // the current one). If byval_arg.data.typeHandle was updated
+                    // to a different value than type->data.typeHandle, the class
+                    // was reused and its type identity changed.
+                    if (resolvedKlass && &resolvedKlass->byval_arg != type &&
+                        resolvedKlass->byval_arg.data.typeHandle != type->data.typeHandle)
+                        return true;
                 }
             }
             return false;
