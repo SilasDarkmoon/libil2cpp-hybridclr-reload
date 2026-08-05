@@ -156,6 +156,52 @@ namespace vm
             // ===}} AssemblyReloadReuse
 
             const MethodInfo* inflated2 = metadata::GenericMetadata::Inflate(methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
+
+            // ==={{ AssemblyReloadReuse: diagnostic for Action non-reuse path
+            if (genericInstanceType->name && strncmp(genericInstanceType->name, "Action`", 7) == 0 &&
+                inflated2 && inflated2->name && strcmp(inflated2->name, "Invoke") == 0)
+            {
+                static int s_invokeLogCount = 0;
+                if (s_invokeLogCount < 5)
+                {
+                    s_invokeLogCount++;
+                    const Il2CppGenericContext* ctx2 = GenericClass::GetContext(genericInstanceType->generic_class);
+                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                    int createError = 0;
+                    il2cpp::os::Directory::Create(dirStr, &createError);
+                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                    if (fp) {
+                        fprintf(fp, "[ReuseDiag] SetupMethods Invoke (non-reuse): klass=%p class_inst=%p type_argc=%u paramCount=%u\n",
+                            (void*)genericInstanceType,
+                            (void*)(ctx2 ? ctx2->class_inst : NULL),
+                            ctx2 && ctx2->class_inst ? (unsigned)ctx2->class_inst->type_argc : 0,
+                            (unsigned)inflated2->parameters_count);
+                        if (ctx2 && ctx2->class_inst)
+                        {
+                            for (uint32_t i = 0; i < ctx2->class_inst->type_argc && i < 4; i++)
+                            {
+                                const Il2CppType* t = ctx2->class_inst->type_argv[i];
+                                fprintf(fp, "  type_argv[%u]: type=%u typeHandle=%p", (unsigned)i, (unsigned)t->type, (void*)t->data.typeHandle);
+                                if (t->type == IL2CPP_TYPE_CLASS || t->type == IL2CPP_TYPE_VALUETYPE)
+                                {
+                                    Il2CppClass* k = MetadataCache::GetTypeInfoFromType(t);
+                                    fprintf(fp, " klass=%p byvalHandle=%p", (void*)k, (void*)k->byval_arg.data.typeHandle);
+                                }
+                                fprintf(fp, "\n");
+                            }
+                        }
+                        for (uint16_t i = 0; i < inflated2->parameters_count && i < 4; i++)
+                        {
+                            const Il2CppType* pt = inflated2->parameters[i];
+                            fprintf(fp, "  inflated param[%u]: type=%u typeHandle=%p\n", (unsigned)i, (unsigned)pt->type, (void*)pt->data.typeHandle);
+                        }
+                        fclose(fp);
+                    }
+                }
+            }
+            // ===}} AssemblyReloadReuse
+
             methods[methodIndex] = inflated2;
         }
 
