@@ -62,7 +62,7 @@ namespace vm
                 const Il2CppGenericContext* ctx = GenericClass::GetContext(genericInstanceType->generic_class);
 
                 // ==={{ AssemblyReloadReuse: diagnostic for Action delegate
-                if (genericInstanceType->name && strcmp(genericInstanceType->name, "Action`1") == 0)
+                if (genericInstanceType->name && strncmp(genericInstanceType->name, "Action`", 7) == 0)
                 {
                     const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
                     std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
