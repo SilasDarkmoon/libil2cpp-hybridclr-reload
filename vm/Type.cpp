@@ -26,8 +26,6 @@
 #include "il2cpp-object-internals.h"
 #include "il2cpp-tabledefs.h"
 #include "vm/Array.h"
-#include "os/Directory.h"
-#include "os/Environment.h"
 
 #include "hybridclr/metadata/MetadataUtil.h"
 
@@ -1158,34 +1156,7 @@ namespace vm
 
     bool Type::IsEqualToType(const Il2CppType *type, const Il2CppType *otherType)
     {
-        bool result = ::il2cpp::metadata::Il2CppTypeEqualityComparer::AreEqual(type, otherType);
-
-        // ==={{ AssemblyReloadReuse: diagnostic for BackpackTabType
-        if (!result && type && otherType &&
-            (type->type == IL2CPP_TYPE_CLASS || type->type == IL2CPP_TYPE_VALUETYPE) &&
-            (otherType->type == IL2CPP_TYPE_CLASS || otherType->type == IL2CPP_TYPE_VALUETYPE))
-        {
-            Il2CppClass* k1 = GlobalMetadata::GetTypeInfoFromHandle(type->data.typeHandle);
-            Il2CppClass* k2 = GlobalMetadata::GetTypeInfoFromHandle(otherType->data.typeHandle);
-            if (k1 && k2 && k1 == k2)
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) {
-                    fprintf(fp, "[ReuseDiag] Type::IsEqualToType MISMATCH: '%s.%s' type=%p handle1=%p handle2=%p k1=%p k2=%p\n",
-                        k1->namespaze ? k1->namespaze : "", k1->name ? k1->name : "?",
-                        (void*)type, (void*)type->data.typeHandle, (void*)otherType->data.typeHandle,
-                        (void*)k1, (void*)k2);
-                    fclose(fp);
-                }
-            }
-        }
-        // ===}} AssemblyReloadReuse
-
-        return result;
+        return ::il2cpp::metadata::Il2CppTypeEqualityComparer::AreEqual(type, otherType);
     }
 
     Il2CppReflectionType* Type::GetTypeFromHandle(intptr_t handle)

@@ -6,8 +6,6 @@
 #include "metadata/Il2CppGenericMethodHash.h"
 #include "os/Atomic.h"
 #include "os/Mutex.h"
-#include "os/Directory.h"
-#include "os/Environment.h"
 #include "utils/Memory.h"
 #include "vm/Class.h"
 #include "vm/Exception.h"
@@ -258,55 +256,6 @@ namespace metadata
         const Il2CppType** parameters = GenericMetadata::InflateParameters(methodDefinition->parameters, methodDefinition->parameters_count, &gmethod->context, true);
         il2cpp::vm::Il2CppGenericMethodPointers methodPointers = MetadataCache::GetGenericMethodPointers(methodDefinition, &gmethod->context);
         bool hasFullGenericSharingSignature = methodPointers.isFullGenericShared && HasFullGenericSharedParametersOrReturn(gmethod->methodDefinition, parameters);
-
-        // ==={{ AssemblyReloadReuse: diagnostic for DoExecute
-        if (methodDefinition->name && strcmp(methodDefinition->name, "DoExecute") == 0)
-        {
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) {
-                fprintf(fp, "[ReuseDiag] CreateMethodLocked DoExecute: methodDef=%p klass=%p klass->name=%s paramCount=%u\n",
-                    (void*)methodDefinition, (void*)methodDefinition->klass,
-                    methodDefinition->klass->name ? methodDefinition->klass->name : "?",
-                    (unsigned)methodDefinition->parameters_count);
-                for (uint16_t i = 0; i < methodDefinition->parameters_count; i++)
-                {
-                    const Il2CppType* pt = parameters[i];
-                    fprintf(fp, "  inflated param[%u]: type=%u typeHandle=%p", (unsigned)i, (unsigned)pt->type, (void*)pt->data.typeHandle);
-                    if (pt->type == IL2CPP_TYPE_CLASS || pt->type == IL2CPP_TYPE_VALUETYPE)
-                    {
-                        Il2CppClass* pk = il2cpp::vm::MetadataCache::GetTypeInfoFromHandle(pt->data.typeHandle);
-                        fprintf(fp, " klass=%p klass->name=%s.%s klass->byval_arg.data.typeHandle=%p",
-                            (void*)pk, pk->namespaze ? pk->namespaze : "", pk->name ? pk->name : "?",
-                            (void*)pk->byval_arg.data.typeHandle);
-                    }
-                    fprintf(fp, "\n");
-                }
-                // Also print method_inst type_argv
-                if (gmethod->context.method_inst)
-                {
-                    fprintf(fp, "  method_inst type_argc=%u\n", (unsigned)gmethod->context.method_inst->type_argc);
-                    for (uint32_t i = 0; i < gmethod->context.method_inst->type_argc; i++)
-                    {
-                        const Il2CppType* t = gmethod->context.method_inst->type_argv[i];
-                        fprintf(fp, "    method_inst type_argv[%u]: type=%u typeHandle=%p", (unsigned)i, (unsigned)t->type, (void*)t->data.typeHandle);
-                        if (t->type == IL2CPP_TYPE_CLASS || t->type == IL2CPP_TYPE_VALUETYPE)
-                        {
-                            Il2CppClass* k = il2cpp::vm::MetadataCache::GetTypeInfoFromHandle(t->data.typeHandle);
-                            fprintf(fp, " klass=%p klass->name=%s.%s klass->byval_arg.data.typeHandle=%p",
-                                (void*)k, k->namespaze ? k->namespaze : "", k->name ? k->name : "?",
-                                (void*)k->byval_arg.data.typeHandle);
-                        }
-                        fprintf(fp, "\n");
-                    }
-                }
-                fclose(fp);
-            }
-        }
-        // ===}} AssemblyReloadReuse
 
         MethodInfo* newMethod = AllocGenericMethodInfo(hasFullGenericSharingSignature);
 

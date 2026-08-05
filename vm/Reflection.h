@@ -79,6 +79,9 @@ namespace vm
         static bool IsEvent(Il2CppObject *obj);
 
         static void ClearStatics();
+        // ==={{ AssemblyReloadReuse
+        static void ClearParametersMapForReload();
+        // ===}} AssemblyReloadReuse
 
         static ReflectionObjInfo GetImageOfReflectionObject(Il2CppObject* obj);
 // internal

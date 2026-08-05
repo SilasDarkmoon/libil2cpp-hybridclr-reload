@@ -763,6 +763,16 @@ namespace vm
         s_MonoAssemblyNameMap->insert(std::make_pair(assembly, aname));
     }
 
+    // ==={{ AssemblyReloadReuse
+    void Reflection::ClearParametersMapForReload()
+    {
+        // Rebuild s_ParametersMap so stale ParameterInfo[] entries
+        // (with old Type objects holding old Il2CppType*) are not reused.
+        delete s_ParametersMap;
+        s_ParametersMap = new ParametersMap();
+    }
+    // ===}} AssemblyReloadReuse
+
     void Reflection::ClearStatics()
     {
         delete s_AssemblyMap;

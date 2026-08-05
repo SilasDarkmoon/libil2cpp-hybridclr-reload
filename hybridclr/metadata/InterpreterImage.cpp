@@ -2804,6 +2804,9 @@ namespace metadata
 		// GetMethodBody to be called with the old token on the new image,
 		// resulting in OOB errors. ===
 		il2cpp::metadata::GenericMethod::ClearStatics();
+		// Also clear s_ParametersMap so stale ParameterInfo[] entries
+		// (with old Type objects holding old Il2CppType*) are not reused.
+		il2cpp::vm::Reflection::ClearParametersMapForReload();
 		// ===}} AssemblyReloadReuse
 
 		// Iterate the new type-definition table; for each entry whose full name
