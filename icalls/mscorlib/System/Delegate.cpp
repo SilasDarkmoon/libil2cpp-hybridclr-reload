@@ -3,7 +3,10 @@
 #include "il2cpp-object-internals.h"
 #include "icalls/mscorlib/System/Delegate.h"
 #include "gc/WriteBarrier.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 #include "vm/Class.h"
+#include "vm/GlobalMetadata.h"
 #include "vm/Method.h"
 #include "vm/Object.h"
 #include "vm/Reflection.h"
@@ -25,10 +28,52 @@ namespace System
 
         IL2CPP_ASSERT(delegate_class->parent == il2cpp_defaults.multicastdelegate_class);
 
-        //if (mono_security_get_mode () == MONO_SECURITY_MODE_CORE_CLR) {
-        //  if (!mono_security_core_clr_ensure_delegate_creation (method, throwOnBindFailure))
-        //      return NULL;
-        //}
+        // ==={{ AssemblyReloadReuse: diagnostic for delegate compatibility
+        if (method && method->name && method->klass && method->klass->name &&
+            (strstr(method->name, "OnClick") || strstr(method->name, "DoExecute")))
+        {
+            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+            int createError = 0;
+            il2cpp::os::Directory::Create(dirStr, &createError);
+            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+            if (fp) {
+                fprintf(fp, "[ReuseDiag] CreateDelegate: method='%s.%s' is_inflated=%d is_generic=%d paramCount=%u delegate_class='%s.%s'\n",
+                    method->klass->namespaze ? method->klass->namespaze : "", method->name,
+                    (int)method->is_inflated, (int)method->is_generic,
+                    (unsigned)method->parameters_count,
+                    delegate_class->namespaze ? delegate_class->namespaze : "", delegate_class->name ? delegate_class->name : "?");
+                for (uint16_t i = 0; i < method->parameters_count && i < 4; i++)
+                {
+                    const Il2CppType* pt = method->parameters[i];
+                    fprintf(fp, "  method param[%u]: type=%u typeHandle=%p", (unsigned)i, (unsigned)pt->type, (void*)pt->data.typeHandle);
+                    if (pt->type == IL2CPP_TYPE_CLASS || pt->type == IL2CPP_TYPE_VALUETYPE)
+                    {
+                        Il2CppClass* pk = il2cpp::vm::GlobalMetadata::GetTypeInfoFromHandle(pt->data.typeHandle);
+                        fprintf(fp, " klass=%p klass->byval_arg.data.typeHandle=%p", (void*)pk, (void*)pk->byval_arg.data.typeHandle);
+                    }
+                    fprintf(fp, "\n");
+                }
+                // Print delegate invoke method parameters
+                const MethodInfo* invokeMethod = il2cpp::vm::Class::GetMethodFromName(delegate_class, "Invoke", method->parameters_count);
+                if (invokeMethod)
+                {
+                    for (uint16_t i = 0; i < invokeMethod->parameters_count && i < 4; i++)
+                    {
+                        const Il2CppType* pt = invokeMethod->parameters[i];
+                        fprintf(fp, "  delegate Invoke param[%u]: type=%u typeHandle=%p", (unsigned)i, (unsigned)pt->type, (void*)pt->data.typeHandle);
+                        if (pt->type == IL2CPP_TYPE_CLASS || pt->type == IL2CPP_TYPE_VALUETYPE)
+                        {
+                            Il2CppClass* pk = il2cpp::vm::GlobalMetadata::GetTypeInfoFromHandle(pt->data.typeHandle);
+                            fprintf(fp, " klass=%p klass->byval_arg.data.typeHandle=%p", (void*)pk, (void*)pk->byval_arg.data.typeHandle);
+                        }
+                        fprintf(fp, "\n");
+                    }
+                }
+                fclose(fp);
+            }
+        }
+        // ===}} AssemblyReloadReuse
 
         Il2CppObject* delegate = il2cpp::vm::Object::New(delegate_class);
         il2cpp::vm::Type::ConstructDelegate((Il2CppDelegate*)delegate, target, method);
