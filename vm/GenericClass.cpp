@@ -806,6 +806,31 @@ namespace vm
     {
         for (Il2CppClass* klass : s_GenericClassesToRestore)
         {
+            // ==={{ AssemblyReloadReuse: normalize stale type_argv in class_inst
+            // class_inst may be AOT-created (not in s_GenericInstSet), so
+            // RehashGenericInstSet didn't update it. Normalize here so that
+            // SetupMethods → Inflate → InflateGenericParameterIfNeeded uses
+            // the new Il2CppType* (&klass->byval_arg) instead of stale ones.
+            if (klass->generic_class && klass->generic_class->context.class_inst)
+            {
+                const Il2CppGenericInst* inst = klass->generic_class->context.class_inst;
+                for (uint32_t i = 0; i < inst->type_argc; i++)
+                {
+                    const Il2CppType* t = inst->type_argv[i];
+                    if (t && !t->byref &&
+                        (t->type == IL2CPP_TYPE_CLASS || t->type == IL2CPP_TYPE_VALUETYPE))
+                    {
+                        Il2CppClass* k = MetadataCache::GetTypeInfoFromType(t);
+                        if (k && &k->byval_arg != t &&
+                            k->byval_arg.data.typeHandle != t->data.typeHandle)
+                        {
+                            const_cast<Il2CppGenericInst*>(inst)->type_argv[i] = &k->byval_arg;
+                        }
+                    }
+                }
+            }
+            // ===}} AssemblyReloadReuse
+
             klass->fields = nullptr;
             klass->methods = nullptr;
             klass->properties = nullptr;
