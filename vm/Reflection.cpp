@@ -399,6 +399,32 @@ namespace vm
             il2cpp_array_setref(res, i, param);
         }
 
+        // ==={{ AssemblyReloadDiag
+        // The failing Delegate.CreateDelegate check compares
+        //   method.GetParameters()[i].ParameterType == delegateInvoke.GetParameters()[i].ParameterType
+        // which is reference equality on the cached Il2CppReflectionType.
+        // Dump both sides' parameter Il2CppType*/typeHandle so we can see
+        // which side still holds a stale (old-image) type table entry.
+        if (method->name != NULL
+            && (strcmp(method->name, "OnClickBackPackBtn") == 0
+                || (strcmp(method->name, "Invoke") == 0 && method->klass != NULL && method->klass->name != NULL && strstr(method->klass->name, "Action") != NULL)))
+        {
+            for (int i = 0; i < method->parameters_count; ++i)
+            {
+                const Il2CppType* pt = method->parameters[i];
+                Il2CppClass* pk = (pt != NULL && !pt->byref && (pt->type == IL2CPP_TYPE_VALUETYPE || pt->type == IL2CPP_TYPE_CLASS))
+                    ? Class::FromIl2CppType(pt) : NULL;
+                hybridclr::ReloadDiagLog(
+                    "[ReloadDiag] GetParamObjects: %s.%s method=%p param%d il2cppType=%p typeHandle=%p paramKlass=%s.%s %p isByvalOfKlass=%d\n",
+                    method->klass && method->klass->name ? method->klass->name : "?", method->name,
+                    (const void*)method, i, (const void*)pt,
+                    pk != NULL ? (void*)pt->data.typeHandle : NULL,
+                    pk && pk->namespaze ? pk->namespaze : "", pk ? pk->name : "?", (void*)pk,
+                    (pk != NULL && pt == &pk->byval_arg) ? 1 : 0);
+            }
+        }
+        // ===}} AssemblyReloadDiag
+
         return s_ParametersMap->GetOrAdd(key, res);
     }
 
