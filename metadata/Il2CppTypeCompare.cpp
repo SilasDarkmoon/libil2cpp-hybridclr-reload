@@ -1,10 +1,6 @@
 #include "il2cpp-config.h"
 #include "il2cpp-class-internals.h"
 #include "Il2CppTypeCompare.h"
-#include <cstdio>
-#include "os/Directory.h"
-#include "os/Environment.h"
-#include "vm/Class.h"
 
 namespace il2cpp
 {
@@ -94,55 +90,7 @@ namespace metadata
 
     bool Il2CppTypeEqualityComparer::AreEqual(const Il2CppType* t1, const Il2CppType* t2)
     {
-        bool result = Compare(t1, t2) == 0;
-
-        // ==={{ AssemblyReloadReuse: diagnostic for type comparison failures
-        if (!result && t1 && t2 &&
-            (t1->type == IL2CPP_TYPE_CLASS || t1->type == IL2CPP_TYPE_VALUETYPE) &&
-            (t2->type == IL2CPP_TYPE_CLASS || t2->type == IL2CPP_TYPE_VALUETYPE) &&
-            t1->type == t2->type && !t1->byref && !t2->byref &&
-            t1->data.typeHandle != t2->data.typeHandle)
-        {
-            Il2CppClass* k1 = il2cpp::vm::Class::FromIl2CppType(t1);
-            Il2CppClass* k2 = il2cpp::vm::Class::FromIl2CppType(t2);
-            // Log when both resolve to same class (stale handle) or same name (duplicate class)
-            bool shouldLog = false;
-            const char* reason = "";
-            if (k1 && k2 && k1 == k2 && k1->name)
-            {
-                shouldLog = true;
-                reason = "STALE-HANDLE";
-            }
-            else if (k1 && k2 && k1->name && k2->name && strcmp(k1->name, k2->name) == 0)
-            {
-                shouldLog = true;
-                reason = "DUP-CLASS";
-            }
-            if (shouldLog)
-            {
-                static int s_failCount = 0;
-                if (s_failCount < 50)
-                {
-                    s_failCount++;
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp)
-                    {
-                        fprintf(fp, "[ReuseDiag] AreEqual %s: name=%s k1=%p k2=%p t1=%p h1=%p bh1=%p  t2=%p h2=%p bh2=%p\n",
-                            reason, k1->name, (void*)k1, (void*)k2,
-                            (void*)t1, (void*)t1->data.typeHandle, k1 ? (void*)k1->byval_arg.data.typeHandle : NULL,
-                            (void*)t2, (void*)t2->data.typeHandle, k2 ? (void*)k2->byval_arg.data.typeHandle : NULL);
-                        fclose(fp);
-                    }
-                }
-            }
-        }
-        // ===}} AssemblyReloadReuse
-
-        return result;
+        return Compare(t1, t2) == 0;
     }
 
     bool Il2CppTypeLess::operator()(const Il2CppType * t1, const Il2CppType * t2) const

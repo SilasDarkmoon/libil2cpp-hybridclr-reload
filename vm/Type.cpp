@@ -26,6 +26,8 @@
 #include "il2cpp-object-internals.h"
 #include "il2cpp-tabledefs.h"
 #include "vm/Array.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 
 #include "hybridclr/metadata/MetadataUtil.h"
 
@@ -1156,7 +1158,43 @@ namespace vm
 
     bool Type::IsEqualToType(const Il2CppType *type, const Il2CppType *otherType)
     {
-        return ::il2cpp::metadata::Il2CppTypeEqualityComparer::AreEqual(type, otherType);
+        bool result = ::il2cpp::metadata::Il2CppTypeEqualityComparer::AreEqual(type, otherType);
+
+        // ==={{ AssemblyReloadReuse: diagnostic for Delegate.CreateDelegate type comparison
+        if (!result && type && otherType &&
+            (type->type == IL2CPP_TYPE_CLASS || type->type == IL2CPP_TYPE_VALUETYPE) &&
+            (otherType->type == IL2CPP_TYPE_CLASS || otherType->type == IL2CPP_TYPE_VALUETYPE) &&
+            type->type == otherType->type &&
+            type->data.typeHandle != otherType->data.typeHandle)
+        {
+            static int s_failCount = 0;
+            if (s_failCount < 30)
+            {
+                s_failCount++;
+                Il2CppClass* k1 = Class::FromIl2CppType(type);
+                Il2CppClass* k2 = Class::FromIl2CppType(otherType);
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp)
+                {
+                    fprintf(fp, "[ReuseDiag] IsEqualToType FAIL: t1=%p type=%u h1=%p  t2=%p type=%u h2=%p",
+                        (void*)type, (unsigned)type->type, (void*)type->data.typeHandle,
+                        (void*)otherType, (unsigned)otherType->type, (void*)otherType->data.typeHandle);
+                    if (k1 && k1->name)
+                        fprintf(fp, "  k1=%s(%p) bh1=%p", k1->name, (void*)k1, (void*)k1->byval_arg.data.typeHandle);
+                    if (k2 && k2->name)
+                        fprintf(fp, "  k2=%s(%p) bh2=%p", k2->name, (void*)k2, (void*)k2->byval_arg.data.typeHandle);
+                    fprintf(fp, "\n");
+                    fclose(fp);
+                }
+            }
+        }
+        // ===}} AssemblyReloadReuse
+
+        return result;
     }
 
     Il2CppReflectionType* Type::GetTypeFromHandle(intptr_t handle)
