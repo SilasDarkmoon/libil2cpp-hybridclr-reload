@@ -654,31 +654,6 @@ namespace vm
         if (klass == oklass)
             return true;
 
-        // ==={{ AssemblyReloadReuse: diagnostic
-        if (klass && oklass && klass->name && oklass->name &&
-            strcmp(klass->name, oklass->name) == 0)
-        {
-            static int s_logCount = 0;
-            if (s_logCount < 30)
-            {
-                s_logCount++;
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp)
-                {
-                    fprintf(fp, "[ReuseDiag] IsAssignableFrom DIFF-PTR SAME-NAME: name=%s klass=%p oklass=%p bh1=%p bh2=%p\n",
-                        klass->name, (void*)klass, (void*)oklass,
-                        (void*)klass->byval_arg.data.typeHandle,
-                        (void*)oklass->byval_arg.data.typeHandle);
-                    fclose(fp);
-                }
-            }
-        }
-        // ===}} AssemblyReloadReuse
-
         Class::Init(klass);
         Class::Init(oklass);
 

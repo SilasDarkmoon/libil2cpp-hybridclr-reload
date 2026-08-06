@@ -406,7 +406,6 @@ bool il2cpp::vm::MetadataCache::WasGenericInstChanged(const Il2CppGenericInst* i
 {
     return s_ChangedInsts.find(inst) != s_ChangedInsts.end();
 }
-// ===}} AssemblyReloadReuse
 
 // ==={{ AssemblyReloadReuse
 void il2cpp::vm::MetadataCache::ClearGenericMethodSet()

@@ -61,38 +61,6 @@ namespace vm
                 // First inflate to get correct parameter/return types
                 const Il2CppGenericContext* ctx = GenericClass::GetContext(genericInstanceType->generic_class);
 
-                // ==={{ AssemblyReloadReuse: diagnostic for Action delegate
-                if (genericInstanceType->name && strncmp(genericInstanceType->name, "Action`", 7) == 0)
-                {
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp) {
-                        fprintf(fp, "[ReuseDiag] SetupMethods Action`1: klass=%p generic_class=%p class_inst=%p type_argc=%u\n",
-                            (void*)genericInstanceType, (void*)genericInstanceType->generic_class,
-                            (void*)(ctx ? ctx->class_inst : NULL),
-                            ctx && ctx->class_inst ? (unsigned)ctx->class_inst->type_argc : 0);
-                        if (ctx && ctx->class_inst)
-                        {
-                            for (uint32_t i = 0; i < ctx->class_inst->type_argc && i < 4; i++)
-                            {
-                                const Il2CppType* t = ctx->class_inst->type_argv[i];
-                                fprintf(fp, "  class_inst type_argv[%u]: type=%u typeHandle=%p", (unsigned)i, (unsigned)t->type, (void*)t->data.typeHandle);
-                                if (t->type == IL2CPP_TYPE_CLASS || t->type == IL2CPP_TYPE_VALUETYPE)
-                                {
-                                    Il2CppClass* k = MetadataCache::GetTypeInfoFromType(t);
-                                    fprintf(fp, " klass=%p klass->byval_arg.data.typeHandle=%p", (void*)k, (void*)k->byval_arg.data.typeHandle);
-                                }
-                                fprintf(fp, "\n");
-                            }
-                        }
-                        fclose(fp);
-                    }
-                }
-                // ===}} AssemblyReloadReuse
-
                 const MethodInfo* inflated = metadata::GenericMetadata::Inflate(
                     methodDefinition, ctx);
 
@@ -156,51 +124,6 @@ namespace vm
             // ===}} AssemblyReloadReuse
 
             const MethodInfo* inflated2 = metadata::GenericMetadata::Inflate(methodDefinition, GenericClass::GetContext(genericInstanceType->generic_class));
-
-            // ==={{ AssemblyReloadReuse: diagnostic for Action non-reuse path
-            if (genericInstanceType->name && strncmp(genericInstanceType->name, "Action`", 7) == 0 &&
-                inflated2 && inflated2->name && strcmp(inflated2->name, "Invoke") == 0)
-            {
-                static int s_invokeLogCount = 0;
-                if (s_invokeLogCount < 50)
-                {
-                    s_invokeLogCount++;
-                    const Il2CppGenericContext* ctx2 = GenericClass::GetContext(genericInstanceType->generic_class);
-                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                    int createError = 0;
-                    il2cpp::os::Directory::Create(dirStr, &createError);
-                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                    if (fp) {
-                        fprintf(fp, "[ReuseDiag] SetupMethods Invoke (non-reuse): klass=%p class_inst=%p type_argc=%u paramCount=%u\n",
-                            (void*)genericInstanceType,
-                            (void*)(ctx2 ? ctx2->class_inst : NULL),
-                            ctx2 && ctx2->class_inst ? (unsigned)ctx2->class_inst->type_argc : 0,
-                            (unsigned)inflated2->parameters_count);
-                        if (ctx2 && ctx2->class_inst)
-                        {
-                            for (uint32_t i = 0; i < ctx2->class_inst->type_argc && i < 4; i++)
-                            {
-                                const Il2CppType* t = ctx2->class_inst->type_argv[i];
-                                fprintf(fp, "  type_argv[%u]: type=%u typeHandle=%p", (unsigned)i, (unsigned)t->type, (void*)t->data.typeHandle);
-                                if (t->type == IL2CPP_TYPE_CLASS || t->type == IL2CPP_TYPE_VALUETYPE)
-                                {
-                                    Il2CppClass* k = MetadataCache::GetTypeInfoFromType(t);
-                                    fprintf(fp, " klass=%p byvalHandle=%p", (void*)k, (void*)k->byval_arg.data.typeHandle);
-                                }
-                                fprintf(fp, "\n");
-                            }
-                        }
-                        for (uint16_t i = 0; i < inflated2->parameters_count && i < 4; i++)
-                        {
-                            const Il2CppType* pt = inflated2->parameters[i];
-                            fprintf(fp, "  inflated param[%u]: type=%u typeHandle=%p\n", (unsigned)i, (unsigned)pt->type, (void*)pt->data.typeHandle);
-                        }
-                        fclose(fp);
-                    }
-                }
-            }
-            // ===}} AssemblyReloadReuse
 
             methods[methodIndex] = inflated2;
         }
@@ -520,23 +443,8 @@ namespace vm
 
     static bool ShouldRestoreGenericClass(Il2CppClass* cachedClass, Il2CppGenericClass* gclass, const Il2CppImage* newImage)
     {
-        // ==={{ AssemblyReloadReuse: diagnostic for Action delegate
-        bool isAction = (cachedClass && cachedClass->name && strncmp(cachedClass->name, "Action`", 7) == 0);
-        // ===}} AssemblyReloadReuse
-
         if (!gclass || !gclass->type)
-        {
-            if (isAction)
-            {
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) { fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action: gclass=%p type=NULL -> false\n", (void*)gclass); fclose(fp); }
-            }
             return false;
-        }
 
         // Fast path: if the cached class's image already points to newImage,
         // it was already restored (or is from newImage).  This catches the
@@ -585,35 +493,6 @@ namespace vm
             {
                 if (ShouldRestoreType(inst->type_argv[i], newImage))
                     return true;
-            }
-        }
-
-        if (isAction)
-        {
-            static int s_actionFalseLogCount = 0;
-            if (s_actionFalseLogCount < 20)
-            {
-                s_actionFalseLogCount++;
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp) {
-                    fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action FALSE: cachedClass=%p image=%p newImage=%p type_argc=%u\n",
-                        (void*)cachedClass, cachedClass ? (void*)cachedClass->image : NULL, (void*)newImage,
-                        gclass->context.class_inst ? (unsigned)gclass->context.class_inst->type_argc : 0);
-                    if (gclass->context.class_inst)
-                    {
-                        const Il2CppGenericInst* inst2 = gclass->context.class_inst;
-                        for (uint32_t i = 0; i < inst2->type_argc && i < 4; i++)
-                        {
-                            const Il2CppType* t = inst2->type_argv[i];
-                            fprintf(fp, "  type_argv[%u]: type=%u typeHandle=%p\n", (unsigned)i, t ? (unsigned)t->type : 0, t ? (void*)t->data.typeHandle : NULL);
-                        }
-                    }
-                    fclose(fp);
-                }
             }
         }
 
@@ -670,32 +549,6 @@ namespace vm
                     // to fail. So we must return TRUE to trigger method re-inflation.
                     if (resolvedKlass && &resolvedKlass->byval_arg != type)
                         return true;
-
-                    // ==={{ AssemblyReloadReuse: diagnostic (first 20 only)
-                    {
-                        static int s_count = 0;
-                        if (s_count < 20)
-                        {
-                            s_count++;
-                            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                            int createError = 0;
-                            il2cpp::os::Directory::Create(dirStr, &createError);
-                            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                            if (fp) {
-                                fprintf(fp, "[ReuseDiag] ShouldRestoreType FAIL: type=%u typeHandle=%p resolvedKlass=%p resolvedByvalHandle=%p samePtr=%d sameHandle=%d resolvedImage=%p newImage=%p\n",
-                                    (unsigned)type->type, (void*)type->data.typeHandle,
-                                    (void*)resolvedKlass,
-                                    (void*)(resolvedKlass ? resolvedKlass->byval_arg.data.typeHandle : NULL),
-                                    (int)(&resolvedKlass->byval_arg == type),
-                                    (int)(resolvedKlass && resolvedKlass->byval_arg.data.typeHandle == type->data.typeHandle),
-                                    resolvedKlass ? (void*)resolvedKlass->image : NULL,
-                                    (void*)newImage);
-                                fclose(fp);
-                            }
-                        }
-                    }
-                    // ===}} AssemblyReloadReuse
                 }
             }
             return false;
@@ -828,41 +681,6 @@ namespace vm
             if (!shouldRestore)
                 continue;
 
-            // ==={{ AssemblyReloadReuse: diagnostic for Action TRUE
-            {
-                bool isAction = (klass && klass->name && strncmp(klass->name, "Action`", 7) == 0);
-                if (isAction)
-                {
-                    static int s_actionTrueLogCount = 0;
-                    if (s_actionTrueLogCount < 10)
-                    {
-                        s_actionTrueLogCount++;
-                        const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                        std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                        int createError = 0;
-                        il2cpp::os::Directory::Create(dirStr, &createError);
-                        FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                        if (fp)
-                        {
-                            fprintf(fp, "[ReuseDiag] ShouldRestoreGenericClass Action TRUE: cachedClass=%p name=%s image=%p newImage=%p type_argc=%u\n",
-                                (void*)klass, klass->name, (void*)klass->image, (void*)newImage,
-                                gclass->context.class_inst ? gclass->context.class_inst->type_argc : 0);
-                            if (gclass->context.class_inst)
-                            {
-                                const Il2CppGenericInst* inst = gclass->context.class_inst;
-                                for (uint32_t i = 0; i < inst->type_argc && i < 4; i++)
-                                {
-                                    const Il2CppType* t = inst->type_argv[i];
-                                    fprintf(fp, "  type_argv[%u]: type=%u typeHandle=%p\n", i, t ? t->type : 0, t ? (void*)t->data.typeHandle : NULL);
-                                }
-                            }
-                            fclose(fp);
-                        }
-                    }
-                }
-            }
-            // ===}} AssemblyReloadReuse
-
             // Update klass->image to point to the image of the generic type
             // definition (NOT newImage).  The class may be restored because
             // a generic argument depends on newImage, but klass->image must
@@ -901,26 +719,6 @@ namespace vm
 
     void GenericClass::RestoreCachedGenericClassesPass2()
     {
-        // ==={{ AssemblyReloadReuse: diagnostic
-        {
-            int actionCount = 0;
-            for (Il2CppClass* k : s_GenericClassesToRestore)
-            {
-                if (k && k->name && strncmp(k->name, "Action`", 7) == 0)
-                    actionCount++;
-            }
-            const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-            std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-            int createError = 0;
-            il2cpp::os::Directory::Create(dirStr, &createError);
-            FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-            if (fp) {
-                fprintf(fp, "[ReuseDiag] Pass2: total=%zu actionCount=%d\n", s_GenericClassesToRestore.size(), actionCount);
-                fclose(fp);
-            }
-        }
-        // ===}} AssemblyReloadReuse
-
         for (Il2CppClass* klass : s_GenericClassesToRestore)
         {
             // ==={{ AssemblyReloadReuse: normalize stale type_argv in class_inst
