@@ -1,11 +1,14 @@
 #pragma once
 
 // ==={{ AssemblyReloadDiag
-// Header-only file logger for assembly-reload diagnostics.
-// Why file instead of il2cpp::utils::Logging::Write: in the target
-// environment the console/log-callback output cannot be captured.
+// Header-only logger for assembly-reload diagnostics.
 //
-// Path resolution (first hit wins):
+// Dual output:
+//   1. our own file, flushed per line (survives hard crashes)
+//   2. il2cpp::utils::Logging::Write -> Unity's log callback, so the trail
+//      is also captured by Unity's own log / crash reporting.
+//
+// File path resolution (first hit wins):
 //   1. $RELOAD_DIAG_LOG_PATH              (full file path, settable from C#
 //      via System.Environment.SetEnvironmentVariable before first use)
 //   2. $UNITY_TEMPORARY_CACHE_PATH/reload_diag.log
@@ -19,6 +22,8 @@
 #include <cstdlib>
 #include <cstdarg>
 #include <ctime>
+
+#include "utils/Logging.h"
 
 namespace hybridclr
 {
@@ -42,6 +47,29 @@ namespace hybridclr
     inline void ReloadDiagEnable()
     {
         ReloadDiagEnabledFlag() = true;
+    }
+
+    // Re-entrancy guard. Diagnostics that resolve classes can trigger nested
+    // class / generic-instance creation, which re-enters the same diagnostic
+    // code and may recurse without bound. Nested diag invocations are
+    // skipped, breaking the recursion.
+    inline bool& ReloadDiagInProgressFlag()
+    {
+        static thread_local bool s_InProgress = false;
+        return s_InProgress;
+    }
+
+    inline bool ReloadDiagTryEnter()
+    {
+        if (ReloadDiagInProgressFlag())
+            return false;
+        ReloadDiagInProgressFlag() = true;
+        return true;
+    }
+
+    inline void ReloadDiagLeave()
+    {
+        ReloadDiagInProgressFlag() = false;
     }
 
     inline const char* ReloadDiagLogPath()
@@ -80,12 +108,23 @@ namespace hybridclr
         if (utc != NULL)
             std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", utc);
 
+        char line[2240];
+        std::snprintf(line, sizeof(line), "[%s UTC] %s", timeBuf, body);
+        line[sizeof(line) - 1] = '\0';
+
+        // 1) own file, flushed per line so the trail survives a hard crash.
         FILE* f = std::fopen(ReloadDiagLogPath(), "a");
-        if (f == NULL)
-            return;
-        std::fprintf(f, "[%s UTC] %s", timeBuf, body);
-        std::fflush(f);
-        std::fclose(f);
+        if (f != NULL)
+        {
+            std::fputs(line, f);
+            std::fflush(f);
+            std::fclose(f);
+        }
+
+        // 2) Unity's own log via the il2cpp log callback, so the message is
+        // also captured in Unity's log file / crash report.
+        if (il2cpp::utils::Logging::IsLogCallbackSet())
+            il2cpp::utils::Logging::Write("%s", line);
     }
 }
 // ===}} AssemblyReloadDiag

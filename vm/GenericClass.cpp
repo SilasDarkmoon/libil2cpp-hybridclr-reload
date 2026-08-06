@@ -281,7 +281,8 @@ namespace vm
         // generic argument is a stale (old-image) Il2CppType of a reloaded
         // interpreter type, this creates a duplicate class whose inflated
         // method parameters keep the stale typeHandle -> Type == Type fails.
-        if (hybridclr::ReloadDiagEnabled() && !gclass->cached_class && gclass->context.class_inst)
+        bool reloadDiagEntered = hybridclr::ReloadDiagEnabled() && hybridclr::ReloadDiagTryEnter();
+        if (reloadDiagEntered && !gclass->cached_class && gclass->context.class_inst)
         {
             const Il2CppGenericInst* inst = gclass->context.class_inst;
             for (uint32_t ai = 0; ai < inst->type_argc; ++ai)
@@ -304,6 +305,8 @@ namespace vm
                     at == &ak->byval_arg ? 1 : 0);
             }
         }
+        if (reloadDiagEntered)
+            hybridclr::ReloadDiagLeave();
         // ===}} AssemblyReloadDiag
         if (!gclass->cached_class)
         {

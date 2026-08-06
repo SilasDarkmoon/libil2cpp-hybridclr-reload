@@ -19,6 +19,7 @@
 #include "MetadataUtil.h"
 #include "ConsistentAOTHomologousImage.h"
 #include "SuperSetAOTHomologousImage.h"
+#include "../ReloadDiagLog.h"
 
 namespace hybridclr
 {
@@ -229,6 +230,13 @@ namespace metadata
 		if (image->HasReuseData())
 		{
 			image->RestoreReusedClasses();
+			// ==={{ AssemblyReloadDiag: enable diagnostics that resolve
+			// classes only AFTER all restore passes completed (class
+			// creation is unsafe during the passes and during VM startup). ===
+			ReloadDiagEnable();
+			ReloadDiagLog("[ReloadDiag] DiagEnabled after restore: il2cppImage=%p(%s)\n",
+				(void*)ass->image, ass->image ? ass->image->name : "?");
+			// ===}} AssemblyReloadDiag
 		}
 		// ===}} AssemblyReloadReuse
 
