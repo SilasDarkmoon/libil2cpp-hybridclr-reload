@@ -81,7 +81,6 @@ namespace vm
         static void ClearStatics();
         // ==={{ AssemblyReloadReuse
         static void ClearParametersMapForReload();
-        static void ClearTypeMapForReload();
         static void FixupMethodMapForReload();
         // ===}} AssemblyReloadReuse
 

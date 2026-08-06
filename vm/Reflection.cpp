@@ -773,19 +773,6 @@ namespace vm
         s_ParametersMap = new ParametersMap();
     }
 
-    void Reflection::ClearTypeMapForReload()
-    {
-        // Rebuild s_TypeMap so stale Il2CppReflectionType entries
-        // (keyed by old Il2CppType* pointers) are not reused.
-        // After reload, method->parameters[i] may hold old Il2CppType*
-        // while delegate Invoke parameters hold &klass->byval_arg.
-        // Without clearing s_TypeMap, GetTypeObject returns different
-        // Il2CppReflectionType* for the same logical type, causing
-        // Delegate.CreateDelegate "method arguments are incompatible".
-        delete s_TypeMap;
-        s_TypeMap = new TypeMap();
-    }
-
     static void FixupMethodMapCallback(Il2CppReflectionMethod** ppMethod)
     {
         Il2CppReflectionMethod* reflMethod = *ppMethod;

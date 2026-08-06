@@ -2807,10 +2807,6 @@ namespace metadata
 		// Also clear s_ParametersMap so stale ParameterInfo[] entries
 		// (with old Type objects holding old Il2CppType*) are not reused.
 		il2cpp::vm::Reflection::ClearParametersMapForReload();
-		// Clear s_TypeMap: stale Il2CppReflectionType entries keyed by old
-		// Il2CppType* pointers cause Delegate.CreateDelegate to see different
-		// Type objects for the same logical type -> "method arguments are incompatible".
-		il2cpp::vm::Reflection::ClearTypeMapForReload();
 		// Fixup s_MethodMap: update inflated MethodInfo* pointers to new
 		// inflated MethodInfo* with up-to-date parameters.
 		il2cpp::vm::Reflection::FixupMethodMapForReload();
