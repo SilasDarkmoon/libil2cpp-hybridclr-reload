@@ -23,6 +23,8 @@
 #include "vm/Property.h"
 #include "vm/Reflection.h"
 #include "vm/String.h"
+#include "os/Directory.h"
+#include "os/Environment.h"
 #include "vm/AssemblyName.h"
 #include "utils/Il2CppHashMap.h"
 #include "utils/StringUtils.h"
@@ -333,6 +335,46 @@ namespace vm
         Il2CppReflectionMethod *member = NULL;
 
         IL2CPP_NOT_IMPLEMENTED_NO_ASSERT(Reflection::GetParamObjects, "Work in progress!");
+
+        // ==={{ AssemblyReloadReuse: diagnostic for Delegate.CreateDelegate
+        if (method && method->name && method->klass && method->klass->name &&
+            method->parameters_count > 0 &&
+            (method->klass->name[0] == 'A' && strncmp(method->klass->name, "Action`", 7) == 0))
+        {
+            static int s_paramLogCount = 0;
+            if (s_paramLogCount < 50)
+            {
+                s_paramLogCount++;
+                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                int createError = 0;
+                il2cpp::os::Directory::Create(dirStr, &createError);
+                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                if (fp)
+                {
+                    fprintf(fp, "[ReuseDiag] GetParamObjects: klass=%s method=%s paramCount=%u is_inflated=%d is_generic=%d\n",
+                        method->klass->name, method->name, (unsigned)method->parameters_count,
+                        (int)method->is_inflated, (int)method->is_generic);
+                    for (uint16_t i = 0; i < method->parameters_count && i < 6; i++)
+                    {
+                        const Il2CppType* pt = method->parameters[i];
+                        if (pt)
+                        {
+                            fprintf(fp, "  param[%u]: type=%u typeHandle=%p", (unsigned)i, (unsigned)pt->type, (void*)pt->data.typeHandle);
+                            if (pt->type == IL2CPP_TYPE_CLASS || pt->type == IL2CPP_TYPE_VALUETYPE)
+                            {
+                                Il2CppClass* k = Class::FromIl2CppType(pt);
+                                if (k)
+                                    fprintf(fp, " klass=%p klassName=%s byvalHandle=%p", (void*)k, k->name ? k->name : "?", (void*)k->byval_arg.data.typeHandle);
+                            }
+                            fprintf(fp, "\n");
+                        }
+                    }
+                    fclose(fp);
+                }
+            }
+        }
+        // ===}} AssemblyReloadReuse
 
         if (!method->parameters_count)
             return Array::NewSpecific(s_System_Reflection_ParameterInfo_array, 0);
