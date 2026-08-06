@@ -162,7 +162,7 @@ namespace vm
                 inflated2 && inflated2->name && strcmp(inflated2->name, "Invoke") == 0)
             {
                 static int s_invokeLogCount = 0;
-                if (s_invokeLogCount < 5)
+                if (s_invokeLogCount < 50)
                 {
                     s_invokeLogCount++;
                     const Il2CppGenericContext* ctx2 = GenericClass::GetContext(genericInstanceType->generic_class);
