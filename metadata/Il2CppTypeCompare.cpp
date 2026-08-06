@@ -1,9 +1,6 @@
 #include "il2cpp-config.h"
 #include "il2cpp-class-internals.h"
 #include "Il2CppTypeCompare.h"
-#include <cstdio>
-#include "os/Directory.h"
-#include "os/Environment.h"
 
 namespace il2cpp
 {
@@ -93,36 +90,7 @@ namespace metadata
 
     bool Il2CppTypeEqualityComparer::AreEqual(const Il2CppType* t1, const Il2CppType* t2)
     {
-        bool result = Compare(t1, t2) == 0;
-
-        // ==={{ AssemblyReloadReuse: diagnostic - safe, only logs typeHandle values
-        if (!result && t1 && t2 &&
-            (t1->type == IL2CPP_TYPE_CLASS || t1->type == IL2CPP_TYPE_VALUETYPE) &&
-            (t2->type == IL2CPP_TYPE_CLASS || t2->type == IL2CPP_TYPE_VALUETYPE) &&
-            t1->type == t2->type && !t1->byref && !t2->byref &&
-            t1->data.typeHandle != t2->data.typeHandle)
-        {
-            static int s_failCount = 0;
-            if (s_failCount < 50)
-            {
-                s_failCount++;
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp)
-                {
-                    fprintf(fp, "[ReuseDiag] AreEqual FAIL: t1=%p type=%u h1=%p  t2=%p type=%u h2=%p\n",
-                        (void*)t1, (unsigned)t1->type, (void*)t1->data.typeHandle,
-                        (void*)t2, (unsigned)t2->type, (void*)t2->data.typeHandle);
-                    fclose(fp);
-                }
-            }
-        }
-        // ===}} AssemblyReloadReuse
-
-        return result;
+        return Compare(t1, t2) == 0;
     }
 
     bool Il2CppTypeLess::operator()(const Il2CppType * t1, const Il2CppType * t2) const
