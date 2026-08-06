@@ -4,6 +4,7 @@
 #include <cstdio>
 #include "os/Directory.h"
 #include "os/Environment.h"
+#include "vm/Class.h"
 
 namespace il2cpp
 {
@@ -99,23 +100,43 @@ namespace metadata
         if (!result && t1 && t2 &&
             (t1->type == IL2CPP_TYPE_CLASS || t1->type == IL2CPP_TYPE_VALUETYPE) &&
             (t2->type == IL2CPP_TYPE_CLASS || t2->type == IL2CPP_TYPE_VALUETYPE) &&
-            t1->type == t2->type && !t1->byref && !t2->byref)
+            t1->type == t2->type && !t1->byref && !t2->byref &&
+            t1->data.typeHandle != t2->data.typeHandle)
         {
-            static int s_failCount = 0;
-            if (s_failCount < 50 && t1->data.typeHandle != t2->data.typeHandle)
+            Il2CppClass* k1 = il2cpp::vm::Class::FromIl2CppType(t1);
+            Il2CppClass* k2 = il2cpp::vm::Class::FromIl2CppType(t2);
+            // Log when both resolve to same class (stale handle) or same name (duplicate class)
+            bool shouldLog = false;
+            const char* reason = "";
+            if (k1 && k2 && k1 == k2 && k1->name)
             {
-                s_failCount++;
-                const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
-                std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
-                int createError = 0;
-                il2cpp::os::Directory::Create(dirStr, &createError);
-                FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
-                if (fp)
+                shouldLog = true;
+                reason = "STALE-HANDLE";
+            }
+            else if (k1 && k2 && k1->name && k2->name && strcmp(k1->name, k2->name) == 0)
+            {
+                shouldLog = true;
+                reason = "DUP-CLASS";
+            }
+            if (shouldLog)
+            {
+                static int s_failCount = 0;
+                if (s_failCount < 50)
                 {
-                    fprintf(fp, "[ReuseDiag] AreEqual FAIL: t1=%p type=%u handle=%p  t2=%p type=%u handle=%p\n",
-                        (void*)t1, (unsigned)t1->type, (void*)t1->data.typeHandle,
-                        (void*)t2, (unsigned)t2->type, (void*)t2->data.typeHandle);
-                    fclose(fp);
+                    s_failCount++;
+                    const std::string tmpCache = il2cpp::os::Environment::GetEnvironmentVariable("UNITY_TEMPORARY_CACHE_PATH");
+                    std::string dirStr = !tmpCache.empty() ? tmpCache : "log";
+                    int createError = 0;
+                    il2cpp::os::Directory::Create(dirStr, &createError);
+                    FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
+                    if (fp)
+                    {
+                        fprintf(fp, "[ReuseDiag] AreEqual %s: name=%s k1=%p k2=%p t1=%p h1=%p bh1=%p  t2=%p h2=%p bh2=%p\n",
+                            reason, k1->name, (void*)k1, (void*)k2,
+                            (void*)t1, (void*)t1->data.typeHandle, k1 ? (void*)k1->byval_arg.data.typeHandle : NULL,
+                            (void*)t2, (void*)t2->data.typeHandle, k2 ? (void*)k2->byval_arg.data.typeHandle : NULL);
+                        fclose(fp);
+                    }
                 }
             }
         }
