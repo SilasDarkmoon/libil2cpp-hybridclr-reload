@@ -67,3 +67,8 @@
   3. `RehashGenericTypeSet`（GenericClass.cpp）：同上
   - 查找类用 `MetadataCache::GetTypeInfoFromType(defType)` → `GlobalMetadata::GetTypeInfoFromType` → `GetTypeInfoFromHandle(typeHandle)` → `GetIndexForTypeDefinitionInternal` → `GetTypeInfoFromTypeDefinitionIndex`
   - 即使 `typeHandle` 是旧值，`IsInterpreterType` 仍能识别，`GetTypeEncodeIndex` 仍能返回编码索引，最终返回被复用的 `Il2CppClass*`（其 `byval_arg.data.typeHandle` 已是新值）
+
+## rehash 未更新 gclass->context.class_inst->type_argv 导致 Expression1<T>→Expression<T> InvalidCastException（2026-08-06，已修复）
+- **问题**：`RehashGenericClassSet` 和 `RehashGenericTypeSet` 更新了 `gclass->type` 但未更新 `gclass->context.class_inst->type_argv`。`Il2CppGenericClassHash` 的 hash 同时依赖 `gclass->type` 和 `gclass->context.class_inst->type_argv`。rehash 用陈旧 `type_argv` 重算 hash；之后 Pass 2 归一化 `type_argv` 但不 rehash → hash 再次陈旧 → Pass 3 lookup 用新 `type_argv` → hash 不匹配 → 创建重复 `Expression<T>` 条目 → `Expression1<T>->parent` 指向旧 `Expression<T>`，cast 目标是新 `Expression<T>` → `HasParentUnsafe` 失败 → `InvalidCastException: Unable to cast Expression1<T> to Expression<T>`
+- **关键**：AOT 创建的 `class_inst`（如 `Expression1<T>` 的 `class_inst`）不在 `s_GenericInstSet` 中，所以 `RehashGenericInstSet` 不会更新它的 `type_argv`。Pass 2 只更新 `s_GenericClassesToRestore` 中的类。如果 rehash 在 Pass 2 之前运行，rehash 用的 `type_argv` 是陈旧的。
+- **修复**：在 `RehashGenericClassSet`（GenericMetadata.cpp）和 `RehashGenericTypeSet`（GenericClass.cpp）中，增加 `NormalizeGenericInstTypeArgv(gclass->context.class_inst)` 调用，在 rehash 时同时归一化 `type_argv`，确保 hash 用归一化后的 `type_argv` 计算。

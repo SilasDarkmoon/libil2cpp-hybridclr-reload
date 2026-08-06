@@ -427,6 +427,23 @@ namespace vm
     }
 
     // ==={{ AssemblyReloadReuse
+    static void NormalizeGenericInstTypeArgv(const Il2CppGenericInst* inst)
+    {
+        for (uint32_t i = 0; i < inst->type_argc; i++)
+        {
+            const Il2CppType* t = inst->type_argv[i];
+            if (t && (t->type == IL2CPP_TYPE_CLASS || t->type == IL2CPP_TYPE_VALUETYPE))
+            {
+                Il2CppClass* k = MetadataCache::GetTypeInfoFromType(t);
+                if (k && &k->byval_arg != t &&
+                    k->byval_arg.data.typeHandle != t->data.typeHandle)
+                {
+                    const_cast<Il2CppGenericInst*>(inst)->type_argv[i] = &k->byval_arg;
+                }
+            }
+        }
+    }
+
     void GenericClass::RehashGenericTypeSet()
     {
         // Collect all entries, clear the set, and re-insert them.
@@ -449,6 +466,14 @@ namespace vm
                     gclass->type = &klass->byval_arg;
                 }
             }
+            // Also normalize stale type_argv in context.class_inst.
+            // class_inst may be AOT-created (not in s_GenericInstSet), so
+            // RehashGenericInstSet didn't update it. Without this, the hash
+            // is computed with stale type_argv, and later lookups (which use
+            // normalized type_argv) won't find the entry -> duplicate entries
+            // -> InvalidCastException.
+            if (gclass->context.class_inst)
+                NormalizeGenericInstTypeArgv(gclass->context.class_inst);
             s_GenericClassSet.insert(gclass);
         }
     }
