@@ -5,6 +5,9 @@
 #include "RuntimeTypeHandle.h"
 #include "Type.h"
 
+#include <string.h>
+
+#include "hybridclr/ReloadDiagLog.h"
 #include "utils/StringUtils.h"
 #include "vm/Class.h"
 #include "vm/Image.h"
@@ -134,15 +137,48 @@ namespace System
         return !type->type.type->byref && (type->type.type->type == IL2CPP_TYPE_VAR || type->type.type->type == IL2CPP_TYPE_MVAR);
     }
 
+    // ==={{ AssemblyReloadDiag
+    // Log IsAssignableFrom/IsInstanceOfType failures that indicate either a
+    // duplicate Il2CppClass (same full name, different pointer) or a mismatch
+    // involving types relevant to the reload binding issue.
+    static void ReloadDiagLogClassMismatch(const char* api, Il2CppClass* ka, Il2CppClass* kb)
+    {
+        if (ka == NULL || kb == NULL || ka->name == NULL || kb->name == NULL)
+            return;
+        const char* nsa = ka->namespaze ? ka->namespaze : "";
+        const char* nsb = kb->namespaze ? kb->namespaze : "";
+        bool sameFullName = strcmp(ka->name, kb->name) == 0 && strcmp(nsa, nsb) == 0;
+        bool interesting = strstr(ka->name, "Backpack") != NULL || strstr(kb->name, "Backpack") != NULL
+            || strstr(ka->name, "HomeWindow") != NULL || strstr(kb->name, "HomeWindow") != NULL;
+        if (!sameFullName && !interesting)
+            return;
+        hybridclr::ReloadDiagLog(
+            "[ReloadDiag] %s FALSE: a=%s.%s klass=%p image=%p(%s) | b=%s.%s klass=%p image=%p(%s) sameFullName=%d\n",
+            api, nsa, ka->name, (void*)ka, (void*)ka->image, ka->image ? ka->image->name : "?",
+            nsb, kb->name, (void*)kb, (void*)kb->image, kb->image ? kb->image->name : "?", sameFullName ? 1 : 0);
+    }
+    // ===}} AssemblyReloadDiag
+
     bool RuntimeTypeHandle::IsInstanceOfType(Il2CppReflectionRuntimeType* type, Il2CppObject* obj)
     {
         Il2CppClass* klass = vm::Class::FromIl2CppType(type->type.type);
-        return il2cpp::vm::Object::IsInst(obj, klass) != NULL;
+        bool result = il2cpp::vm::Object::IsInst(obj, klass) != NULL;
+        // ==={{ AssemblyReloadDiag
+        if (!result && obj != NULL)
+            ReloadDiagLogClassMismatch("IsInstanceOfType", klass, obj->klass);
+        // ===}} AssemblyReloadDiag
+        return result;
     }
 
     bool RuntimeTypeHandle::type_is_assignable_from(Il2CppReflectionType* a, Il2CppReflectionType* b)
     {
-        return vm::Class::IsAssignableFrom(a, b);
+        bool result = vm::Class::IsAssignableFrom(a, b);
+        // ==={{ AssemblyReloadDiag
+        if (!result && a != NULL && b != NULL && a->type != NULL && b->type != NULL)
+            ReloadDiagLogClassMismatch("type_is_assignable_from",
+                vm::Class::FromIl2CppType(a->type), vm::Class::FromIl2CppType(b->type));
+        // ===}} AssemblyReloadDiag
+        return result;
     }
 
     int32_t RuntimeTypeHandle::GetArrayRank(Il2CppReflectionRuntimeType* type)

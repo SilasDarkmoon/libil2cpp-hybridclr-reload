@@ -3,12 +3,15 @@
 #include "il2cpp-object-internals.h"
 #include "icalls/mscorlib/System/Delegate.h"
 #include "gc/WriteBarrier.h"
+#include "hybridclr/ReloadDiagLog.h"
 #include "vm/Class.h"
 #include "vm/Method.h"
 #include "vm/Object.h"
 #include "vm/Reflection.h"
 #include "vm/Runtime.h"
 #include "vm/Type.h"
+
+#include <string.h>
 
 namespace il2cpp
 {
@@ -22,6 +25,28 @@ namespace System
     {
         Il2CppClass *delegate_class = il2cpp::vm::Class::FromIl2CppType(__type->type);
         const MethodInfo *method = info->method;
+
+        // ==={{ AssemblyReloadDiag
+        // If the managed pre-checks in Delegate.CreateDelegate pass, we reach
+        // here. Absence of this log for a failing method means the managed
+        // checks (DeclaringType/param type identity) rejected the bind.
+        if (method != NULL && method->name != NULL && strstr(method->name, "OnClickBackPackBtn") != NULL)
+        {
+            Il2CppClass* declaring = method->klass;
+            Il2CppClass* targetKlass = target != NULL ? target->klass : NULL;
+            hybridclr::ReloadDiagLog(
+                "[ReloadDiag] CreateDelegate_internal reached: delegate=%s.%s klass=%p image=%p(%s) | method=%s declaring=%s.%s klass=%p image=%p(%s) | targetKlass=%s.%s %p\n",
+                delegate_class->namespaze ? delegate_class->namespaze : "", delegate_class->name,
+                (void*)delegate_class, (void*)delegate_class->image,
+                delegate_class->image ? delegate_class->image->name : "?",
+                method->name,
+                declaring && declaring->namespaze ? declaring->namespaze : "", declaring ? declaring->name : "?",
+                (void*)declaring, declaring ? (void*)declaring->image : NULL,
+                declaring && declaring->image ? declaring->image->name : "?",
+                targetKlass && targetKlass->namespaze ? targetKlass->namespaze : "", targetKlass ? targetKlass->name : "?",
+                (void*)targetKlass);
+        }
+        // ===}} AssemblyReloadDiag
 
         IL2CPP_ASSERT(delegate_class->parent == il2cpp_defaults.multicastdelegate_class);
 

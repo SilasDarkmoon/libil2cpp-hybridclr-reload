@@ -72,3 +72,11 @@
 - **问题**：`RehashGenericClassSet` 和 `RehashGenericTypeSet` 更新了 `gclass->type` 但未更新 `gclass->context.class_inst->type_argv`。`Il2CppGenericClassHash` 的 hash 同时依赖 `gclass->type` 和 `gclass->context.class_inst->type_argv`。rehash 用陈旧 `type_argv` 重算 hash；之后 Pass 2 归一化 `type_argv` 但不 rehash → hash 再次陈旧 → Pass 3 lookup 用新 `type_argv` → hash 不匹配 → 创建重复 `Expression<T>` 条目 → `Expression1<T>->parent` 指向旧 `Expression<T>`，cast 目标是新 `Expression<T>` → `HasParentUnsafe` 失败 → `InvalidCastException: Unable to cast Expression1<T> to Expression<T>`
 - **关键**：AOT 创建的 `class_inst`（如 `Expression1<T>` 的 `class_inst`）不在 `s_GenericInstSet` 中，所以 `RehashGenericInstSet` 不会更新它的 `type_argv`。Pass 2 只更新 `s_GenericClassesToRestore` 中的类。如果 rehash 在 Pass 2 之前运行，rehash 用的 `type_argv` 是陈旧的。
 - **修复**：在 `RehashGenericClassSet`（GenericMetadata.cpp）和 `RehashGenericTypeSet`（GenericClass.cpp）中，增加 `NormalizeGenericInstTypeArgv(gclass->context.class_inst)` 调用，在 rehash 时同时归一化 `type_argv`，确保 hash 用归一化后的 `type_argv` 计算。
+
+## Delegate.CreateDelegate "method arguments are incompatible" 的关键机制（2026-08-06）
+- 异常来自**托管** mscorlib `Delegate.CreateDelegate(Type, object, MethodInfo, bool, bool)` 的预检；原生 icall `CreateDelegate_internal` 不做校验、不会失败。
+- 预检顺序：返回类型匹配 → closed-instance 检查（`method.DeclaringType.IsAssignableFrom/IsInstanceOfType(target)`）→ 参数个数 → 参数类型 `delArgType == argType`（仅两者都是引用类型时才回退 IsAssignableFrom）。
+- **枚举等值类型参数只走 `Type == Type`（RuntimeType 引用相等），不过任何 icall** —— 排查盲区。
+- `s_TypeMap`（Reflection.cpp）键是 `Il2CppType*` 但按内容深比较（`Il2CppTypeHash`/`Il2CppTypeEqualityComparer`）；CLASS/VALUETYPE 只比 `data.typeHandle` 裸指针。typeHandle 陈旧（旧 image typeDef）即产生第二个 RuntimeType → `==` 失败。
+- `g_MetadataLock` 是 `baselib::ReentrantLock`（可重入），GetTypeObject 内调 `Class::FromIl2CppType` 安全。
+- 注意：早前日志记录过的 `ClearTypeMapForReload` 修复在当前 dev-reload-2022 工作区不存在（疑似清理日志时被还原）。

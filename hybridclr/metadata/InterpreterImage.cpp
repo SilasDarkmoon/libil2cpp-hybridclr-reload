@@ -20,6 +20,7 @@
 #include "vm/Reflection.h"
 #include "vm/Class.h"
 #include "vm/GenericClass.h"
+#include "../ReloadDiagLog.h"
 #include "os/Atomic.h"
 #include "os/Directory.h"
 #include "os/Environment.h"
@@ -1879,6 +1880,19 @@ namespace metadata
 			return klass;
 		}
 		klass = il2cpp::vm::GlobalMetadata::FromTypeDefinition(EncodeWithIndex(index));
+		// ==={{ AssemblyReloadDiag
+		// Detect duplicate Il2CppClass creation at the source: if the same type
+		// is created from both the old and the new image, the two logs will show
+		// different image pointers with the same full name.
+		if (klass && klass->name && (strstr(klass->name, "Backpack") != NULL || strstr(klass->name, "HomeWindow") != NULL))
+		{
+			ReloadDiagLog(
+				"[ReloadDiag] InterpClassCreated: %s.%s klass=%p interpImage=%p il2cppImage=%p(%s) rawIndex=%u hasReuseData=%d\n",
+				klass->namespaze ? klass->namespaze : "", klass->name, (void*)klass,
+				(void*)this, (void*)_il2cppImage, _il2cppImage ? _il2cppImage->name : "?",
+				index, HasReuseData() ? 1 : 0);
+		}
+		// ===}} AssemblyReloadDiag
 		IL2CPP_ASSERT(klass->interfaces_count <= klass->interface_offsets_count || _typesDefines[index].interfaceOffsetsStart == 0);
 		il2cpp::os::Atomic::FullMemoryBarrier();
 		_classList[index] = klass;
@@ -2886,12 +2900,21 @@ namespace metadata
 					}
 				}
 #endif
-				if (!expanded)
+			if (!expanded)
+			{
+				// ==={{ AssemblyReloadDiag
+				if (nm && (strstr(nm, "Backpack") != NULL || strstr(nm, "HomeWindow") != NULL))
 				{
-					// Cannot reuse this class.
-					_reuseClassMap.erase(it);
-					continue;
+				ReloadDiagLog(
+					"[ReloadDiag] InterpClassReuseRejected: %s klass=%p newVtableCount=%u allocated=%u interpImage=%p\n",
+						fullName.c_str(), (void*)klass, (unsigned)newVtableCount,
+						(unsigned)klass->vtable_allocated_count, (void*)this);
 				}
+				// ===}} AssemblyReloadDiag
+				// Cannot reuse this class.
+				_reuseClassMap.erase(it);
+				continue;
+			}
 			}
 
 			// --- Update external pointers to new image/assembly ---
@@ -2962,12 +2985,22 @@ namespace metadata
 						il2cpp::vm::GlobalMetadata::GetIl2CppTypeFromIndex(typeDef.elementTypeIndex));
 			}
 
-			// --- Store in _classList so GetTypeInfoFromTypeDefinitionRawIndex returns it ---
-			_classList[i] = klass;
+		// --- Store in _classList so GetTypeInfoFromTypeDefinitionRawIndex returns it ---
+		_classList[i] = klass;
 
-			// Remove from the reuse map (already reused).
-			_reuseClassMap.erase(it);
+		// ==={{ AssemblyReloadDiag
+		if (nm && (strstr(nm, "Backpack") != NULL || strstr(nm, "HomeWindow") != NULL))
+		{
+				ReloadDiagLog(
+					"[ReloadDiag] InterpClassReused: %s klass=%p interpImage=%p il2cppImage=%p(%s) rawIndex=%u\n",
+				fullName.c_str(), (void*)klass, (void*)this, (void*)_il2cppImage,
+				_il2cppImage ? _il2cppImage->name : "?", (unsigned)i);
 		}
+		// ===}} AssemblyReloadDiag
+
+		// Remove from the reuse map (already reused).
+		_reuseClassMap.erase(it);
+	}
 
 		// --- Generic Pass 1: Update image pointers for generic instance
 		// classes that depend on the reloaded image. Run AFTER non-generic

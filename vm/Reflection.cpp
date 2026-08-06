@@ -27,8 +27,10 @@
 #include "utils/Il2CppHashMap.h"
 #include "utils/StringUtils.h"
 #include "utils/HashUtils.h"
+#include "hybridclr/ReloadDiagLog.h"
 #include "gc/AppendOnlyGCHashMap.h"
 
+#include <string.h>
 
 #include "gc/Allocator.h"
 
@@ -283,6 +285,26 @@ namespace vm
         Il2CppReflectionType* typeObject = (Il2CppReflectionType*)Object::New(il2cpp_defaults.runtimetype_class);
 
         typeObject->type = type;
+
+        // ==={{ AssemblyReloadDiag
+        // Type == Type in managed code is reference equality on the cached
+        // Il2CppReflectionType. s_TypeMap is keyed by Il2CppType* but compared
+        // by content (typeHandle for CLASS/VALUETYPE). A second creation for
+        // the same class means two Il2CppType keys were NOT content-equal
+        // (e.g. stale typeHandle) -> Type == Type fails in CreateDelegate.
+        if (type != NULL && !type->byref && (type->type == IL2CPP_TYPE_VALUETYPE || type->type == IL2CPP_TYPE_CLASS))
+        {
+            Il2CppClass* k = Class::FromIl2CppType(type);
+            if (k != NULL && k->name != NULL && (strstr(k->name, "Backpack") != NULL || strstr(k->name, "HomeWindow") != NULL))
+            {
+                hybridclr::ReloadDiagLog(
+                    "[ReloadDiag] TypeObjectCreated: %s.%s keyType=%p typeHandle=%p klass=%p klassByval=%p image=%p(%s) runtimeType=%p\n",
+                    k->namespaze ? k->namespaze : "", k->name, (const void*)type, (void*)type->data.typeHandle,
+                    (void*)k, (void*)&k->byval_arg, (void*)k->image, k->image ? k->image->name : "?",
+                    (void*)typeObject);
+            }
+        }
+        // ===}} AssemblyReloadDiag
 
         return s_TypeMap->GetOrAdd(type, typeObject);
     }
