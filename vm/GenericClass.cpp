@@ -427,8 +427,9 @@ namespace vm
     }
 
     // ==={{ AssemblyReloadReuse
-    static void NormalizeGenericInstTypeArgv(const Il2CppGenericInst* inst)
+    static bool NormalizeGenericInstTypeArgv(const Il2CppGenericInst* inst)
     {
+        bool changed = false;
         for (uint32_t i = 0; i < inst->type_argc; i++)
         {
             const Il2CppType* t = inst->type_argv[i];
@@ -439,9 +440,11 @@ namespace vm
                     k->byval_arg.data.typeHandle != t->data.typeHandle)
                 {
                     const_cast<Il2CppGenericInst*>(inst)->type_argv[i] = &k->byval_arg;
+                    changed = true;
                 }
             }
         }
+        return changed;
     }
 
     void GenericClass::RehashGenericTypeSet()
@@ -473,7 +476,21 @@ namespace vm
             // normalized type_argv) won't find the entry -> duplicate entries
             // -> InvalidCastException.
             if (gclass->context.class_inst)
-                NormalizeGenericInstTypeArgv(gclass->context.class_inst);
+            {
+                bool changed = NormalizeGenericInstTypeArgv(gclass->context.class_inst);
+                // Also check if RehashGenericInstSet already updated this inst.
+                if (!changed && MetadataCache::WasGenericInstChanged(gclass->context.class_inst))
+                    changed = true;
+                if (changed)
+                {
+                    // type_argv changed: the inflated method parameters
+                    // (method->parameters) still hold the old Il2CppType*
+                    // pointers. Reset methods so SetupMethods re-inflates
+                    // them with the normalized type_argv.
+                    if (gclass->cached_class)
+                        gclass->cached_class->methods = nullptr;
+                }
+            }
             s_GenericClassSet.insert(gclass);
         }
     }

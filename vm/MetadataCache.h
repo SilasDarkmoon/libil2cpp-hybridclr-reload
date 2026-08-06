@@ -74,6 +74,9 @@ namespace vm
         // has been updated. The hash depends on typeHandle, so after updating
         // it we must rehash to keep lookups working.
         static void RehashGenericInstSet();
+        // Check if a specific Il2CppGenericInst had its type_argv changed
+        // during the last RehashGenericInstSet call.
+        static bool WasGenericInstChanged(const Il2CppGenericInst* inst);
         // Clear the generic method set so stale entries with old context
         // pointers are not reused after reload.
         static void ClearGenericMethodSet();

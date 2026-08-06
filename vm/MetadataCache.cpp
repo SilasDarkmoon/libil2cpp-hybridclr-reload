@@ -4,6 +4,7 @@
 
 #include <map>
 #include <unordered_set>
+#include <set>
 #include <limits>
 #include <string>
 #include "il2cpp-tabledefs.h"
@@ -347,14 +348,18 @@ void il2cpp::vm::MetadataCache::Clear()
 }
 
 // ==={{ AssemblyReloadReuse
+static std::set<const Il2CppGenericInst*> s_ChangedInsts;
+
 void il2cpp::vm::MetadataCache::RehashGenericInstSet()
 {
     size_t totalCount = 0, updatedCount = 0;
     std::vector<const Il2CppGenericInst*> entries;
+    s_ChangedInsts.clear();
     for (Il2CppGenericInstSet::const_iterator it = s_GenericInstSet.begin(); it != s_GenericInstSet.end(); ++it)
     {
         const Il2CppGenericInst* inst = *it;
         totalCount++;
+        bool instChanged = false;
         // Update type_argv[i] pointers that reference stale Il2CppType objects.
         for (uint32_t i = 0; i < inst->type_argc; i++)
         {
@@ -367,9 +372,12 @@ void il2cpp::vm::MetadataCache::RehashGenericInstSet()
                 {
                     const_cast<Il2CppGenericInst*>(inst)->type_argv[i] = &klass->byval_arg;
                     updatedCount++;
+                    instChanged = true;
                 }
             }
         }
+        if (instChanged)
+            s_ChangedInsts.insert(inst);
         entries.push_back(inst);
     }
     s_GenericInstSet.clear();
@@ -387,11 +395,16 @@ void il2cpp::vm::MetadataCache::RehashGenericInstSet()
             il2cpp::os::Directory::Create(dirStr, &createError);
             FILE* fp = fopen((dirStr + "/assembly_reload_reuse.log").c_str(), "a");
             if (fp) {
-                fprintf(fp, "[ReuseDiag] RehashGenericInstSet: total=%zu updated=%zu\n", totalCount, updatedCount);
+                fprintf(fp, "[ReuseDiag] RehashGenericInstSet: total=%zu updated=%zu changedInsts=%zu\n", totalCount, updatedCount, s_ChangedInsts.size());
                 fclose(fp);
             }
         }
     }
+}
+
+bool il2cpp::vm::MetadataCache::WasGenericInstChanged(const Il2CppGenericInst* inst)
+{
+    return s_ChangedInsts.find(inst) != s_ChangedInsts.end();
 }
 // ===}} AssemblyReloadReuse
 
