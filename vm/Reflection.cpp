@@ -409,6 +409,32 @@ namespace vm
             && (strcmp(method->name, "OnClickBackPackBtn") == 0
                 || (strcmp(method->name, "Invoke") == 0 && method->klass != NULL && method->klass->name != NULL && strstr(method->klass->name, "Action") != NULL)))
         {
+            // Dump the generic instance identity: klass/gclass/class_inst and
+            // the CURRENT type_argv content. Comparing klass with the
+            // pre-reload delegate klass tells whether a duplicate generic
+            // instance class was created (cache miss from stale type_argv).
+            Il2CppClass* methodKlass = method->klass;
+            Il2CppGenericClass* gclass = methodKlass ? methodKlass->generic_class : NULL;
+            const Il2CppGenericInst* classInst = gclass ? gclass->context.class_inst : NULL;
+            hybridclr::ReloadDiagLog(
+                "[ReloadDiag] GetParamObjectsHdr: %s.%s method=%p klass=%p gclass=%p class_inst=%p\n",
+                methodKlass && methodKlass->name ? methodKlass->name : "?", method->name,
+                (const void*)method, (void*)methodKlass, (void*)gclass, (const void*)classInst);
+            if (classInst != NULL)
+            {
+                for (uint32_t ai = 0; ai < classInst->type_argc; ++ai)
+                {
+                    const Il2CppType* at = classInst->type_argv[ai];
+                    Il2CppClass* ak = (at != NULL && !at->byref && (at->type == IL2CPP_TYPE_VALUETYPE || at->type == IL2CPP_TYPE_CLASS))
+                        ? Class::FromIl2CppType(at) : NULL;
+                    hybridclr::ReloadDiagLog(
+                        "[ReloadDiag] GetParamObjectsArgv: %s.%s argv%u il2cppType=%p typeHandle=%p argKlass=%s.%s %p isByvalOfKlass=%d\n",
+                        methodKlass && methodKlass->name ? methodKlass->name : "?", method->name, ai,
+                        (const void*)at, ak != NULL ? (void*)at->data.typeHandle : NULL,
+                        ak && ak->namespaze ? ak->namespaze : "", ak ? ak->name : "?", (void*)ak,
+                        (ak != NULL && at == &ak->byval_arg) ? 1 : 0);
+                }
+            }
             for (int i = 0; i < method->parameters_count; ++i)
             {
                 const Il2CppType* pt = method->parameters[i];
