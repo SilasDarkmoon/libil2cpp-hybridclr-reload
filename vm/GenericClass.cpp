@@ -643,6 +643,16 @@ namespace vm
                     if (resolvedKlass && &resolvedKlass->byval_arg != type &&
                         resolvedKlass->byval_arg.data.typeHandle != type->data.typeHandle)
                         return true;
+                    // If the Il2CppType* is NOT &klass->byval_arg, it's from an
+                    // old type table. Even if typeHandle currently matches (because
+                    // Pass 1 hasn't run yet), it WILL change after Pass 1 updates
+                    // byval_arg.data.typeHandle. The inflated method parameters
+                    // (which were copied from this old Il2CppType*) will then have
+                    // stale typeHandle values that point to freed memory, causing
+                    // Class::FromIl2CppType to return NULL and IsAssignableFrom
+                    // to fail. So we must return TRUE to trigger method re-inflation.
+                    if (resolvedKlass && &resolvedKlass->byval_arg != type)
+                        return true;
 
                     // ==={{ AssemblyReloadReuse: diagnostic (first 20 only)
                     {
