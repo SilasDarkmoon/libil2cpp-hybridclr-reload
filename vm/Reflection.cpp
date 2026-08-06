@@ -405,7 +405,7 @@ namespace vm
         // which is reference equality on the cached Il2CppReflectionType.
         // Dump both sides' parameter Il2CppType*/typeHandle so we can see
         // which side still holds a stale (old-image) type table entry.
-        if (method->name != NULL
+        if (hybridclr::ReloadDiagEnabled() && method->name != NULL
             && (strcmp(method->name, "OnClickBackPackBtn") == 0
                 || (strcmp(method->name, "Invoke") == 0 && method->klass != NULL && method->klass->name != NULL && strstr(method->klass->name, "Action") != NULL)))
         {

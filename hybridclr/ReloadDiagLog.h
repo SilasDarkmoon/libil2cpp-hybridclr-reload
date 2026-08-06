@@ -22,6 +22,28 @@
 
 namespace hybridclr
 {
+    // Some diagnostics resolve classes (GetTypeInfoFromType / FromIl2CppType)
+    // for name filtering, which can trigger nested class creation. That is
+    // unsafe during VM startup (e.g. inside GenericClass::CreateClass while
+    // core generic types are being created). Keep such diagnostics disabled
+    // until the first assembly reload begins; RestoreReusedClasses enables
+    // them via ReloadDiagEnable().
+    inline bool& ReloadDiagEnabledFlag()
+    {
+        static bool s_Enabled = false;
+        return s_Enabled;
+    }
+
+    inline bool ReloadDiagEnabled()
+    {
+        return ReloadDiagEnabledFlag();
+    }
+
+    inline void ReloadDiagEnable()
+    {
+        ReloadDiagEnabledFlag() = true;
+    }
+
     inline const char* ReloadDiagLogPath()
     {
         static char s_Path[1088] = { 0 };

@@ -2811,6 +2811,10 @@ namespace metadata
 
 	void InterpreterImage::RestoreReusedClasses()
 	{
+		// ==={{ AssemblyReloadDiag: enable diagnostics that resolve classes
+		// (unsafe during VM startup, safe from here on). ===
+		ReloadDiagEnable();
+		// ===}} AssemblyReloadDiag
 		// ==={{ AssemblyReloadReuse: Clear generic method cache to avoid
 		// stale inflated methods with old image tokens. After reuse,
 		// methodDefinition->token is updated, but cached inflated methods
