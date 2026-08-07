@@ -63,7 +63,7 @@ namespace vm
         {
         case IL2CPP_TYPE_CLASS:
         case IL2CPP_TYPE_VALUETYPE:
-            return hybridclr::metadata::MetadataModule::IsInterpreterType((const Il2CppTypeDefinition*)type->data.typeHandle);
+            return hybridclr::metadata::IsInterpreterType((const Il2CppTypeDefinition*)type->data.typeHandle);
         case IL2CPP_TYPE_GENERICINST:
         {
             Il2CppGenericClass* gc = type->data.generic_class;
