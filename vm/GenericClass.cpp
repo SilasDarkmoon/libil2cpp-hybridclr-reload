@@ -59,6 +59,15 @@ namespace vm
             return;
         if (s_ReloadVerifiedGenericClasses.count(klass))
             return;
+        // Mark BEFORE verifying: GenericMetadata::Inflate -> GenericMethod::GetMethod
+        // -> GenericClass::GetClass re-enters this function for the same klass;
+        // without the early mark this recurses without bound (stack overflow).
+        s_ReloadVerifiedGenericClasses.insert(klass);
+        // Normalize first so the fresh inflation below uses current type_argv
+        // (otherwise a fully-escaped inst would compare equal to its equally
+        // stale methods and the staleness would go undetected).
+        if (gclass->context.class_inst)
+            NormalizeGenericInstTypeArgv(gclass->context.class_inst);
         Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(gclass);
         if (genericTypeDefinition == NULL)
             return;
@@ -72,7 +81,13 @@ namespace vm
             const MethodInfo* current = klass->methods[i];
             if (current == NULL)
                 continue;
-            const MethodInfo* fresh = metadata::GenericMetadata::Inflate(genericTypeDefinition->methods[i], ctx);
+            const MethodInfo* methodDef = genericTypeDefinition->methods[i];
+            // Generic method definitions cannot be inflated without a
+            // method_inst; skip them (their class-level VAR params are not
+            // covered by this check, which is acceptable).
+            if (methodDef->is_generic)
+                continue;
+            const MethodInfo* fresh = metadata::GenericMetadata::Inflate(methodDef, ctx);
             if (fresh == NULL)
                 continue;
             bool stale = current->return_type != fresh->return_type
@@ -92,7 +107,6 @@ namespace vm
                 break;
             }
         }
-        s_ReloadVerifiedGenericClasses.insert(klass);
     }
 
     // After an assembly reload, a generic instance's context.class_inst may
