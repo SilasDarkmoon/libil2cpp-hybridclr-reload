@@ -13,6 +13,7 @@
 #include "vm/String.h"
 #include "vm/MetadataLock.h"
 #include "vm/MetadataCache.h"
+#include "vm/GenericClass.h"
 
 #include "Image.h"
 #include "MetadataModule.h"
@@ -234,6 +235,9 @@ namespace metadata
 			// classes only AFTER all restore passes completed (class
 			// creation is unsafe during the passes and during VM startup). ===
 			ReloadDiagEnable();
+			// From now on, normalize stale type_argv at generic member
+			// inflation / cache lookup time (see GenericClass.cpp).
+			il2cpp::vm::GenericClass::EnableReloadArgvNormalization();
 			ReloadDiagLog("[ReloadDiag] DiagEnabled after restore: il2cppImage=%p(%s)\n",
 				(void*)ass->image, ass->image ? ass->image->name : "?");
 			// ===}} AssemblyReloadDiag

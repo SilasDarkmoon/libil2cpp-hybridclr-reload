@@ -80,3 +80,12 @@
 - `s_TypeMap`（Reflection.cpp）键是 `Il2CppType*` 但按内容深比较（`Il2CppTypeHash`/`Il2CppTypeEqualityComparer`）；CLASS/VALUETYPE 只比 `data.typeHandle` 裸指针。typeHandle 陈旧（旧 image typeDef）即产生第二个 RuntimeType → `==` 失败。
 - `g_MetadataLock` 是 `baselib::ReentrantLock`（可重入），GetTypeObject 内调 `Class::FromIl2CppType` 安全。
 - 注意：早前日志记录过的 `ClearTypeMapForReload` 修复在当前 dev-reload-2022 工作区不存在（疑似清理日志时被还原）。
+
+## 泛型实例逃逸 reload pass 导致签名陈旧 + 三层修复（2026-08-06 深夜，Delegate 绑定失败根因）
+- **根因**：跨程序集泛型实例（如 `Action\`2<BackpackTabType, BackpackSubTabType>`）在每个程序集重载时只归一化属于该程序集的 type_argv；`RehashGenericInstSet` 归一化共享 inst 但不重置 methods。若 gclass 从 `s_GenericClassSet`（vm/metadata 两个）漏网（rehash 重插入去重挤出），其 `cached_class->methods` 永不被重置 → 保留半陈旧 inflate 参数 → 反射 `Type == Type` 失败 → `Delegate.CreateDelegate` 抛 "method arguments are incompatible"。
+- **修复**（`vm/GenericClass.cpp`，`EnableReloadArgvNormalization()` 在 `Assembly::Create` 的 `RestoreReusedClasses()` 之后调用，未重载时零开销）：
+  1. `SetupMethods/Fields/Properties/Events` 入口先 `NormalizeGenericInstTypeArgv(context.class_inst)`——inflate 永远用当前 type_argv；
+  2. `CreateClass` 缓存 `find` 前归一化 `gclass->type` 与 type_argv——陈旧参数的查找命中已有条目，不再制造重复实例类；
+  3. `GetClass` 快速路径 `VerifyGenericInstanceMethodsFreshForReload`：每次重载后对每个泛型实例类验证一次——当前 context 重新 `Inflate` 并与现有 `parameters`/`return_type` 指针对比，不一致则重置 methods/fields/properties/events（惰性重新 inflate）。
+- **诊断设施**：`hybridclr/ReloadDiagLog.h`（header-only，文件+Unity 日志回调双写，UTC 时间戳，路径 `$RELOAD_DIAG_LOG_PATH`→`$UNITY_TEMPORARY_CACHE_PATH/reload_diag.log`→CWD）；`ReloadDiagEnabled()` 开关（重载后才启用，防启动期类解析崩溃）；`ReloadDiagTryEnter/Leave` 重入保护（防诊断内类解析递归）。诊断日志前缀 `[ReloadDiag]`，分布在 RuntimeTypeHandle.cpp/Delegate.cpp/Reflection.cpp/GenericClass.cpp/InterpreterImage.cpp。
+- **教训**：诊断代码里做类解析（GetTypeInfoFromType/FromIl2CppType）在 VM 启动期（CreateClass 等路径）会崩溃；`s_TypeMap` 键按内容比较但 CLASS/VALUETYPE 只比 typeHandle 裸指针；托管 `Delegate.CreateDelegate` 对值类型参数只走 `Type == Type` 引用相等。

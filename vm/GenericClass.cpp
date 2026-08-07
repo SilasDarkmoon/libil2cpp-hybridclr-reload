@@ -22,14 +22,98 @@
 #include "il2cpp-runtime-metadata.h"
 #include "il2cpp-runtime-stats.h"
 #include <vector>
+#include <unordered_set>
 #include <string.h>
 
 namespace il2cpp
 {
 namespace vm
 {
+    // ==={{ AssemblyReloadReuse
+    static bool NormalizeGenericInstTypeArgv(const Il2CppGenericInst* inst);
+
+    static bool s_ReloadArgvNormalizationEnabled = false;
+
+    void GenericClass::EnableReloadArgvNormalization()
+    {
+        s_ReloadArgvNormalizationEnabled = true;
+    }
+
+    // Verified-once-per-reload registry for the repair below. Cleared on
+    // every reload (from RehashGenericTypeSet, which runs once per reload).
+    static std::unordered_set<Il2CppClass*> s_ReloadVerifiedGenericClasses;
+
+    // A generic instance class whose gclass escaped the reload passes (e.g.
+    // evicted from the cache sets by re-insert dedup) can keep method
+    // signatures inflated from stale (old-image) type_argv, while the shared
+    // inst itself was already normalized by RehashGenericInstSet. Since no
+    // reload pass will ever reset such a class again, verify it lazily here:
+    // re-inflate each method with the CURRENT context and pointer-compare the
+    // parameter/return types; on mismatch drop the inflated members so they
+    // are re-inflated (with normalization) on next access.
+    static void VerifyGenericInstanceMethodsFreshForReload(Il2CppGenericClass* gclass)
+    {
+        os::FastAutoLock lock(&g_MetadataLock);
+        Il2CppClass* klass = gclass->cached_class;
+        if (klass == NULL || klass->methods == NULL)
+            return;
+        if (s_ReloadVerifiedGenericClasses.count(klass))
+            return;
+        Il2CppClass* genericTypeDefinition = GetTypeDefinition(gclass);
+        if (genericTypeDefinition == NULL)
+            return;
+        if (genericTypeDefinition->methods == NULL)
+            Class::SetupMethods(genericTypeDefinition);
+        if (genericTypeDefinition->methods == NULL || genericTypeDefinition->method_count != klass->method_count)
+            return;
+        const Il2CppGenericContext* ctx = &gclass->context;
+        for (uint16_t i = 0; i < klass->method_count; i++)
+        {
+            const MethodInfo* current = klass->methods[i];
+            if (current == NULL)
+                continue;
+            const MethodInfo* fresh = metadata::GenericMetadata::Inflate(genericTypeDefinition->methods[i], ctx);
+            if (fresh == NULL)
+                continue;
+            bool stale = current->return_type != fresh->return_type
+                || current->parameters_count != fresh->parameters_count;
+            for (int32_t p = 0; !stale && p < current->parameters_count; p++)
+                stale = current->parameters[p] != fresh->parameters[p];
+            if (stale)
+            {
+                hybridclr::ReloadDiagLog(
+                    "[ReloadDiag] RepairStaleGenericInstance: klass=%p(%s.%s) gclass=%p method=%s\n",
+                    (void*)klass, klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "?",
+                    (void*)gclass, current->name ? current->name : "?");
+                klass->methods = NULL;
+                klass->fields = NULL;
+                klass->properties = NULL;
+                klass->events = NULL;
+                break;
+            }
+        }
+        s_ReloadVerifiedGenericClasses.insert(klass);
+    }
+
+    // After an assembly reload, a generic instance's context.class_inst may
+    // still hold stale (old-image) Il2CppType* entries when the gclass escaped
+    // the rehash passes (e.g. evicted by set re-insert dedup, or collected
+    // only during another assembly's reload). Normalizing here guarantees
+    // inflated method/field/property/event types always reference the reused
+    // class's current byval_arg, so Type == Type keeps working.
+    static void NormalizeGenericInstanceArgvForReload(Il2CppClass* genericInstanceType)
+    {
+        if (!s_ReloadArgvNormalizationEnabled)
+            return;
+        Il2CppGenericClass* gclass = genericInstanceType->generic_class;
+        if (gclass && gclass->context.class_inst)
+            NormalizeGenericInstTypeArgv(gclass->context.class_inst);
+    }
+    // ===}} AssemblyReloadReuse
+
     void GenericClass::SetupMethods(Il2CppClass* genericInstanceType)
     {
+        NormalizeGenericInstanceArgvForReload(genericInstanceType);
         Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(genericInstanceType->generic_class);
         uint16_t methodCount = genericTypeDefinition->method_count;
         IL2CPP_ASSERT(genericTypeDefinition->method_count == genericInstanceType->method_count);
@@ -150,6 +234,7 @@ namespace vm
 
     void GenericClass::SetupProperties(Il2CppClass* genericInstanceType)
     {
+        NormalizeGenericInstanceArgvForReload(genericInstanceType);
         Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(genericInstanceType->generic_class);
         uint16_t propertyCount = genericTypeDefinition->property_count;
         IL2CPP_ASSERT(genericTypeDefinition->property_count == genericInstanceType->property_count);
@@ -189,6 +274,7 @@ namespace vm
 
     void GenericClass::SetupEvents(Il2CppClass* genericInstanceType)
     {
+        NormalizeGenericInstanceArgvForReload(genericInstanceType);
         Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(genericInstanceType->generic_class);
         uint16_t eventCount = genericTypeDefinition->event_count;
         IL2CPP_ASSERT(genericTypeDefinition->event_count == genericInstanceType->event_count);
@@ -224,6 +310,7 @@ namespace vm
 
     void GenericClass::SetupFields(Il2CppClass* genericInstanceType)
     {
+        NormalizeGenericInstanceArgvForReload(genericInstanceType);
         Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(genericInstanceType->generic_class);
         uint16_t fieldCount = genericTypeDefinition->field_count;
         IL2CPP_ASSERT(genericTypeDefinition->field_count == genericInstanceType->field_count);
@@ -249,6 +336,11 @@ namespace vm
     Il2CppClass* GenericClass::GetClass(Il2CppGenericClass* gclass, bool throwOnError)
     {
         Il2CppClass* cachedClass = os::Atomic::LoadPointerRelaxed(&gclass->cached_class);
+        // ==={{ AssemblyReloadReuse: lazily repair generic instance classes
+        // that escaped the reload passes with stale inflated signatures. ===
+        if (s_ReloadArgvNormalizationEnabled && cachedClass != NULL)
+            VerifyGenericInstanceMethodsFreshForReload(gclass);
+        // ===}} AssemblyReloadReuse
         if (cachedClass)
             return cachedClass;
         return CreateClass(gclass, throwOnError);
@@ -268,6 +360,24 @@ namespace vm
         }
 
         os::FastAutoLock lock(&g_MetadataLock);
+        // ==={{ AssemblyReloadReuse: normalize stale (old-image) generic
+        // definition / arguments before the cache lookup, so lookups built
+        // from stale Il2CppType* (e.g. managed-side cached Type objects)
+        // still hit the rehashed entry instead of creating a duplicate
+        // generic instance class. ===
+        if (s_ReloadArgvNormalizationEnabled)
+        {
+            const Il2CppType* defType = gclass->type;
+            if (defType != NULL && (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE)
+                && &definition->byval_arg != defType
+                && definition->byval_arg.data.typeHandle != defType->data.typeHandle)
+            {
+                gclass->type = &definition->byval_arg;
+            }
+            if (gclass->context.class_inst)
+                NormalizeGenericInstTypeArgv(gclass->context.class_inst);
+        }
+        // ===}} AssemblyReloadReuse
         Il2CppGenericClassSet::const_iterator iter = s_GenericClassSet.find(gclass);
         if (iter != s_GenericClassSet.end())
         {
@@ -410,6 +520,7 @@ namespace vm
         // This recomputes hashes with the updated byval_arg.data.typeHandle.
         // Also update gclass->type to &klass->byval_arg for CLASS/VALUETYPE
         // types whose class was reused, so hash/compare use the new typeHandle.
+        s_ReloadVerifiedGenericClasses.clear();
         std::vector<Il2CppGenericClass*> entries;
         for (Il2CppGenericClassSet::const_iterator it = s_GenericClassSet.begin(); it != s_GenericClassSet.end(); ++it)
             entries.push_back((*it).key);

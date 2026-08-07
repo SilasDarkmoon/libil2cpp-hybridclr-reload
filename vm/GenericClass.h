@@ -58,6 +58,13 @@ namespace vm
         // has been updated by Pass 1. The hash of Il2CppGenericClass entries depends
         // on typeHandle, so after updating it we must rehash to keep lookups working.
         static void RehashGenericTypeSet();
+
+        // Enable in-place normalization of stale (old-image) type_argv entries
+        // when inflating generic instance members (SetupMethods/SetupFields/
+        // SetupProperties/SetupEvents) and when looking up the generic-class
+        // cache in CreateClass. Enabled after the first assembly reload;
+        // before that it is a no-op so startup behaviour is unchanged.
+        static void EnableReloadArgvNormalization();
         // ===}} AssemblyReloadReuse
 
         static bool HasSameGenericTypeDefinition(const Il2CppGenericClass* gclass1, const Il2CppGenericClass* gclass2)
