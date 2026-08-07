@@ -174,7 +174,7 @@ namespace vm
             {
                 for (uint16_t i = 0; i < klass->method_count; i++)
                 {
-                    MethodInfo* current = klass->methods[i];
+                    MethodInfo* current = const_cast<MethodInfo*>(klass->methods[i]);
                     const MethodInfo* methodDef = genericTypeDefinition->methods[i];
                     if (current == NULL || methodDef == NULL)
                         continue;
