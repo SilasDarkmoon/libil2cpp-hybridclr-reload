@@ -39,6 +39,18 @@ namespace vm
         s_ReloadArgvNormalizationEnabled = true;
     }
 
+    static int32_t s_ReloadRestoreGuard = 0;
+
+    void GenericClass::BeginReloadRestore()
+    {
+        ++s_ReloadRestoreGuard;
+    }
+
+    void GenericClass::EndReloadRestore()
+    {
+        --s_ReloadRestoreGuard;
+    }
+
     // Verified-once-per-reload registry for the repair below. Cleared on
     // every reload (from RehashGenericTypeSet, which runs once per reload).
     static std::unordered_set<Il2CppClass*> s_ReloadVerifiedGenericClasses;
@@ -113,6 +125,8 @@ namespace vm
 
     static void VerifyGenericInstanceMethodsFreshForReload(Il2CppGenericClass* gclass)
     {
+        if (s_ReloadRestoreGuard > 0)
+            return;
         os::FastAutoLock lock(&g_MetadataLock);
         Il2CppClass* klass = gclass->cached_class;
         if (klass == NULL || klass->methods == NULL)
@@ -176,7 +190,7 @@ namespace vm
     // class's current byval_arg, so Type == Type keeps working.
     static void NormalizeGenericInstanceArgvForReload(Il2CppClass* genericInstanceType)
     {
-        if (!s_ReloadArgvNormalizationEnabled)
+        if (!s_ReloadArgvNormalizationEnabled || s_ReloadRestoreGuard > 0)
             return;
         Il2CppGenericClass* gclass = genericInstanceType->generic_class;
         if (gclass && gclass->context.class_inst)
@@ -438,7 +452,7 @@ namespace vm
         // from stale Il2CppType* (e.g. managed-side cached Type objects)
         // still hit the rehashed entry instead of creating a duplicate
         // generic instance class. ===
-        if (s_ReloadArgvNormalizationEnabled)
+        if (s_ReloadArgvNormalizationEnabled && s_ReloadRestoreGuard == 0)
         {
             const Il2CppType* defType = gclass->type;
             if (defType != NULL && (defType->type == IL2CPP_TYPE_CLASS || defType->type == IL2CPP_TYPE_VALUETYPE)

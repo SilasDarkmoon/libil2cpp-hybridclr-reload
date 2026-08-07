@@ -203,6 +203,10 @@ namespace metadata
 		image2->assembly = ass;
 
 		// ==={{ AssemblyReloadReuse
+		// While collecting / restoring, the reload normalization & verify-repair
+		// code in GenericClass.cpp must stay silent (class mutation/resolution
+		// mid-pass can corrupt classes being initialized).
+		il2cpp::vm::GenericClass::BeginReloadRestore();
 		// If reloading an assembly with the same name, collect reusable
 		// Il2CppClass / MethodInfo objects from the old image *before*
 		// InitRuntimeMetadatas so the reuse maps are ready.
@@ -242,6 +246,7 @@ namespace metadata
 				(void*)ass->image, ass->image ? ass->image->name : "?");
 			// ===}} AssemblyReloadDiag
 		}
+		il2cpp::vm::GenericClass::EndReloadRestore();
 		// ===}} AssemblyReloadReuse
 
         if (oldAss != nullptr)

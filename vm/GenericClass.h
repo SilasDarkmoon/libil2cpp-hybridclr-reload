@@ -65,6 +65,14 @@ namespace vm
         // cache in CreateClass. Enabled after the first assembly reload;
         // before that it is a no-op so startup behaviour is unchanged.
         static void EnableReloadArgvNormalization();
+
+        // Reload-restore guard: while an assembly is being collected /
+        // restored (InitRuntimeMetadatas + RestoreReusedClasses passes), the
+        // normalization / verify-repair code must stay silent — mutating or
+        // resolving classes mid-pass can corrupt classes that are currently
+        // being initialized (e.g. NULL fields seen by SetupGCDescriptor).
+        static void BeginReloadRestore();
+        static void EndReloadRestore();
         // ===}} AssemblyReloadReuse
 
         static bool HasSameGenericTypeDefinition(const Il2CppGenericClass* gclass1, const Il2CppGenericClass* gclass2)
