@@ -129,7 +129,7 @@ namespace vm
             return;
         os::FastAutoLock lock(&g_MetadataLock);
         Il2CppClass* klass = gclass->cached_class;
-        if (klass == NULL || klass->methods == NULL)
+        if (klass == NULL)
             return;
         if (s_ReloadVerifiedGenericClasses.count(klass))
             return;
@@ -138,7 +138,7 @@ namespace vm
         s_ReloadVerifiedGenericClasses.insert(klass);
         // Normalize first so the staleness checks below use current type_argv
         // (otherwise a fully-escaped inst would compare equal to its equally
-        // stale methods and the staleness would go undetected).
+        // stale members and the staleness would go undetected).
         const Il2CppGenericInst* classInst = gclass->context.class_inst;
         if (classInst)
             NormalizeGenericInstTypeArgv(classInst);
@@ -154,32 +154,71 @@ namespace vm
         Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(gclass);
         if (genericTypeDefinition == NULL)
             return;
-        if (genericTypeDefinition->methods == NULL)
-            Class::SetupMethods(genericTypeDefinition);
-        if (genericTypeDefinition->methods == NULL || genericTypeDefinition->method_count != klass->method_count)
-            return;
-        for (uint16_t i = 0; i < klass->method_count; i++)
+
+        bool stale = false;
+        // --- methods: direct VAR param/return pointer check ---
+        if (!stale && klass->methods != NULL)
         {
-            const MethodInfo* current = klass->methods[i];
-            const MethodInfo* methodDef = genericTypeDefinition->methods[i];
-            if (current == NULL || methodDef == NULL)
-                continue;
-            bool stale = ReloadIsStaleVarType(methodDef->return_type, current->return_type, classInst);
-            for (int32_t p = 0; !stale && p < methodDef->parameters_count && p < current->parameters_count; p++)
-                stale = ReloadIsStaleVarType(methodDef->parameters[p], current->parameters[p], classInst);
-            if (stale)
+            if (genericTypeDefinition->methods == NULL)
+                Class::SetupMethods(genericTypeDefinition);
+            if (genericTypeDefinition->methods != NULL)
             {
-                hybridclr::ReloadDiagLog(
-                    "[ReloadDiag] RepairStaleGenericInstance: klass=%p(%s.%s) gclass=%p method=%s\n",
-                    (void*)klass, klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "?",
-                    (void*)gclass, current->name ? current->name : "?");
-                klass->methods = NULL;
-                klass->fields = NULL;
-                klass->properties = NULL;
-                klass->events = NULL;
-                break;
+                if (genericTypeDefinition->method_count != klass->method_count)
+                {
+                    stale = true; // method set changed in the reloaded assembly
+                }
+                else
+                {
+                    for (uint16_t i = 0; !stale && i < klass->method_count; i++)
+                    {
+                        const MethodInfo* current = klass->methods[i];
+                        const MethodInfo* methodDef = genericTypeDefinition->methods[i];
+                        if (current == NULL || methodDef == NULL)
+                            continue;
+                        stale = ReloadIsStaleVarType(methodDef->return_type, current->return_type, classInst);
+                        for (int32_t p = 0; !stale && p < methodDef->parameters_count && p < current->parameters_count; p++)
+                            stale = ReloadIsStaleVarType(methodDef->parameters[p], current->parameters[p], classInst);
+                    }
+                }
             }
         }
+        // --- fields: direct VAR field type check; count change = layout change ---
+        if (!stale && klass->fields != NULL && klass->size_inited)
+        {
+            if (genericTypeDefinition->fields == NULL)
+                Class::SetupFields(genericTypeDefinition);
+            if (genericTypeDefinition->fields != NULL && genericTypeDefinition->size_inited)
+            {
+                if (genericTypeDefinition->field_count != klass->field_count)
+                {
+                    stale = true; // field layout changed in the reloaded assembly
+                }
+                else
+                {
+                    for (uint16_t i = 0; !stale && i < klass->field_count; i++)
+                        stale = ReloadIsStaleVarType(&genericTypeDefinition->fields[i].type, &klass->fields[i].type, classInst);
+                }
+            }
+        }
+        if (!stale)
+            return;
+        hybridclr::ReloadDiagLog(
+            "[ReloadDiag] RepairStaleGenericInstance: klass=%p(%s.%s) gclass=%p\n",
+            (void*)klass, klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "?",
+            (void*)gclass);
+        // Full member reset, mirroring RestoreCachedGenericClassesPass2.
+        // methods/properties/events are pointer-gated and lazily re-inflate;
+        // fields additionally require size_inited=0 (their lazy gate is the
+        // flag, not the pointer), which also re-runs layout + GC descriptor.
+        // static_fields and the initialized flags are intentionally preserved:
+        // static field values and the cctor state must survive the repair.
+        klass->methods = NULL;
+        klass->properties = NULL;
+        klass->events = NULL;
+        klass->fields = NULL;
+        klass->gc_desc = NULL;
+        klass->size_inited = 0;
+        klass->size_init_pending = 0;
     }
 
     // After an assembly reload, a generic instance's context.class_inst may
@@ -325,6 +364,12 @@ namespace vm
         Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(genericInstanceType->generic_class);
         uint16_t propertyCount = genericTypeDefinition->property_count;
         IL2CPP_ASSERT(genericTypeDefinition->property_count == genericInstanceType->property_count);
+        // ==={{ AssemblyReloadReuse: a reused instance may have been created
+        // from an older assembly version; follow the definition's current
+        // count so iteration (e.g. Class::GetProperties) covers the full
+        // re-inflated array. No-op when the assembly is unchanged. ===
+        genericInstanceType->property_count = genericTypeDefinition->property_count;
+        // ===}} AssemblyReloadReuse
 
         if (propertyCount == 0)
         {
@@ -365,6 +410,10 @@ namespace vm
         Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(genericInstanceType->generic_class);
         uint16_t eventCount = genericTypeDefinition->event_count;
         IL2CPP_ASSERT(genericTypeDefinition->event_count == genericInstanceType->event_count);
+        // ==={{ AssemblyReloadReuse: follow the definition's current count
+        // (see SetupProperties). ===
+        genericInstanceType->event_count = genericTypeDefinition->event_count;
+        // ===}} AssemblyReloadReuse
 
         if (eventCount == 0)
         {
@@ -401,6 +450,10 @@ namespace vm
         Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(genericInstanceType->generic_class);
         uint16_t fieldCount = genericTypeDefinition->field_count;
         IL2CPP_ASSERT(genericTypeDefinition->field_count == genericInstanceType->field_count);
+        // ==={{ AssemblyReloadReuse: follow the definition's current count
+        // (see SetupProperties). ===
+        genericInstanceType->field_count = genericTypeDefinition->field_count;
+        // ===}} AssemblyReloadReuse
 
         if (fieldCount == 0)
         {
