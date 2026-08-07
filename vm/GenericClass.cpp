@@ -98,31 +98,40 @@ namespace vm
         }
     }
 
-    // Returns true when `current` (an inflated member type) is stale, i.e. the
-    // definition type is a class-level generic parameter (IL2CPP_TYPE_VAR)
-    // whose expected inflation (type_argv[num]) differs from `current`.
-    // Only direct VAR substitution without attr/byref decoration is checked:
-    // in that case inflation returns the type_argv entry itself, so pointer
-    // comparison is exact and there are no false positives. (GENERICINST and
-    // other compound types are NOT checked: inflating them allocates fresh
-    // Il2CppType objects, so pointer comparison would misfire.)
-    static bool ReloadIsStaleVarType(const Il2CppType* defType, const Il2CppType* current, const Il2CppGenericInst* classInst)
+    // Returns the expected inflated type for a direct class-level generic
+    // parameter (IL2CPP_TYPE_VAR) definition type, or NULL when the check is
+    // not applicable (not VAR / pooled-copy attr decoration / out of range).
+    // Only direct VAR substitution without attr/byref decoration is
+    // verifiable: in that case inflation returns the type_argv entry itself,
+    // so pointer comparison is exact and there are no false positives.
+    // (GENERICINST and other compound types are NOT verifiable this way:
+    // inflating them allocates fresh Il2CppType objects, so pointer
+    // comparison would misfire.)
+    static const Il2CppType* ReloadExpectedVarType(const Il2CppType* defType, const Il2CppGenericInst* classInst)
     {
-        if (defType == NULL || current == NULL || classInst == NULL)
-            return false;
-        if (defType->type != IL2CPP_TYPE_VAR)
-            return false;
+        if (defType == NULL || classInst == NULL || defType->type != IL2CPP_TYPE_VAR)
+            return NULL;
         Il2CppGenericParameterInfo gp = Type::GetGenericParameterInfo(defType);
         if (gp.num >= classInst->type_argc)
-            return false;
+            return NULL;
         const Il2CppType* expected = classInst->type_argv[gp.num];
         if (expected == NULL)
-            return false;
+            return NULL;
         if (expected->attrs != defType->attrs || expected->byref != defType->byref)
-            return false;
-        return current != expected;
+            return NULL;
+        return expected;
     }
 
+    // A generic instance class whose gclass escaped the reload passes (e.g.
+    // evicted from the cache sets by re-insert dedup) can keep member
+    // signatures inflated from stale (old-image) type_argv, while the shared
+    // inst itself was already normalized by RehashGenericInstSet. Since no
+    // reload pass will ever reset such a class again, repair it lazily here
+    // by PATCHING the stale Il2CppType* pointers IN PLACE (methods/fields
+    // arrays are metadata-allocated and stable; pointer writes are atomic and
+    // never observed mid-state). Unlike resetting methods/fields to NULL,
+    // in-place patching cannot race with code that is actively executing or
+    // resolving fields of the class.
     static void VerifyGenericInstanceMethodsFreshForReload(Il2CppGenericClass* gclass)
     {
         if (s_ReloadRestoreGuard > 0)
@@ -136,7 +145,7 @@ namespace vm
         // Mark BEFORE verifying to break potential re-entrancy cycles through
         // class setup paths.
         s_ReloadVerifiedGenericClasses.insert(klass);
-        // Normalize first so the staleness checks below use current type_argv
+        // Normalize first so the expected values below use current type_argv
         // (otherwise a fully-escaped inst would compare equal to its equally
         // stale members and the staleness would go undetected).
         const Il2CppGenericInst* classInst = gclass->context.class_inst;
@@ -155,70 +164,65 @@ namespace vm
         if (genericTypeDefinition == NULL)
             return;
 
-        bool stale = false;
-        // --- methods: direct VAR param/return pointer check ---
-        if (!stale && klass->methods != NULL)
+        int32_t fixedCount = 0;
+        // --- methods: patch stale VAR param/return types in place ---
+        if (klass->methods != NULL)
         {
             if (genericTypeDefinition->methods == NULL)
                 Class::SetupMethods(genericTypeDefinition);
-            if (genericTypeDefinition->methods != NULL)
+            if (genericTypeDefinition->methods != NULL && genericTypeDefinition->method_count == klass->method_count)
             {
-                if (genericTypeDefinition->method_count != klass->method_count)
+                for (uint16_t i = 0; i < klass->method_count; i++)
                 {
-                    stale = true; // method set changed in the reloaded assembly
-                }
-                else
-                {
-                    for (uint16_t i = 0; !stale && i < klass->method_count; i++)
+                    MethodInfo* current = klass->methods[i];
+                    const MethodInfo* methodDef = genericTypeDefinition->methods[i];
+                    if (current == NULL || methodDef == NULL)
+                        continue;
+                    const Il2CppType* expectedRet = ReloadExpectedVarType(methodDef->return_type, classInst);
+                    if (expectedRet != NULL && current->return_type != expectedRet)
                     {
-                        const MethodInfo* current = klass->methods[i];
-                        const MethodInfo* methodDef = genericTypeDefinition->methods[i];
-                        if (current == NULL || methodDef == NULL)
-                            continue;
-                        stale = ReloadIsStaleVarType(methodDef->return_type, current->return_type, classInst);
-                        for (int32_t p = 0; !stale && p < methodDef->parameters_count && p < current->parameters_count; p++)
-                            stale = ReloadIsStaleVarType(methodDef->parameters[p], current->parameters[p], classInst);
+                        current->return_type = expectedRet;
+                        ++fixedCount;
+                    }
+                    int32_t paramCount = current->parameters_count < methodDef->parameters_count
+                        ? current->parameters_count : methodDef->parameters_count;
+                    for (int32_t p = 0; p < paramCount; p++)
+                    {
+                        const Il2CppType* expected = ReloadExpectedVarType(methodDef->parameters[p], classInst);
+                        if (expected != NULL && current->parameters[p] != expected)
+                        {
+                            current->parameters[p] = expected;
+                            ++fixedCount;
+                        }
                     }
                 }
             }
         }
-        // --- fields: direct VAR field type check; count change = layout change ---
-        if (!stale && klass->fields != NULL && klass->size_inited)
+        // --- fields: patch stale VAR field types in place ---
+        if (klass->fields != NULL && klass->size_inited)
         {
             if (genericTypeDefinition->fields == NULL)
                 Class::SetupFields(genericTypeDefinition);
-            if (genericTypeDefinition->fields != NULL && genericTypeDefinition->size_inited)
+            if (genericTypeDefinition->fields != NULL && genericTypeDefinition->field_count == klass->field_count)
             {
-                if (genericTypeDefinition->field_count != klass->field_count)
+                for (uint16_t i = 0; i < klass->field_count; i++)
                 {
-                    stale = true; // field layout changed in the reloaded assembly
-                }
-                else
-                {
-                    for (uint16_t i = 0; !stale && i < klass->field_count; i++)
-                        stale = ReloadIsStaleVarType(genericTypeDefinition->fields[i].type, klass->fields[i].type, classInst);
+                    const Il2CppType* expected = ReloadExpectedVarType(genericTypeDefinition->fields[i].type, classInst);
+                    if (expected != NULL && klass->fields[i].type != expected)
+                    {
+                        klass->fields[i].type = expected;
+                        ++fixedCount;
+                    }
                 }
             }
         }
-        if (!stale)
-            return;
-        hybridclr::ReloadDiagLog(
-            "[ReloadDiag] RepairStaleGenericInstance: klass=%p(%s.%s) gclass=%p\n",
-            (void*)klass, klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "?",
-            (void*)gclass);
-        // Full member reset, mirroring RestoreCachedGenericClassesPass2.
-        // methods/properties/events are pointer-gated and lazily re-inflate;
-        // fields additionally require size_inited=0 (their lazy gate is the
-        // flag, not the pointer), which also re-runs layout + GC descriptor.
-        // static_fields and the initialized flags are intentionally preserved:
-        // static field values and the cctor state must survive the repair.
-        klass->methods = NULL;
-        klass->properties = NULL;
-        klass->events = NULL;
-        klass->fields = NULL;
-        klass->gc_desc = NULL;
-        klass->size_inited = 0;
-        klass->size_init_pending = 0;
+        if (fixedCount > 0)
+        {
+            hybridclr::ReloadDiagLog(
+                "[ReloadDiag] RepairStaleGenericInstance: klass=%p(%s.%s) gclass=%p fixed=%d\n",
+                (void*)klass, klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "?",
+                (void*)gclass, (int)fixedCount);
+        }
     }
 
     // After an assembly reload, a generic instance's context.class_inst may

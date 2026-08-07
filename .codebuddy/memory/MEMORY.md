@@ -86,8 +86,9 @@
 - **修复**（`vm/GenericClass.cpp`，`EnableReloadArgvNormalization()` 在 `Assembly::Create` 的 `RestoreReusedClasses()` 之后调用，未重载时零开销）：
   1. `SetupMethods/Fields/Properties/Events` 入口先 `NormalizeGenericInstTypeArgv(context.class_inst)`——inflate 永远用当前 type_argv；
   2. `CreateClass` 缓存 `find` 前归一化 `gclass->type` 与 type_argv——陈旧参数的查找命中已有条目，不再制造重复实例类；
-  3. `GetClass` 快速路径 `VerifyGenericInstanceMethodsFreshForReload`：每次重载后对每个泛型实例类验证一次（`s_ReloadVerifiedGenericClasses`，进入先标记防递归）——校验 methods/fields 中**直接 IL2CPP_TYPE_VAR** 的参数/返回值/字段类型与当前 type_argv 指针对比（attrs/byref 不一致的跳过，GENERICINST 等复合类型不校验因 Inflate 会新分配 Il2CppType 导致误报），method_count/field_count 与定义不一致也判 stale；命中则完整重置 methods/properties/events/fields/gc_desc + **size_inited=0**（fields 的重建门是 size_inited 标志而非指针），保留 static_fields 与 initialized 标志。跳过不含解释器类型的实例（`ReloadTypeReferencesInterpreter`，纯位运算不触发类解析）。
+  3. `GetClass` 快速路径 `VerifyGenericInstanceMethodsFreshForReload`：每次重载后对每个泛型实例类验证一次（`s_ReloadVerifiedGenericClasses`，进入先标记防递归）——校验 methods/fields 中**直接 IL2CPP_TYPE_VAR** 的参数/返回值/字段类型，命中则**原地写回正确的 Il2CppType\* 指针**（`ReloadExpectedVarType` 返回 type_argv[num] 或 NULL；attrs/byref 不一致跳过；GENERICINST 等复合类型不校验因 Inflate 会新分配 Il2CppType 导致误报；计数不匹配跳过）。**不重置任何成员数组**——原地指针写原子无中间态，不会与正在执行的代码竞争（重置方案已证实会在异步执行链上崩溃）。跳过不含解释器类型的实例（`ReloadTypeReferencesInterpreter`，纯位运算不触发类解析）。
   - 安全约束：restore Pass 期间由 `GenericClass::BeginReloadRestore/EndReloadRestore`（Assembly::Create 包住 采集+InitRuntimeMetadatas+RestoreReusedClasses）静默所有归一化/验证代码。
-  - 成员懒惰重建门：methods/properties/events 按指针门（置 NULL 即重建）；fields 按 `size_inited` 门（必须连标志一起清）。
+  - 成员懒惰重建门：methods/properties/events 按指针门（置 NULL 即重建）；fields 按 `size_inited` 门（置 NULL 必须连标志一起清，否则字段查找永久失败）。
+  - 原地修补的额外收益：`PropertyInfo.get` 等与 `klass->methods[i]` 共享 s_GenericMethodMap 缓存的同一 inflated MethodInfo 对象，一并修复。
 - **诊断设施**：`hybridclr/ReloadDiagLog.h`（header-only，文件+Unity 日志回调双写，UTC 时间戳，路径 `$RELOAD_DIAG_LOG_PATH`→`$UNITY_TEMPORARY_CACHE_PATH/reload_diag.log`→CWD）；`ReloadDiagEnabled()` 开关（重载后才启用，防启动期类解析崩溃）；`ReloadDiagTryEnter/Leave` 重入保护（防诊断内类解析递归）。诊断日志前缀 `[ReloadDiag]`，分布在 RuntimeTypeHandle.cpp/Delegate.cpp/Reflection.cpp/GenericClass.cpp/InterpreterImage.cpp。
 - **教训**：诊断代码里做类解析（GetTypeInfoFromType/FromIl2CppType）在 VM 启动期（CreateClass 等路径）会崩溃；`s_TypeMap` 键按内容比较但 CLASS/VALUETYPE 只比 typeHandle 裸指针；托管 `Delegate.CreateDelegate` 对值类型参数只走 `Type == Type` 引用相等。
