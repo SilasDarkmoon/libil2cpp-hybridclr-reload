@@ -59,7 +59,7 @@ namespace vm
             return;
         if (s_ReloadVerifiedGenericClasses.count(klass))
             return;
-        Il2CppClass* genericTypeDefinition = GetTypeDefinition(gclass);
+        Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(gclass);
         if (genericTypeDefinition == NULL)
             return;
         if (genericTypeDefinition->methods == NULL)
