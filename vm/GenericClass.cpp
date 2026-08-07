@@ -51,6 +51,66 @@ namespace vm
     // re-inflate each method with the CURRENT context and pointer-compare the
     // parameter/return types; on mismatch drop the inflated members so they
     // are re-inflated (with normalization) on next access.
+    // Cheap interpreter-reference check used to skip generic instances that
+    // cannot reference reloaded (interpreter) types: their inflated
+    // signatures can never become stale. IsInterpreterType on a typeDef only
+    // decodes byvalTypeIndex, so no class resolution is triggered.
+    static bool ReloadTypeReferencesInterpreter(const Il2CppType* type, int depth)
+    {
+        if (type == NULL || depth > 8)
+            return false;
+        switch (type->type)
+        {
+        case IL2CPP_TYPE_CLASS:
+        case IL2CPP_TYPE_VALUETYPE:
+            return hybridclr::metadata::MetadataModule::IsInterpreterType((const Il2CppTypeDefinition*)type->data.typeHandle);
+        case IL2CPP_TYPE_GENERICINST:
+        {
+            Il2CppGenericClass* gc = type->data.generic_class;
+            if (gc == NULL || gc->context.class_inst == NULL)
+                return false;
+            const Il2CppGenericInst* gi = gc->context.class_inst;
+            for (uint32_t i = 0; i < gi->type_argc; ++i)
+                if (ReloadTypeReferencesInterpreter(gi->type_argv[i], depth + 1))
+                    return true;
+            return false;
+        }
+        case IL2CPP_TYPE_ARRAY:
+            return type->data.array ? ReloadTypeReferencesInterpreter(type->data.array->etype, depth + 1) : false;
+        case IL2CPP_TYPE_SZARRAY:
+        case IL2CPP_TYPE_PTR:
+        case IL2CPP_TYPE_BYREF:
+            return ReloadTypeReferencesInterpreter(type->data.type, depth + 1);
+        default:
+            return false;
+        }
+    }
+
+    // Returns true when `current` (an inflated member type) is stale, i.e. the
+    // definition type is a class-level generic parameter (IL2CPP_TYPE_VAR)
+    // whose expected inflation (type_argv[num]) differs from `current`.
+    // Only direct VAR substitution without attr/byref decoration is checked:
+    // in that case inflation returns the type_argv entry itself, so pointer
+    // comparison is exact and there are no false positives. (GENERICINST and
+    // other compound types are NOT checked: inflating them allocates fresh
+    // Il2CppType objects, so pointer comparison would misfire.)
+    static bool ReloadIsStaleVarType(const Il2CppType* defType, const Il2CppType* current, const Il2CppGenericInst* classInst)
+    {
+        if (defType == NULL || current == NULL || classInst == NULL)
+            return false;
+        if (defType->type != IL2CPP_TYPE_VAR)
+            return false;
+        Il2CppGenericParameterInfo gp = Type::GetGenericParameterInfo(defType);
+        if (gp.num >= classInst->type_argc)
+            return false;
+        const Il2CppType* expected = classInst->type_argv[gp.num];
+        if (expected == NULL)
+            return false;
+        if (expected->attrs != defType->attrs || expected->byref != defType->byref)
+            return false;
+        return current != expected;
+    }
+
     static void VerifyGenericInstanceMethodsFreshForReload(Il2CppGenericClass* gclass)
     {
         os::FastAutoLock lock(&g_MetadataLock);
@@ -59,15 +119,24 @@ namespace vm
             return;
         if (s_ReloadVerifiedGenericClasses.count(klass))
             return;
-        // Mark BEFORE verifying: GenericMetadata::Inflate -> GenericMethod::GetMethod
-        // -> GenericClass::GetClass re-enters this function for the same klass;
-        // without the early mark this recurses without bound (stack overflow).
+        // Mark BEFORE verifying to break potential re-entrancy cycles through
+        // class setup paths.
         s_ReloadVerifiedGenericClasses.insert(klass);
-        // Normalize first so the fresh inflation below uses current type_argv
+        // Normalize first so the staleness checks below use current type_argv
         // (otherwise a fully-escaped inst would compare equal to its equally
         // stale methods and the staleness would go undetected).
-        if (gclass->context.class_inst)
-            NormalizeGenericInstTypeArgv(gclass->context.class_inst);
+        const Il2CppGenericInst* classInst = gclass->context.class_inst;
+        if (classInst)
+            NormalizeGenericInstTypeArgv(classInst);
+        // Skip instances that cannot reference reloaded (interpreter) types.
+        bool referencesInterpreter = ReloadTypeReferencesInterpreter(gclass->type, 0);
+        if (!referencesInterpreter && classInst)
+        {
+            for (uint32_t ai = 0; ai < classInst->type_argc && !referencesInterpreter; ++ai)
+                referencesInterpreter = ReloadTypeReferencesInterpreter(classInst->type_argv[ai], 0);
+        }
+        if (!referencesInterpreter)
+            return;
         Il2CppClass* genericTypeDefinition = GenericClass::GetTypeDefinition(gclass);
         if (genericTypeDefinition == NULL)
             return;
@@ -75,25 +144,15 @@ namespace vm
             Class::SetupMethods(genericTypeDefinition);
         if (genericTypeDefinition->methods == NULL || genericTypeDefinition->method_count != klass->method_count)
             return;
-        const Il2CppGenericContext* ctx = &gclass->context;
         for (uint16_t i = 0; i < klass->method_count; i++)
         {
             const MethodInfo* current = klass->methods[i];
-            if (current == NULL)
-                continue;
             const MethodInfo* methodDef = genericTypeDefinition->methods[i];
-            // Generic method definitions cannot be inflated without a
-            // method_inst; skip them (their class-level VAR params are not
-            // covered by this check, which is acceptable).
-            if (methodDef->is_generic)
+            if (current == NULL || methodDef == NULL)
                 continue;
-            const MethodInfo* fresh = metadata::GenericMetadata::Inflate(methodDef, ctx);
-            if (fresh == NULL)
-                continue;
-            bool stale = current->return_type != fresh->return_type
-                || current->parameters_count != fresh->parameters_count;
-            for (int32_t p = 0; !stale && p < current->parameters_count; p++)
-                stale = current->parameters[p] != fresh->parameters[p];
+            bool stale = ReloadIsStaleVarType(methodDef->return_type, current->return_type, classInst);
+            for (int32_t p = 0; !stale && p < methodDef->parameters_count && p < current->parameters_count; p++)
+                stale = ReloadIsStaleVarType(methodDef->parameters[p], current->parameters[p], classInst);
             if (stale)
             {
                 hybridclr::ReloadDiagLog(
