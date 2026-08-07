@@ -196,7 +196,7 @@ namespace vm
                 else
                 {
                     for (uint16_t i = 0; !stale && i < klass->field_count; i++)
-                        stale = ReloadIsStaleVarType(&genericTypeDefinition->fields[i].type, &klass->fields[i].type, classInst);
+                        stale = ReloadIsStaleVarType(genericTypeDefinition->fields[i].type, klass->fields[i].type, classInst);
                 }
             }
         }
