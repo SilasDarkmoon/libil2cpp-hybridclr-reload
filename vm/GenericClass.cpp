@@ -1042,7 +1042,20 @@ namespace vm
             klass->nestedTypes = nullptr;
             klass->implementedInterfaces = nullptr;
             klass->interfaceOffsets = nullptr;
-            klass->static_fields = nullptr;
+            // ==={{ AssemblyReloadReuse: preserve static field storage and
+            // cctor state when the static layout is unchanged (compared with
+            // the definition's current size), so runtime static state
+            // (e.g. Singleton<T>._instance) survives the reload. ===
+            Il2CppClass* staticSizeDef = klass->generic_class ? GetTypeDefinition(klass->generic_class) : NULL;
+            bool staticLayoutUnchanged = staticSizeDef != NULL
+                && klass->static_fields_size == staticSizeDef->static_fields_size;
+            if (!staticLayoutUnchanged)
+            {
+                klass->static_fields = nullptr;
+                klass->cctor_started = 0;
+                klass->cctor_finished_or_no_cctor = !klass->has_cctor;
+            }
+            // ===}} AssemblyReloadReuse
 		klass->rgctx_data = nullptr;
 		// NOTE: Do NOT reset klass->parent here.  InitLocked does not
 		// rebuild it — it is set during class creation from the TypeDef's
@@ -1057,8 +1070,8 @@ namespace vm
             klass->size_init_pending = 0;
             klass->size_inited = 0;
             klass->is_vtable_initialized = 0;
-            klass->cctor_started = 0;
-            klass->cctor_finished_or_no_cctor = !klass->has_cctor;
+            // cctor_started / cctor_finished_or_no_cctor are only reset when
+            // the static layout changed (see above).
             klass->cctor_thread = 0;
             klass->genericRecursionDepth = 0;
             klass->initializationExceptionGCHandle = 0;

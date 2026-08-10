@@ -15,6 +15,7 @@
 - 溢出类型日志写控制台 + `vtable_overflow.log`（UNITY_TEMPORARY_CACHE_PATH 或 `log/`），时间戳为 UTC `%Y-%m-%d %H:%M:%S`。
 
 ## Assembly 重载 Il2CppClass/MethodInfo 复用方案
+- **静态字段保留（2026-08-10）**：Pass 2 原本无条件 `static_fields = nullptr`（重载后所有复用类静态字段清零 → 单例/缓存变 null → NRE）。已改为：静态布局不变（旧/新 `static_fields_size` 相等）时保留存储与 cctor 状态；布局变化才重置。泛型实例侧（`RestoreCachedGenericClassesPass2`）同理（实例旧值 vs 定义新值）。
 - 复用数据结构存放在新 InterpreterImage 上：`_reuseClassMap`（fullName→旧 Il2CppClass*）、`_reuseMethodMap`（签名→旧 MethodInfo*）。
 - 采集时机：`Assembly::Create()` 中 `InitRuntimeMetadatas()` 之前，从旧 InterpreterImage 的 `_classList` 采集。
 - 还原时机：`InitRuntimeMetadatas()` 之后、程序集注册之前，调 `RestoreReusedClasses()` 批量更新旧 Il2CppClass 的外部指针（image/typeMetadataHandle/byval_arg 等）并置空懒加载字段。

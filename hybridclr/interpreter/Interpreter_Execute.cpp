@@ -14,6 +14,8 @@
 #include "vm/Runtime.h"
 #include "vm/Reflection.h"
 #include "metadata/GenericMetadata.h"
+#include "../ReloadDiagLog.h"
+#include <string.h>
 #if HYBRIDCLR_UNITY_2020_OR_NEW
 #include "vm-utils/icalls/mscorlib/System.Threading/Interlocked.h"
 #else
@@ -11738,6 +11740,25 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 		}
 		catch (Il2CppExceptionWrapper ex)
 		{
+			// ==={{ AssemblyReloadDiag: pinpoint NullReferenceExceptions raised
+			// inside interpreted code with the exact method + transformed-ip
+			// offset. ===
+			if (ex.ex != NULL && ex.ex->klass != NULL
+				&& ex.ex->klass->name != NULL && strcmp(ex.ex->klass->name, "NullReferenceException") == 0
+				&& ex.ex->klass->namespaze != NULL && strcmp(ex.ex->klass->namespaze, "System") == 0
+				&& frame != NULL && frame->method != NULL)
+			{
+				const MethodInfo* curMethod = frame->method;
+				Il2CppClass* mk = curMethod->klass;
+				hybridclr::ReloadDiagLog(
+					"[ReloadDiag] NRE at %s.%s::%s ipOffset=%lld token=0x%08x image=%s\n",
+					mk && mk->namespaze ? mk->namespaze : "", mk ? mk->name : "?",
+					curMethod->name ? curMethod->name : "?",
+					(long long)(ip != NULL && ipBase != NULL ? (ip - ipBase) : -1),
+					curMethod->token,
+					mk && mk->image && mk->image->name ? mk->image->name : "?");
+			}
+			// ===}} AssemblyReloadDiag
 			PREPARE_EXCEPTION(ex.ex, 0);
 			FIND_NEXT_EX_HANDLER_OR_UNWIND();
 		}
