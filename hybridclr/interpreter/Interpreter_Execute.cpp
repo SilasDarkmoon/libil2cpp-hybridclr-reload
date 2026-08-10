@@ -11759,12 +11759,21 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					mk && mk->image && mk->image->name ? mk->image->name : "?");
 				// ==={{ AssemblyReloadDiag: decode the faulting instruction so
 				// the exact null access (instance field / call target) can be
-				// identified. The decode is exact for the raising frame; for
-				// frames the exception merely propagates through, ip has been
-				// restored to after the call instruction, so treat only the
-				// first line of a same-exception burst as the raise site. ===
-				if (ip != NULL && ipBase != NULL && ip >= ipBase && imi != NULL)
+				// identified. Two safety guards are REQUIRED here:
+				//  1) frame-switch macros (PREPARE_NEW_FRAME_FROM_INTERPRETER)
+				//     update imi BEFORE ip; an NRE thrown in that window (e.g.
+				//     by a cctor) leaves imi/ip pointing at DIFFERENT methods,
+				//     and decoding with the wrong imi->resolveDatas crashes.
+				//     So only decode when ip provably lies inside imi->codes.
+				//  2) the same exception re-enters this catch on every
+				//     propagated Execute level; only the first (raising) frame
+				//     has a meaningful ip. Decode once per exception object. ===
+				static thread_local const Il2CppException* s_nreInstrDecodedEx = NULL;
+				bool ipInCodes = imi != NULL && imi->codes != NULL && ip != NULL
+					&& ip >= imi->codes && (ip + 16) <= (imi->codes + imi->codeLength);
+				if (ex.ex != s_nreInstrDecodedEx && ipInCodes)
 				{
+					s_nreInstrDecodedEx = ex.ex;
 					HiOpcodeEnum faultOp = *(HiOpcodeEnum*)ip;
 					if (faultOp >= HiOpcodeEnum::LdfldVarVar_i1 && faultOp <= HiOpcodeEnum::LdfldaVarVar)
 					{
