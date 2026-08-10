@@ -4,7 +4,6 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
-#include <vector>
 #include <string>
 
 #include "il2cpp-class-internals.h"
@@ -2832,11 +2831,6 @@ namespace metadata
 	// pointers to the new image, reset lazily-initialised fields, and store
 	// the pointer in _classList.
 	//
-	// ==={{ AssemblyReloadReuse: remember each reused class's static field
-	// size before Pass 1 overwrites it, so Pass 2 can preserve the static
-	// field storage (and cctor state) when the layout is unchanged. ===
-	std::vector<uint32_t> oldStaticFieldsSizes(_typesDefines.size(), 0);
-	// ===}} AssemblyReloadReuse
 	// === Pass 1: Update external pointers, counts, parent/declaringType,
 	// and store in _classList. Do NOT reset lazy-init fields or call
 	// Class::Init yet — this ensures all reused classes have correct
@@ -2961,7 +2955,6 @@ namespace metadata
 
 			// --- Update sizes ---
 			const Il2CppTypeDefinitionSizes* sizes = &_typeDetails[i].typeSizes;
-			oldStaticFieldsSizes[i] = klass->static_fields_size;
 			klass->instance_size = sizes->instance_size;
 			klass->actualSize = sizes->instance_size;
 			klass->native_size = sizes->native_size;
@@ -3046,18 +3039,7 @@ namespace metadata
 			klass->nestedTypes = nullptr;
 			klass->implementedInterfaces = nullptr;
 			klass->interfaceOffsets = nullptr;
-			// ==={{ AssemblyReloadReuse: preserve static field storage and cctor
-			// state when the static field layout is unchanged, so runtime
-			// static state (singletons, caches) survives the reload. ===
-			bool staticLayoutUnchanged = i < oldStaticFieldsSizes.size()
-				&& oldStaticFieldsSizes[i] == klass->static_fields_size;
-			if (!staticLayoutUnchanged)
-			{
-				klass->static_fields = nullptr;
-				klass->cctor_started = 0;
-				klass->cctor_finished_or_no_cctor = !klass->has_cctor;
-			}
-			// ===}} AssemblyReloadReuse
+			klass->static_fields = nullptr;
 		klass->rgctx_data = nullptr;
 		klass->typeHierarchy = nullptr;
 		klass->typeHierarchyDepth = 0;
@@ -3069,8 +3051,8 @@ namespace metadata
 			klass->size_init_pending = 0;
 			klass->size_inited = 0;
 			klass->is_vtable_initialized = 0;
-			// cctor_started / cctor_finished_or_no_cctor are only reset when
-			// the static layout changed (see above).
+			klass->cctor_started = 0;
+			klass->cctor_finished_or_no_cctor = !klass->has_cctor;
 			klass->cctor_thread = 0;
 			klass->genericRecursionDepth = 0;
 			klass->initializationExceptionGCHandle = 0;
