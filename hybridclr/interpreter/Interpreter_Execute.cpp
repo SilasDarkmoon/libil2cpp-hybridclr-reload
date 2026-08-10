@@ -11789,22 +11789,29 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					}
 					else if (faultOp == HiOpcodeEnum::CallInterp_void || faultOp == HiOpcodeEnum::CallInterp_ret
 						|| faultOp == HiOpcodeEnum::CallInterpVirtual_void || faultOp == HiOpcodeEnum::CallInterpVirtual_ret
-						|| (faultOp >= HiOpcodeEnum::CallCommonNativeInstance_v_0 && faultOp <= HiOpcodeEnum::CallCommonNativeInstance_f8_f8_4))
+						|| (faultOp >= HiOpcodeEnum::CallNativeInstance_void && faultOp <= HiOpcodeEnum::CallNativeInstance_ret_expand)
+						|| (faultOp >= HiOpcodeEnum::CallVirtual_void && faultOp <= HiOpcodeEnum::CallVirtual_ret_expand))
 					{
-						const MethodInfo* callee = (const MethodInfo*)imi->resolveDatas[*(uint32_t*)(ip + 4)];
+						// The callee resolveDatas slot offset differs per
+						// opcode (verified against each case implementation):
+						//   CallInterp_void / CallInterpVirtual_void      -> ip+4
+						//   CallInterp_ret / CallInterpVirtual_ret        -> ip+8
+						//   CallNativeInstance_void/ret, CallVirtual_*    -> ip+8
+						//   *_ret_expand                                    -> ip+12
+						// CallCommonNativeInstance_* (200+ variants) use
+						// yet other layouts and are deliberately NOT decoded
+						// here (they fall through to the raw-op branch).
+						uint32_t calleeSlotOffset;
+						if (faultOp == HiOpcodeEnum::CallInterp_void || faultOp == HiOpcodeEnum::CallInterpVirtual_void)
+							calleeSlotOffset = 4;
+						else if (faultOp == HiOpcodeEnum::CallNativeInstance_ret_expand || faultOp == HiOpcodeEnum::CallVirtual_ret_expand)
+							calleeSlotOffset = 12;
+						else
+							calleeSlotOffset = 8;
+						const MethodInfo* callee = (const MethodInfo*)imi->resolveDatas[*(uint32_t*)(ip + calleeSlotOffset)];
 						Il2CppClass* ck = callee ? callee->klass : NULL;
 						hybridclr::ReloadDiagLog(
 							"[ReloadDiag] NRE instr: call(instance) callee=%s.%s::%s op=%u\n",
-							ck && ck->namespaze ? ck->namespaze : "", ck && ck->name ? ck->name : "?",
-							callee && callee->name ? callee->name : "?", (unsigned)faultOp);
-					}
-					else if ((faultOp >= HiOpcodeEnum::CallNativeInstance_void && faultOp <= HiOpcodeEnum::CallNativeInstance_ret_expand)
-						|| (faultOp >= HiOpcodeEnum::CallVirtual_void && faultOp <= HiOpcodeEnum::CallVirtual_ret_expand))
-					{
-						const MethodInfo* callee = (const MethodInfo*)imi->resolveDatas[*(uint32_t*)(ip + 8)];
-						Il2CppClass* ck = callee ? callee->klass : NULL;
-						hybridclr::ReloadDiagLog(
-							"[ReloadDiag] NRE instr: callvirt(instance) callee=%s.%s::%s op=%u\n",
 							ck && ck->namespaze ? ck->namespaze : "", ck && ck->name ? ck->name : "?",
 							callee && callee->name ? callee->name : "?", (unsigned)faultOp);
 					}
