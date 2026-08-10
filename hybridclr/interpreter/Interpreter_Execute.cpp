@@ -11819,6 +11819,72 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					{
 						hybridclr::ReloadDiagLog("[ReloadDiag] NRE instr: op=%u (other)\n", (unsigned)faultOp);
 					}
+					// ==={{ AssemblyReloadDiag: last-writer scan. The null
+					// that triggered this NRE sits in a local slot (the call
+					// receiver / field object). Walk the transformed stream
+					// from the method start to the fault ip and report the
+					// last few instructions whose dst(+2)/ret(+4) operand
+					// names that slot, so the producer of the null value can
+					// be identified offline from the op numbers. Heuristic:
+					// operand collisions are possible, so the last 3 matches
+					// are logged for manual disambiguation. ===
+					int recvSlot = -1;
+					if (faultOp >= HiOpcodeEnum::LdfldVarVar_i1 && faultOp <= HiOpcodeEnum::LdfldaVarVar)
+						recvSlot = *(uint16_t*)(ip + 4);
+					else if (faultOp >= HiOpcodeEnum::StfldVarVar_i1 && faultOp <= HiOpcodeEnum::StfldVarVar_WriteBarrier_n_4)
+						recvSlot = *(uint16_t*)(ip + 2);
+					else if (faultOp == HiOpcodeEnum::CallInterp_void || faultOp == HiOpcodeEnum::CallInterp_ret
+						|| faultOp == HiOpcodeEnum::CallInterpVirtual_void || faultOp == HiOpcodeEnum::CallInterpVirtual_ret
+						|| (faultOp >= HiOpcodeEnum::CallCommonNativeInstance_v_0 && faultOp <= HiOpcodeEnum::CallCommonNativeInstance_f8_f8_4))
+						recvSlot = *(uint16_t*)(ip + 2); // argBase / __self
+					if (recvSlot >= 0)
+					{
+						const uint16_t maxOp = (uint16_t)HiOpcodeEnum::MethodBaseGetCurrentMethod;
+						long long wOff[3] = { -1, -1, -1 };
+						unsigned wOp[3] = { 0, 0, 0 };
+						unsigned wPos[3] = { 0, 0, 0 };
+						int wCount = 0;
+						byte* p = ipBase;
+						while (p < ip)
+						{
+							long long off = (long long)(p - ipBase);
+							if (off + 2 > (long long)imi->codeLength)
+								break;
+							uint16_t scanOp = *(uint16_t*)p;
+							if (scanOp > maxOp)
+								break;
+							uint16_t size = g_instructionSizes[scanOp];
+							if (size < 2 || off + size > (long long)imi->codeLength)
+								break;
+							bool matched = false;
+							unsigned pos = 0;
+							if (size >= 4 && *(uint16_t*)(p + 2) == (uint16_t)recvSlot) { matched = true; pos = 2; }
+							if (size >= 6 && *(uint16_t*)(p + 4) == (uint16_t)recvSlot) { matched = true; pos = 4; }
+							if (matched)
+							{
+								wOff[wCount % 3] = off; wOp[wCount % 3] = scanOp; wPos[wCount % 3] = pos;
+								wCount++;
+							}
+							p += size;
+						}
+						if (wCount > 0)
+						{
+							int start = wCount > 3 ? (wCount % 3) : 0;
+							int n = wCount > 3 ? 3 : wCount;
+							for (int k = 0; k < n; k++)
+							{
+								int idx = (start + k) % 3;
+								hybridclr::ReloadDiagLog(
+									"[ReloadDiag] NRE recvSlot=%d writer[%d] ipOffset=%lld op=%u operandPos=%u\n",
+									recvSlot, k, wOff[idx], wOp[idx], wPos[idx]);
+							}
+						}
+						else
+						{
+							hybridclr::ReloadDiagLog("[ReloadDiag] NRE recvSlot=%d writer not found\n", recvSlot);
+						}
+					}
+					// ===}} AssemblyReloadDiag
 				}
 				// ===}} AssemblyReloadDiag
 			}
