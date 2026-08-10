@@ -11874,9 +11874,42 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 							for (int k = 0; k < n; k++)
 							{
 								int idx = (start + k) % 3;
-								hybridclr::ReloadDiagLog(
-									"[ReloadDiag] NRE recvSlot=%d writer[%d] ipOffset=%lld op=%u operandPos=%u\n",
-									recvSlot, k, wOff[idx], wOp[idx], wPos[idx]);
+								// ==={{ AssemblyReloadDiag: if the writer is a
+								// call-family instruction, resolve its callee so
+								// the log names the method that produced the
+								// null. Callee slot offsets mirror the fault
+								// decode above (verified per opcode). ===
+								uint16_t wop = (uint16_t)wOp[idx];
+								bool isCall = (wop >= (uint16_t)HiOpcodeEnum::CallNativeInstance_void && wop <= (uint16_t)HiOpcodeEnum::CallVirtual_ret_expand)
+									|| wop == (uint16_t)HiOpcodeEnum::CallInterp_void || wop == (uint16_t)HiOpcodeEnum::CallInterp_ret
+									|| wop == (uint16_t)HiOpcodeEnum::CallInterpVirtual_void || wop == (uint16_t)HiOpcodeEnum::CallInterpVirtual_ret;
+								if (isCall)
+								{
+									uint32_t calleeOff;
+									if (wop == (uint16_t)HiOpcodeEnum::CallInterp_void || wop == (uint16_t)HiOpcodeEnum::CallInterpVirtual_void)
+										calleeOff = 4;
+									else if (wop == (uint16_t)HiOpcodeEnum::CallNativeInstance_ret_expand || wop == (uint16_t)HiOpcodeEnum::CallVirtual_ret_expand
+										|| wop == (uint16_t)HiOpcodeEnum::CallNativeStatic_ret_expand)
+										calleeOff = 12;
+									else
+										calleeOff = 8;
+									long long woff = wOff[idx];
+									const MethodInfo* wcallee = (woff + calleeOff + 4 <= (long long)imi->codeLength)
+										? (const MethodInfo*)imi->resolveDatas[*(uint32_t*)(ipBase + woff + calleeOff)] : NULL;
+									Il2CppClass* wck = wcallee ? wcallee->klass : NULL;
+									hybridclr::ReloadDiagLog(
+										"[ReloadDiag] NRE recvSlot=%d writer[%d] ipOffset=%lld op=%u operandPos=%u callee=%s.%s::%s\n",
+										recvSlot, k, wOff[idx], wOp[idx], wPos[idx],
+										wck && wck->namespaze ? wck->namespaze : "", wck && wck->name ? wck->name : "?",
+										wcallee && wcallee->name ? wcallee->name : "?");
+								}
+								else
+								{
+									hybridclr::ReloadDiagLog(
+										"[ReloadDiag] NRE recvSlot=%d writer[%d] ipOffset=%lld op=%u operandPos=%u\n",
+										recvSlot, k, wOff[idx], wOp[idx], wPos[idx]);
+								}
+								// ===}} AssemblyReloadDiag
 							}
 						}
 						else
