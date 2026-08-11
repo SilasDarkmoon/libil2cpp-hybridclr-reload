@@ -11910,6 +11910,49 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 										recvSlot, k, wOff[idx], wOp[idx], wPos[idx]);
 								}
 								// ===}} AssemblyReloadDiag
+								// ==={{ AssemblyReloadDiag: for a virtual-call
+								// writer, resolve the ACTUAL vtable target of the
+								// callee against the receiver object still sitting
+								// in its arg slot. Pure memory reads with bounds
+								// checks (no codegen helpers that could throw). ===
+								if ((wop == (uint16_t)HiOpcodeEnum::CallInterpVirtual_void || wop == (uint16_t)HiOpcodeEnum::CallInterpVirtual_ret)
+									&& wOff[idx] + 4 <= (long long)imi->codeLength)
+								{
+									uint16_t vArgBase = *(uint16_t*)(ipBase + wOff[idx] + 2);
+									Il2CppObject* vrecv = (localVarBase + vArgBase)->obj;
+									const MethodInfo* vcallee = (wOff[idx] + 12 <= (long long)imi->codeLength)
+										? (const MethodInfo*)imi->resolveDatas[*(uint32_t*)(ipBase + wOff[idx] + 8)] : NULL;
+									if (vrecv != NULL && vrecv->klass != NULL && vcallee != NULL)
+									{
+										Il2CppClass* rklass = vrecv->klass;
+										const MethodInfo* actual = NULL;
+										int slotOob = 0;
+										if (hybridclr::metadata::IsVirtualMethod(vcallee->flags)
+											&& !(vcallee->klass && hybridclr::metadata::IsInterface(vcallee->klass->flags)))
+										{
+											uint32_t slotCount = rklass->vtable_allocated_count ? (uint32_t)rklass->vtable_allocated_count : (uint32_t)rklass->vtable_count;
+											if ((uint32_t)vcallee->slot < slotCount)
+												actual = rklass->vtable[vcallee->slot].method;
+											else
+												slotOob = 1;
+										}
+										else
+										{
+											actual = vcallee;
+										}
+										Il2CppClass* ack = actual ? actual->klass : NULL;
+										hybridclr::ReloadDiagLog(
+											"[ReloadDiag] NRE writer vdispatch: recvKlass=%s.%s vtable_count=%u allocated=%u slot=%u slotOob=%d actual=%s.%s::%s token=0x%08x interpDataNull=%d\n",
+											rklass->namespaze ? rklass->namespaze : "", rklass->name ? rklass->name : "?",
+											(unsigned)rklass->vtable_count, (unsigned)rklass->vtable_allocated_count,
+											(unsigned)vcallee->slot, slotOob,
+											ack && ack->namespaze ? ack->namespaze : "", ack && ack->name ? ack->name : "?",
+											actual && actual->name ? actual->name : "?",
+											actual ? actual->token : 0u,
+											actual ? (actual->interpData == NULL ? 1 : 0) : -1);
+									}
+								}
+								// ===}} AssemblyReloadDiag
 							}
 						}
 						else
