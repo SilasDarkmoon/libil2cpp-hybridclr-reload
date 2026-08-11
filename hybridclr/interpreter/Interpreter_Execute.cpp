@@ -11876,6 +11876,40 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					(long long)(ip != NULL && ipBase != NULL ? (ip - ipBase) : -1),
 					curMethod->token,
 					mk && mk->image && mk->image->name ? mk->image->name : "?");
+				// ==={{ AssemblyReloadDiag: dump the 'this' object's field memory
+				// so we can see the ACTUAL bytes of serialized fields (e.g.
+				// UIVariableArray.s_currVariable at offset 32). If the bytes are
+				// zero, deserialization really didn't write them; if non-zero,
+				// the field WAS written and the null came from a stale field
+				// offset / wrong klass. Pure memory reads only. ===
+				if (curMethod != NULL && (curMethod->flags & 0x4) == 0 /* !METHOD_ATTRIBUTE_STATIC */
+					&& localVarBase != NULL && imi != NULL && imi->codes != NULL)
+				{
+					Il2CppObject* thisObj = (localVarBase + 0)->obj; // 'this' is slot 0 for instance methods
+					if (thisObj != NULL)
+					{
+						Il2CppClass* tk = thisObj->klass;
+						hybridclr::ReloadDiagLog(
+							"[ReloadDiag] NRE thisDump: this=%p klass=%p(%s.%s) instance_size=%d image=%s\n",
+							thisObj, tk,
+							tk && tk->namespaze ? tk->namespaze : "", tk && tk->name ? tk->name : "?",
+							tk ? tk->instance_size : -1,
+							tk && tk->image && tk->image->name ? tk->image->name : "?");
+						if (tk != NULL && tk->instance_size > 16 && tk->instance_size < 4096)
+						{
+							// dump 8 bytes per row from offset 16 to instance_size
+							const unsigned char* raw = (const unsigned char*)thisObj;
+							for (int32_t off = 16; off < tk->instance_size; off += 8)
+							{
+								hybridclr::ReloadDiagLog(
+									"[ReloadDiag]   thisDump +%03d: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+									off, raw[off], raw[off + 1], raw[off + 2], raw[off + 3],
+									raw[off + 4], raw[off + 5], raw[off + 6], raw[off + 7]);
+							}
+						}
+					}
+				}
+				// ===}} AssemblyReloadDiag
 				// ==={{ AssemblyReloadDiag: decode the faulting instruction so
 				// the exact null access (instance field / call target) can be
 				// identified. Two safety guards are REQUIRED here:
