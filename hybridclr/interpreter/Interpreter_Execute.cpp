@@ -5138,6 +5138,29 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __ret = *(uint16_t*)(ip + 4);
 				    StackObject* _argBasePtr = (StackObject*)(void*)(localVarBase + __argBase);
 				    MethodInfo* _actualMethod = GET_OBJECT_VIRTUAL_METHOD(_argBasePtr->obj, __method);
+				    // ==={{ AssemblyReloadDiag: log the vtable-resolved target of
+				    // BindingSet`2::Bind virtual calls (reload NRE investigation).
+				    // Pure name reads, no class resolution. ===
+				    if (hybridclr::ReloadDiagEnabled() && __method != NULL && __method->name != NULL
+				        && strcmp(__method->name, "Bind") == 0
+				        && __method->klass != NULL && __method->klass->name != NULL
+				        && strstr(__method->klass->name, "BindingSet") != NULL
+				        && _actualMethod != NULL)
+				    {
+				        Il2CppObject* __recvObj = _argBasePtr->obj;
+				        Il2CppClass* __recvKlass = __recvObj ? __recvObj->klass : NULL;
+				        Il2CppClass* __ack = _actualMethod->klass;
+				        hybridclr::ReloadDiagLog(
+				            "[ReloadDiag] BindVCall: recvKlass=%s.%s static=%s::%s slot=%u actual=%s.%s::%s token=0x%08x image=%s interpDataNull=%d\n",
+				            __recvKlass && __recvKlass->namespaze ? __recvKlass->namespaze : "", __recvKlass && __recvKlass->name ? __recvKlass->name : "?",
+				            __method->klass->name, __method->name, (unsigned)__method->slot,
+				            __ack && __ack->namespaze ? __ack->namespaze : "", __ack && __ack->name ? __ack->name : "?",
+				            _actualMethod->name ? _actualMethod->name : "?",
+				            _actualMethod->token,
+				            __ack && __ack->image && __ack->image->name ? __ack->image->name : "?",
+				            _actualMethod->interpData == NULL ? 1 : 0);
+				    }
+				    // ===}} AssemblyReloadDiag
 				    if (IS_CLASS_VALUE_TYPE(_actualMethod->klass))
 				    {
 				        _argBasePtr->obj += 1;
