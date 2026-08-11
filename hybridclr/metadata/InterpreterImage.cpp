@@ -3094,26 +3094,34 @@ namespace metadata
 
 			il2cpp::vm::Class::Init(klass);
 
-			// ==={{ AssemblyReloadDiag: dump field layout of specific reused
-			// classes, to verify what field info Unity deserialization sees
-			// after reload (NRE investigation: window serialized fields null). ===
-			if (klass->name != NULL
+			// ==={{ AssemblyReloadDiag: dump the FULL field layout (whole
+			// parent chain) of specific reused classes, to verify what field
+			// info Unity deserialization sees after reload (NRE investigation:
+			// window serialized fields null; UI refs live in the base classes
+			// Window/WindowView/UIBehaviour, not in EntranceWindow itself). ===
+			bool dumpFields = klass->name != NULL
 				&& (strcmp(klass->name, "EntranceWindow") == 0 || strcmp(klass->name, "UIVariableArray") == 0
-					|| strcmp(klass->name, "UIVariable") == 0 || strcmp(klass->name, "Window") == 0))
+					|| strcmp(klass->name, "UIVariable") == 0 || strcmp(klass->name, "Window") == 0
+					|| strcmp(klass->name, "WindowView") == 0 || strcmp(klass->name, "UIView") == 0
+					|| strcmp(klass->name, "UIBehaviour") == 0);
+			if (dumpFields)
 			{
-				hybridclr::ReloadDiagLog(
-					"[ReloadDiag] ReusedClassFields: %s.%s field_count=%u instance_size=%d actualSize=%d size_inited=%d initialized=%d parent=%s fieldsPtr=%p\n",
-					klass->namespaze ? klass->namespaze : "", klass->name,
-					(unsigned)klass->field_count, klass->instance_size, klass->actualSize,
-					klass->size_inited ? 1 : 0, klass->initialized ? 1 : 0,
-					klass->parent && klass->parent->name ? klass->parent->name : "?", (void*)klass->fields);
-				for (uint16_t fi = 0; fi < klass->field_count; fi++)
+				for (Il2CppClass* chain = klass; chain != NULL; chain = chain->parent)
 				{
-					FieldInfo* f = klass->fields + fi;
 					hybridclr::ReloadDiagLog(
-						"[ReloadDiag]   field[%u] %s offset=%d type=%d attrs=0x%x\n",
-						(unsigned)fi, f->name ? f->name : "?", f->offset,
-						f->type ? (int)f->type->type : -1, f->type ? (unsigned)f->type->attrs : 0u);
+						"[ReloadDiag] ReusedClassChain: %s.%s field_count=%u instance_size=%d size_inited=%d image=%s\n",
+						chain->namespaze ? chain->namespaze : "", chain->name,
+						(unsigned)chain->field_count, chain->instance_size,
+						chain->size_inited ? 1 : 0,
+						chain->image && chain->image->name ? chain->image->name : "?");
+					for (uint16_t fi = 0; fi < chain->field_count; fi++)
+					{
+						FieldInfo* f = chain->fields + fi;
+						hybridclr::ReloadDiagLog(
+							"[ReloadDiag]   field[%u] %s offset=%d type=%d attrs=0x%x\n",
+							(unsigned)fi, f->name ? f->name : "?", f->offset,
+							f->type ? (int)f->type->type : -1, f->type ? (unsigned)f->type->attrs : 0u);
+					}
 				}
 			}
 			// ===}} AssemblyReloadDiag
