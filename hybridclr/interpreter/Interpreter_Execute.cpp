@@ -5150,12 +5150,19 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				        Il2CppObject* __recvObj = _argBasePtr->obj;
 				        Il2CppClass* __recvKlass = __recvObj ? __recvObj->klass : NULL;
 				        Il2CppClass* __ack = _actualMethod->klass;
+				        Il2CppGenericClass* __rgclass = __recvKlass ? __recvKlass->generic_class : NULL;
+				        Il2CppGenericInst* __rinst = __rgclass ? __rgclass->context.class_inst : NULL;
+				        Il2CppObject* __arg1 = (_argBasePtr + 1)->obj; // Bind's target (the bound view/control)
+				        Il2CppClass* __arg1Klass = __arg1 ? __arg1->klass : NULL;
 				        hybridclr::ReloadDiagLog(
-				            "[ReloadDiag] BindVCall: recvKlass=%s.%s static=%s::%s slot=%u actual=%s.%s::%s token=0x%08x image=%s interpDataNull=%d\n",
-				            __recvKlass && __recvKlass->namespaze ? __recvKlass->namespaze : "", __recvKlass && __recvKlass->name ? __recvKlass->name : "?",
-				            __method->klass->name, __method->name, (unsigned)__method->slot,
-				            __ack && __ack->namespaze ? __ack->namespaze : "", __ack && __ack->name ? __ack->name : "?",
-				            _actualMethod->name ? _actualMethod->name : "?",
+				            "[ReloadDiag] BindVCall: recv=%p recvKlass=%p(%s) gclass=%p classInst=%p argv0=%p argv1=%p target=%p(%s.%s) staticM=%p actualM=%p actualKlass=%p(%s) slot=%u token=0x%08x image=%s interpDataNull=%d\n",
+				            __recvObj, __recvKlass, __recvKlass && __recvKlass->name ? __recvKlass->name : "?",
+				            __rgclass, __rinst,
+				            __rinst && __rinst->type_argc > 0 ? (void*)__rinst->type_argv[0] : NULL,
+				            __rinst && __rinst->type_argc > 1 ? (void*)__rinst->type_argv[1] : NULL,
+				            __arg1, __arg1Klass && __arg1Klass->namespaze ? __arg1Klass->namespaze : "", __arg1Klass && __arg1Klass->name ? __arg1Klass->name : "?",
+				            __method, _actualMethod, __ack, __ack && __ack->name ? __ack->name : "?",
+				            (unsigned)__method->slot,
 				            _actualMethod->token,
 				            __ack && __ack->image && __ack->image->name ? __ack->image->name : "?",
 				            _actualMethod->interpData == NULL ? 1 : 0);
