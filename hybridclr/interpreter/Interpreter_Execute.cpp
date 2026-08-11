@@ -684,6 +684,87 @@ namespace interpreter
 		return const_cast<MethodInfo*>(result);
 	}
 
+	// ==={{ AssemblyReloadDiag
+	// Backward slot-writer scan: walk the transformed instruction stream over
+	// [ipBase, scanEnd) and report the last few instructions whose dst(+2) or
+	// ret(+4) operand names `slot`. For call-family opcodes the callee is
+	// resolved and printed (offsets verified per-opcode; families with other
+	// layouts fall back to the raw op number). Pure memory reads bounded by
+	// imi->codeLength -- no class resolution, safe at any call site.
+	static void ReloadDiagScanSlotWriters(const InterpMethodInfo* imi, const byte* ipBase, const byte* scanEnd, int slot, const char* tag)
+	{
+		if (imi == NULL || ipBase == NULL || scanEnd == NULL || scanEnd <= ipBase || imi->codes == NULL)
+			return;
+		const uint16_t maxOp = (uint16_t)HiOpcodeEnum::MethodBaseGetCurrentMethod;
+		long long wOff[3] = { -1, -1, -1 };
+		unsigned wOp[3] = { 0, 0, 0 };
+		unsigned wPos[3] = { 0, 0, 0 };
+		int wCount = 0;
+		const byte* p = ipBase;
+		while (p < scanEnd)
+		{
+			long long off = (long long)(p - ipBase);
+			if (off + 2 > (long long)imi->codeLength)
+				break;
+			uint16_t scanOp = *(const uint16_t*)p;
+			if (scanOp > maxOp)
+				break;
+			uint16_t size = g_instructionSizes[scanOp];
+			if (size < 2 || off + size > (long long)imi->codeLength)
+				break;
+			bool matched = false;
+			unsigned pos = 0;
+			if (size >= 4 && *(const uint16_t*)(p + 2) == (uint16_t)slot) { matched = true; pos = 2; }
+			if (size >= 6 && *(const uint16_t*)(p + 4) == (uint16_t)slot) { matched = true; pos = 4; }
+			if (matched)
+			{
+				wOff[wCount % 3] = off; wOp[wCount % 3] = scanOp; wPos[wCount % 3] = pos;
+				wCount++;
+			}
+			p += size;
+		}
+		if (wCount == 0)
+		{
+			hybridclr::ReloadDiagLog("[ReloadDiag] %s: slot=%d writer not found\n", tag, slot);
+			return;
+		}
+		int start = wCount > 3 ? (wCount % 3) : 0;
+		int n = wCount > 3 ? 3 : wCount;
+		for (int k = 0; k < n; k++)
+		{
+			int idx = (start + k) % 3;
+			uint16_t wop = (uint16_t)wOp[idx];
+			long long woff = wOff[idx];
+			uint32_t calleeOff = 0;
+			if (wop == (uint16_t)HiOpcodeEnum::CallInterp_void || wop == (uint16_t)HiOpcodeEnum::CallInterpVirtual_void)
+				calleeOff = 4;
+			else if (wop == (uint16_t)HiOpcodeEnum::CallInterp_ret || wop == (uint16_t)HiOpcodeEnum::CallInterpVirtual_ret
+				|| wop == (uint16_t)HiOpcodeEnum::CallNativeInstance_void || wop == (uint16_t)HiOpcodeEnum::CallNativeInstance_ret
+				|| wop == (uint16_t)HiOpcodeEnum::CallVirtual_void || wop == (uint16_t)HiOpcodeEnum::CallVirtual_ret)
+				calleeOff = 8;
+			else if (wop == (uint16_t)HiOpcodeEnum::CallNativeInstance_ret_expand || wop == (uint16_t)HiOpcodeEnum::CallVirtual_ret_expand
+				|| wop == (uint16_t)HiOpcodeEnum::CallNativeStatic_ret_expand)
+				calleeOff = 12;
+			if (calleeOff != 0 && woff + calleeOff + 4 <= (long long)imi->codeLength)
+			{
+				const MethodInfo* callee = (const MethodInfo*)imi->resolveDatas[*(const uint32_t*)(ipBase + woff + calleeOff)];
+				Il2CppClass* ck = callee ? callee->klass : NULL;
+				hybridclr::ReloadDiagLog(
+					"[ReloadDiag] %s: slot=%d writer[%d] ipOffset=%lld op=%u pos=%u callee=%s.%s::%s\n",
+					tag, slot, k, woff, (unsigned)wop, wPos[idx],
+					ck && ck->namespaze ? ck->namespaze : "", ck && ck->name ? ck->name : "?",
+					callee && callee->name ? callee->name : "?");
+			}
+			else
+			{
+				hybridclr::ReloadDiagLog(
+					"[ReloadDiag] %s: slot=%d writer[%d] ipOffset=%lld op=%u pos=%u\n",
+					tag, slot, k, woff, (unsigned)wop, wPos[idx]);
+			}
+		}
+	}
+	// ===}} AssemblyReloadDiag
+
 #define GET_OBJECT_INTERFACE_METHOD(obj, intfKlass, slot) (MethodInfo*)nullptr
 
 	inline void* HiUnbox(Il2CppObject* obj, Il2CppClass* klass)
@@ -5166,6 +5247,14 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				            _actualMethod->token,
 				            __ack && __ack->image && __ack->image->name ? __ack->image->name : "?",
 				            _actualMethod->interpData == NULL ? 1 : 0);
+				        // When Bind's target is null, trace which instruction
+				        // produced it. We are AT the Bind instruction, so the
+				        // frame slots are still live (unlike at catch time).
+				        // Bind(TTarget) -> first parameter sits at argBase+1.
+				        if (__arg1 == NULL)
+				        {
+				            ReloadDiagScanSlotWriters(imi, ipBase, ip, (int)__argBase + 1, "BindArgSource");
+				        }
 				    }
 				    // ===}} AssemblyReloadDiag
 				    if (IS_CLASS_VALUE_TYPE(_actualMethod->klass))

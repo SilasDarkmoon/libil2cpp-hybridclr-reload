@@ -138,20 +138,29 @@ namespace System
     }
 
     // ==={{ AssemblyReloadDiag
-    // Log IsAssignableFrom/IsInstanceOfType failures that indicate either a
-    // duplicate Il2CppClass (same full name, different pointer) or a mismatch
-    // involving types relevant to the reload binding issue.
+    // Log IsAssignableFrom/IsInstanceOfType failures. PURE MEMORY READS ONLY
+    // (name/namespaze/image pointers) -- no class resolution, no
+    // GetTypeDefinition / class_from_type, safe in any context. To avoid
+    // flooding from polling code, identical (ka,kb) pairs are deduplicated.
+    struct ReloadDiagTypePair { const void* a; const void* b; };
+    static ReloadDiagTypePair s_typePairDedup[64];
+    static int s_typePairDedupPos = 0;
+
     static void ReloadDiagLogClassMismatch(const char* api, Il2CppClass* ka, Il2CppClass* kb)
     {
         if (ka == NULL || kb == NULL || ka->name == NULL || kb->name == NULL)
             return;
+        for (int i = 0; i < 64; i++)
+        {
+            if (s_typePairDedup[i].a == ka && s_typePairDedup[i].b == kb)
+                return;
+        }
+        s_typePairDedup[s_typePairDedupPos].a = ka;
+        s_typePairDedup[s_typePairDedupPos].b = kb;
+        s_typePairDedupPos = (s_typePairDedupPos + 1) & 63;
         const char* nsa = ka->namespaze ? ka->namespaze : "";
         const char* nsb = kb->namespaze ? kb->namespaze : "";
         bool sameFullName = strcmp(ka->name, kb->name) == 0 && strcmp(nsa, nsb) == 0;
-        bool interesting = strstr(ka->name, "Backpack") != NULL || strstr(kb->name, "Backpack") != NULL
-            || strstr(ka->name, "HomeWindow") != NULL || strstr(kb->name, "HomeWindow") != NULL;
-        if (!sameFullName && !interesting)
-            return;
         hybridclr::ReloadDiagLog(
             "[ReloadDiag] %s FALSE: a=%s.%s klass=%p image=%p(%s) | b=%s.%s klass=%p image=%p(%s) sameFullName=%d\n",
             api, nsa, ka->name, (void*)ka, (void*)ka->image, ka->image ? ka->image->name : "?",
