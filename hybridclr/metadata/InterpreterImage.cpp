@@ -3094,6 +3094,46 @@ namespace metadata
 
 			il2cpp::vm::Class::Init(klass);
 
+			// ==={{ AssemblyReloadDiag: dump serializable reference fields of a
+			// reused MonoBehaviour-derived class AFTER init. Unity's
+			// deserialization resolves each such field's type via
+			// Class::FromIl2CppType(field->type) (it ASSERTs when that returns
+			// NULL, so a crash would be diagnostic too). We dump the field type
+			// pointers so we can verify they are non-stale. Only ONE class is
+			// dumped to keep the log small (the mechanism is the same for every
+			// reused class). ===
+			if (klass->name != NULL && strcmp(klass->name, "EntranceWindow") == 0)
+			{
+				hybridclr::ReloadDiagLog(
+					"[ReloadDiag] DeserProbe: %s fieldsPtr=%p field_count=%u size_inited=%d\n",
+					klass->name, (void*)klass->fields, (unsigned)klass->field_count,
+					klass->size_inited ? 1 : 0);
+				if (klass->fields != NULL)
+				{
+					for (uint16_t fi = 0; fi < klass->field_count; fi++)
+					{
+						const FieldInfo* f = klass->fields + fi;
+						if (f->type == NULL)
+						{
+							hybridclr::ReloadDiagLog("[ReloadDiag]   DeserProbe field[%u] %s type=NULL\n",
+								(unsigned)fi, f->name ? f->name : "?");
+							continue;
+						}
+						bool isRef = f->type->type == IL2CPP_TYPE_CLASS || f->type->type == IL2CPP_TYPE_STRING
+							|| f->type->type == IL2CPP_TYPE_SZARRAY || f->type->type == IL2CPP_TYPE_GENERICINST
+							|| f->type->type == IL2CPP_TYPE_ARRAY;
+						if (!isRef)
+							continue;
+						hybridclr::ReloadDiagLog(
+							"[ReloadDiag]   DeserProbe field[%u] %s offset=%d type=%d typeHandle=%p image=%s\n",
+							(unsigned)fi, f->name ? f->name : "?", f->offset, (int)f->type->type,
+							f->type->data.typeHandle,
+							klass->image && klass->image->name ? klass->image->name : "?");
+					}
+				}
+			}
+			// ===}} AssemblyReloadDiag
+
 			// ==={{ AssemblyReloadDiag: dump the FULL field layout (whole
 			// parent chain) of specific reused classes, to verify what field
 			// info Unity deserialization sees after reload (NRE investigation:
