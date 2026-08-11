@@ -5151,7 +5151,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				        Il2CppClass* __recvKlass = __recvObj ? __recvObj->klass : NULL;
 				        Il2CppClass* __ack = _actualMethod->klass;
 				        Il2CppGenericClass* __rgclass = __recvKlass ? __recvKlass->generic_class : NULL;
-				        Il2CppGenericInst* __rinst = __rgclass ? __rgclass->context.class_inst : NULL;
+				        const Il2CppGenericInst* __rinst = __rgclass ? __rgclass->context.class_inst : NULL;
 				        Il2CppObject* __arg1 = (_argBasePtr + 1)->obj; // Bind's target (the bound view/control)
 				        Il2CppClass* __arg1Klass = __arg1 ? __arg1->klass : NULL;
 				        hybridclr::ReloadDiagLog(
