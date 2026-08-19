@@ -3136,11 +3136,11 @@ namespace metadata
 			// pointers so we can verify they are non-stale. Only ONE class is
 			// dumped to keep the log small (the mechanism is the same for every
 			// reused class). ===
-			if (klass->name != NULL && strcmp(klass->name, "EntranceWindow") == 0)
+			if (klass->name != NULL && (strcmp(klass->name, "EntranceWindow") == 0 || strcmp(klass->name, "UIVariableArray") == 0))
 			{
 				hybridclr::ReloadDiagLog(
-					"[ReloadDiag] DeserProbe: %s fieldsPtr=%p field_count=%u size_inited=%d\n",
-					klass->name, (void*)klass->fields, (unsigned)klass->field_count,
+					"[ReloadDiag] DeserProbe: %s klass=%p fieldsPtr=%p field_count=%u size_inited=%d\n",
+					klass->name, (void*)klass, (void*)klass->fields, (unsigned)klass->field_count,
 					klass->size_inited ? 1 : 0);
 				if (klass->fields != NULL)
 				{
@@ -3158,11 +3158,18 @@ namespace metadata
 							|| f->type->type == IL2CPP_TYPE_ARRAY;
 						if (!isRef)
 							continue;
+						// Resolve the field type to a class to verify it is NOT
+						// stale (must resolve to the current reused class, not
+						// an old-image / duplicate / null one).
+						Il2CppClass* resolved = il2cpp::vm::Class::FromIl2CppType(f->type);
 						hybridclr::ReloadDiagLog(
-							"[ReloadDiag]   DeserProbe field[%u] %s offset=%d type=%d typeHandle=%p image=%s\n",
+							"[ReloadDiag]   DeserProbe field[%u] %s offset=%d type=%d typeHandle=%p resolved=%p(%s.%s) resolvedImage=%s\n",
 							(unsigned)fi, f->name ? f->name : "?", f->offset, (int)f->type->type,
 							f->type->data.typeHandle,
-							klass->image && klass->image->name ? klass->image->name : "?");
+							(void*)resolved,
+							resolved && resolved->namespaze ? resolved->namespaze : "",
+							resolved && resolved->name ? resolved->name : "?",
+							resolved && resolved->image && resolved->image->name ? resolved->image->name : "?");
 					}
 				}
 			}
