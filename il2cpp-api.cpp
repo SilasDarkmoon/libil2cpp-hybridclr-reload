@@ -43,6 +43,11 @@
 #include "gc/GCHandle.h"
 #include "gc/WriteBarrierValidation.h"
 
+// ==={{ AssemblyReloadDiag
+#include "hybridclr/ReloadDiagLog.h"
+#include <string.h>
+// ===}} AssemblyReloadDiag
+
 #include <locale.h>
 #include <fstream>
 #include <string>
@@ -294,10 +299,46 @@ const EventInfo* il2cpp_class_get_events(Il2CppClass *klass, void* *iter)
     return Class::GetEvents(klass, iter);
 }
 
+// ==={{ AssemblyReloadDiag: Unity builds its per-class serialization cache
+// by reading the class's fields through this API. Log the field state at
+// call time for the classes involved in the reload NRE investigation, so
+// we can tell WHETHER the cache was built while fields were transiently
+// null (Pass 2 window) or with valid metadata. Deduped per klass pointer;
+// bad-state calls (fields NULL / not size_inited) are always logged. ===
+static bool ReloadDiagIsProbedClass(Il2CppClass* klass)
+{
+    return klass != NULL && klass->name != NULL
+        && (strcmp(klass->name, "EntranceWindow") == 0 || strcmp(klass->name, "UIVariableArray") == 0);
+}
+
 FieldInfo* il2cpp_class_get_fields(Il2CppClass *klass, void* *iter)
 {
+    if (ReloadDiagIsProbedClass(klass) && iter != NULL && *iter == NULL)
+    {
+        static const Il2CppClass* s_getFieldsSeen[32];
+        static int s_getFieldsSeenCount = 0;
+        bool badState = klass->fields == NULL || !klass->size_inited;
+        bool seen = false;
+        for (int i = 0; i < s_getFieldsSeenCount; i++)
+        {
+            if (s_getFieldsSeen[i] == klass) { seen = true; break; }
+        }
+        if (badState || !seen)
+        {
+            if (!seen && s_getFieldsSeenCount < 32)
+                s_getFieldsSeen[s_getFieldsSeenCount++] = klass;
+            hybridclr::ReloadDiagLog(
+                "[ReloadDiag] get_fields: %s.%s klass=%p fieldsPtr=%p field_count=%u size_inited=%d initialized=%d image=%s badState=%d\n",
+                klass->namespaze ? klass->namespaze : "", klass->name, (void*)klass,
+                (void*)klass->fields, (unsigned)klass->field_count,
+                klass->size_inited ? 1 : 0, klass->initialized ? 1 : 0,
+                klass->image && klass->image->name ? klass->image->name : "?",
+                badState ? 1 : 0);
+        }
+    }
     return Class::GetFields(klass, iter);
 }
+// ===}} AssemblyReloadDiag
 
 Il2CppClass* il2cpp_class_get_nested_types(Il2CppClass *klass, void* *iter)
 {
