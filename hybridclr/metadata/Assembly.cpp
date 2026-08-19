@@ -219,6 +219,12 @@ namespace metadata
 					hybridclr::metadata::MetadataModule::GetImage(oldImage2);
 				if (oldInterpImage)
 				{
+					// ==={{ AssemblyReloadReuse: pre-warm Unity-serialized
+					// classes of the old image BEFORE collecting/reusing, so
+					// their [SerializeField] fields deserialize correctly
+					// after the reload (reload NRE investigation). ===
+					oldInterpImage->PrewarmUnitySerializedClasses();
+					// ===}} AssemblyReloadReuse
 					image->CollectReusableObjects(oldInterpImage);
 				}
 			}

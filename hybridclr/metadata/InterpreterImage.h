@@ -784,6 +784,20 @@ namespace metadata
 		// return the reused object.
 		void RestoreReusedClasses();
 
+		// ==={{ AssemblyReloadReuse
+		// Pre-warm Unity-serialized (MonoBehaviour / ScriptableObject derived)
+		// classes of the OLD image by forcing Class::Init on them BEFORE the
+		// reuse passes run.  Rationale (reload NRE investigation): Unity's
+		// per-class serialization info is only built/valid for classes that
+		// were initialized before the reload; classes never initialized get
+		// their [SerializeField] fields left null after deserialization.
+		// Initializing them here (methods become reusable, fields are set up)
+		// makes them follow the same path as classes the user had already
+		// "warmed" by entering the screen before reloading.  Class::Init does
+		// NOT run cctors, so no managed code executes during the pre-warm.
+		void PrewarmUnitySerializedClasses();
+		// ===}} AssemblyReloadReuse
+
 		// Look up a reusable Il2CppClass by its full name ("Ns.Name" or
 		// "Ns.Outer+Inner").  Returns nullptr if not found.
 		Il2CppClass* FindReusableClass(const std::string& fullName)

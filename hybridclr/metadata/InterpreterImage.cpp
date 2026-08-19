@@ -2809,6 +2809,40 @@ namespace metadata
 		}
 	}
 
+	// ==={{ AssemblyReloadReuse: pre-warm Unity-serialized classes of the OLD
+	// image before the reuse passes (see declaration for rationale). ===
+	void InterpreterImage::PrewarmUnitySerializedClasses()
+	{
+		size_t prewarmed = 0;
+		for (size_t i = 0; i < _classList.size(); i++)
+		{
+			Il2CppClass* klass = _classList[i];
+			if (klass == NULL || klass->initialized)
+				continue;
+			bool isUnitySerialized = false;
+			for (Il2CppClass* p = klass; p != NULL; p = p->parent)
+			{
+				if (p->name != NULL && p->namespaze != NULL && strcmp(p->namespaze, "UnityEngine") == 0
+					&& (strcmp(p->name, "MonoBehaviour") == 0 || strcmp(p->name, "ScriptableObject") == 0))
+				{
+					isUnitySerialized = true;
+					break;
+				}
+			}
+			if (!isUnitySerialized)
+				continue;
+			il2cpp::vm::Class::Init(klass);
+			prewarmed++;
+		}
+		if (prewarmed > 0)
+		{
+			hybridclr::ReloadDiagLog(
+				"[ReloadDiag] PrewarmUnitySerializedClasses: image=%s prewarmed=%d total=%d\n",
+				_il2cppImage && _il2cppImage->name ? _il2cppImage->name : "?", (int)prewarmed, (int)_classList.size());
+		}
+	}
+	// ===}} AssemblyReloadReuse
+
 	void InterpreterImage::RestoreReusedClasses()
 	{
 		// ==={{ AssemblyReloadReuse: Clear generic method cache to avoid
