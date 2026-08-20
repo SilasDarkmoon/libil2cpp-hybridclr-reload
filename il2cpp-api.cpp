@@ -977,6 +977,25 @@ void il2cpp_gchandle_foreach_get_target(void(*func)(void*, void*), void* userDat
 
 void il2cpp_gc_wbarrier_set_field(Il2CppObject *obj, void **targetAddress, void *object)
 {
+    // ==={{ AssemblyReloadDiag: Unity's deserialization assigns the nested
+    // VariableArray to UIVariableArray.s_currVariable via SetValueOnField ->
+    // SetReferenceValueAt -> this write barrier. Log every such assignment
+    // (filtered: target object is a UIVariableArray, assigned value is a
+    // VariableArray) so we can see WHICH UIVA instances get s_currVariable
+    // populated and which are skipped. ===
+    if (obj != NULL && obj->klass != NULL && obj->klass->name != NULL
+        && strcmp(obj->klass->name, "UIVariableArray") == 0
+        && obj->klass->namespaze != NULL && strcmp(obj->klass->namespaze, "Loxodon.Framework.Views") == 0
+        && object != NULL && ((Il2CppObject*)object)->klass != NULL
+        && ((Il2CppObject*)object)->klass->name != NULL
+        && strcmp(((Il2CppObject*)object)->klass->name, "VariableArray") == 0)
+    {
+        hybridclr::ReloadDiagLog(
+            "[ReloadDiag] WBarrier s_currVariable: uiva=%p value=%p valueKlass=%p offset=%lld\n",
+            obj, object, (void*)((Il2CppObject*)object)->klass,
+            (long long)((char*)targetAddress - (char*)obj));
+    }
+    // ===}} AssemblyReloadDiag
     il2cpp::gc::WriteBarrier::GenericStore(targetAddress, object);
 }
 
