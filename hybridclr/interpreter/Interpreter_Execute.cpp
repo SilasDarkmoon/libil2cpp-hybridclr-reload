@@ -689,15 +689,24 @@ namespace interpreter
 	// instance's raw memory. Called from the LdfldVarVar_* variants. Deduped
 	// per object. This replaces the icall approach (icalls in interpreted
 	// assemblies are routed to the interpreter, not native). ===
-	static void ReloadDiagDumpUivaIfS_currVariableNull(Il2CppObject* obj, uint32_t offset)
+	// Filter by imi->method (always a valid MethodInfo, safe to read) instead
+	// of obj->klass: the u8/i8 ldfld opcodes serve EVERY 8-byte field read in
+	// the app, and some "obj" slots hold byrefs to value types or other memory
+	// whose ->klass is not dereferenceable. Only inside
+	// UIVariableArray.GetAttribBase is obj guaranteed to be 'this' (a real
+	// UIVA), so only there do we dump.
+	static void ReloadDiagDumpUivaIfS_currVariableNull(const InterpMethodInfo* imi, Il2CppObject* obj, uint32_t offset)
 	{
-		if (obj == NULL || obj->klass == NULL || obj->klass->name == NULL)
+		if (imi == NULL || imi->method == NULL || imi->method->name == NULL
+			|| imi->method->klass == NULL || imi->method->klass->name == NULL)
 			return;
-		if (obj->klass->name[0] != 'U' || strcmp(obj->klass->name, "UIVariableArray") != 0)
+		if (strcmp(imi->method->name, "GetAttribBase") != 0
+			|| strcmp(imi->method->klass->name, "UIVariableArray") != 0)
 			return;
-		// ==={{ AssemblyReloadDiag: log EVERY field read on a UIVA (deduped per
-		// obj+offset) to discover which offset s_currVariable actually uses and
-		// confirm the read reaches this opcode. ===
+		if (obj == NULL)
+			return;
+		// log every field read in GetAttribBase (dedup per obj+offset) to
+		// discover which offset s_currVariable actually uses.
 		struct UivaRead { const Il2CppObject* o; uint32_t off; };
 		static UivaRead s_reads[64];
 		static int s_readsCount = 0;
@@ -713,7 +722,6 @@ namespace interpreter
 				"[ReloadDiag] UIVA-ldfld: obj=%p offset=%u value=%p klass=%p instance_size=%d\n",
 				obj, offset, *(void**)((uint8_t*)obj + offset), (void*)obj->klass, obj->klass->instance_size);
 		}
-		// ===}} AssemblyReloadDiag
 		if (offset != 32)
 			return;
 		if (*(void**)((uint8_t*)obj + 32) != NULL)
@@ -9587,7 +9595,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    (*(int64_t*)(localVarBase + __dst)) = *(int64_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
 				    // ==={{ AssemblyReloadDiag ===
-				    ReloadDiagDumpUivaIfS_currVariableNull(*(Il2CppObject**)(localVarBase + __obj), __offset);
+				    ReloadDiagDumpUivaIfS_currVariableNull(imi, *(Il2CppObject**)(localVarBase + __obj), __offset);
 				    // ===}} AssemblyReloadDiag
 				    ip += 8;
 				    continue;
@@ -9600,7 +9608,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    (*(int64_t*)(localVarBase + __dst)) = *(uint64_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
 				    // ==={{ AssemblyReloadDiag ===
-				    ReloadDiagDumpUivaIfS_currVariableNull(*(Il2CppObject**)(localVarBase + __obj), __offset);
+				    ReloadDiagDumpUivaIfS_currVariableNull(imi, *(Il2CppObject**)(localVarBase + __obj), __offset);
 				    // ===}} AssemblyReloadDiag
 				    ip += 8;
 				    continue;
@@ -9613,7 +9621,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    Copy8((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
 				    // ==={{ AssemblyReloadDiag ===
-				    ReloadDiagDumpUivaIfS_currVariableNull(*(Il2CppObject**)(localVarBase + __obj), __offset);
+				    ReloadDiagDumpUivaIfS_currVariableNull(imi, *(Il2CppObject**)(localVarBase + __obj), __offset);
 				    // ===}} AssemblyReloadDiag
 				    ip += 8;
 				    continue;
@@ -9687,7 +9695,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    std::memmove((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, __size);
 				    // ==={{ AssemblyReloadDiag ===
-				    ReloadDiagDumpUivaIfS_currVariableNull(*(Il2CppObject**)(localVarBase + __obj), __offset);
+				    ReloadDiagDumpUivaIfS_currVariableNull(imi, *(Il2CppObject**)(localVarBase + __obj), __offset);
 				    // ===}} AssemblyReloadDiag
 				    ip += 16;
 				    continue;
@@ -9701,7 +9709,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    std::memmove((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, __size);
 				    // ==={{ AssemblyReloadDiag ===
-				    ReloadDiagDumpUivaIfS_currVariableNull(*(Il2CppObject**)(localVarBase + __obj), __offset);
+				    ReloadDiagDumpUivaIfS_currVariableNull(imi, *(Il2CppObject**)(localVarBase + __obj), __offset);
 				    // ===}} AssemblyReloadDiag
 				    ip += 16;
 				    continue;
