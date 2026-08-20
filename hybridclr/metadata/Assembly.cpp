@@ -233,6 +233,12 @@ namespace metadata
 
 		image->InitRuntimeMetadatas();
 
+		// ==={{ AssemblyReloadDiag: register allocation probes for both
+		// first load and reload (pre-reload allocations were invisible
+		// when registration happened only in restore Pass 3). ===
+		image->RegisterAllocProbeClasses();
+		// ===}} AssemblyReloadDiag
+
 		// ==={{ AssemblyReloadReuse
 		// After InitRuntimeMetadatas, restore reused Il2CppClass objects:
 		// update their external pointers to the new image/assembly and reset

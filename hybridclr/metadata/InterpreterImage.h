@@ -784,6 +784,15 @@ namespace metadata
 		// return the reused object.
 		void RestoreReusedClasses();
 
+		// ==={{ AssemblyReloadDiag: register allocation probes for the classes
+		// involved in the reload NRE investigation (EntranceWindow /
+		// UIVariableArray / VariableArray / Variable). Called right after
+		// InitRuntimeMetadatas() so probing covers BOTH first load and
+		// reloads (Pass-3-only registration left pre-reload allocations
+		// invisible). Deduped by klass pointer inside Object. ===
+		void RegisterAllocProbeClasses();
+		// ===}} AssemblyReloadDiag
+
 		// ==={{ AssemblyReloadReuse
 		// Pre-warm Unity-serialized (MonoBehaviour / ScriptableObject derived)
 		// classes of the OLD image by forcing Class::Init on them BEFORE the
