@@ -691,9 +691,30 @@ namespace interpreter
 	// assemblies are routed to the interpreter, not native). ===
 	static void ReloadDiagDumpUivaIfS_currVariableNull(Il2CppObject* obj, uint32_t offset)
 	{
-		if (offset != 32 || obj == NULL || obj->klass == NULL || obj->klass->name == NULL)
+		if (obj == NULL || obj->klass == NULL || obj->klass->name == NULL)
 			return;
 		if (obj->klass->name[0] != 'U' || strcmp(obj->klass->name, "UIVariableArray") != 0)
+			return;
+		// ==={{ AssemblyReloadDiag: log EVERY field read on a UIVA (deduped per
+		// obj+offset) to discover which offset s_currVariable actually uses and
+		// confirm the read reaches this opcode. ===
+		struct UivaRead { const Il2CppObject* o; uint32_t off; };
+		static UivaRead s_reads[64];
+		static int s_readsCount = 0;
+		bool seen = false;
+		for (int i = 0; i < s_readsCount; i++)
+		{
+			if (s_reads[i].o == obj && s_reads[i].off == offset) { seen = true; break; }
+		}
+		if (!seen)
+		{
+			if (s_readsCount < 64) { s_reads[s_readsCount].o = obj; s_reads[s_readsCount].off = offset; s_readsCount++; }
+			hybridclr::ReloadDiagLog(
+				"[ReloadDiag] UIVA-ldfld: obj=%p offset=%u value=%p klass=%p instance_size=%d\n",
+				obj, offset, *(void**)((uint8_t*)obj + offset), (void*)obj->klass, obj->klass->instance_size);
+		}
+		// ===}} AssemblyReloadDiag
+		if (offset != 32)
 			return;
 		if (*(void**)((uint8_t*)obj + 32) != NULL)
 			return;
@@ -9565,6 +9586,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __offset = *(uint16_t*)(ip + 6);
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    (*(int64_t*)(localVarBase + __dst)) = *(int64_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    // ==={{ AssemblyReloadDiag ===
+				    ReloadDiagDumpUivaIfS_currVariableNull(*(Il2CppObject**)(localVarBase + __obj), __offset);
+				    // ===}} AssemblyReloadDiag
 				    ip += 8;
 				    continue;
 				}
