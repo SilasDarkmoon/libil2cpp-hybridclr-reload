@@ -233,6 +233,11 @@ namespace metadata
 
 		image->InitRuntimeMetadatas();
 
+		// ==={{ AssemblyReloadDiag: register the DumpObject icall once ===
+		extern void il2cpp_register_reload_diag_icalls();
+		il2cpp_register_reload_diag_icalls();
+		// ===}} AssemblyReloadDiag
+
 		// ==={{ AssemblyReloadReuse
 		// After InitRuntimeMetadatas, restore reused Il2CppClass objects:
 		// update their external pointers to the new image/assembly and reset

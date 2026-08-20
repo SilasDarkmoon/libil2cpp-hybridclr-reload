@@ -169,10 +169,61 @@ const Il2CppImage* il2cpp_get_corlib()
     return Image::GetCorlib();
 }
 
+// ==={{ AssemblyReloadDiag: icall that dumps a managed object's klass
+// pointer and every instance field's raw value, so the failing UIVA
+// instance's memory can be inspected directly from the managed early-out
+// (is s_currVariable genuinely 0? which class is the instance really?). ===
+static void ReloadDiagDumpObjectNative(Il2CppObject* obj)
+{
+    if (obj == NULL)
+    {
+        hybridclr::ReloadDiagLog("[ReloadDiag] DumpObject: obj=NULL\n");
+        return;
+    }
+    Il2CppClass* k = obj->klass;
+    hybridclr::ReloadDiagLog(
+        "[ReloadDiag] DumpObject: obj=%p klass=%p(%s.%s) instance_size=%d size_inited=%d image=%s\n",
+        obj, (void*)k,
+        k && k->namespaze ? k->namespaze : "", k && k->name ? k->name : "?",
+        k ? k->instance_size : -1, k ? (k->size_inited ? 1 : 0) : -1,
+        k && k->image && k->image->name ? k->image->name : "?");
+    if (k == NULL)
+        return;
+    for (Il2CppClass* c = k; c != NULL; c = c->parent)
+    {
+        if (c->fields == NULL || c->field_count == 0)
+            continue;
+        for (uint16_t i = 0; i < c->field_count; i++)
+        {
+            FieldInfo* f = c->fields + i;
+            if (f->type == NULL || (f->type->attrs & 0x10)) // skip static
+                continue;
+            void* raw = *(void**)((char*)obj + f->offset);
+            hybridclr::ReloadDiagLog(
+                "[ReloadDiag]   field[%u] %s::%s offset=%d raw=%p\n",
+                (unsigned)i, c->name ? c->name : "?", f->name ? f->name : "?", f->offset, raw);
+        }
+    }
+}
+
 void il2cpp_add_internal_call(const char* name, Il2CppMethodPointer method)
 {
     return InternalCalls::Add(name, method);
 }
+
+// ==={{ AssemblyReloadDiag: explicit registration entry, called once from
+// hybridclr Assembly::Create so the managed early-out can dump the failing
+// UIVA instance's raw memory. ===
+void il2cpp_register_reload_diag_icalls()
+{
+    static bool s_registered = false;
+    if (s_registered)
+        return;
+    s_registered = true;
+    InternalCalls::Add("Loxodon.Framework.Views.UIVariableArray::ReloadDiagDumpObject",
+        (Il2CppMethodPointer)ReloadDiagDumpObjectNative);
+}
+// ===}} AssemblyReloadDiag
 
 Il2CppMethodPointer il2cpp_resolve_icall(const char* name)
 {
