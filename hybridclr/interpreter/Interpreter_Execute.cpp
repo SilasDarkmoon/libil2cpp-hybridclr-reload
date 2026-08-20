@@ -684,6 +684,44 @@ namespace interpreter
 		return const_cast<MethodInfo*>(result);
 	}
 
+	// ==={{ AssemblyReloadDiag: when any ldfld reads UIVariableArray's
+	// s_currVariable (field at offset 32) and finds it null, dump the failing
+	// instance's raw memory. Called from the LdfldVarVar_* variants. Deduped
+	// per object. This replaces the icall approach (icalls in interpreted
+	// assemblies are routed to the interpreter, not native). ===
+	static void ReloadDiagDumpUivaIfS_currVariableNull(Il2CppObject* obj, uint32_t offset)
+	{
+		if (offset != 32 || obj == NULL || obj->klass == NULL || obj->klass->name == NULL)
+			return;
+		if (obj->klass->name[0] != 'U' || strcmp(obj->klass->name, "UIVariableArray") != 0)
+			return;
+		if (*(void**)((uint8_t*)obj + 32) != NULL)
+			return;
+		static const Il2CppObject* s_dumpedUiva[16];
+		static int s_dumpedUivaCount = 0;
+		for (int i = 0; i < s_dumpedUivaCount; i++)
+		{
+			if (s_dumpedUiva[i] == obj)
+				return;
+		}
+		if (s_dumpedUivaCount < 16)
+			s_dumpedUiva[s_dumpedUivaCount++] = obj;
+		Il2CppClass* k = obj->klass;
+		const uint8_t* raw = (const uint8_t*)obj;
+		hybridclr::ReloadDiagLog(
+			"[ReloadDiag] UIVA-null-dump: obj=%p klass=%p instance_size=%d size_inited=%d image=%s\n",
+			obj, (void*)k, k->instance_size, k->size_inited ? 1 : 0,
+			k->image && k->image->name ? k->image->name : "?");
+		for (int32_t off = 16; off < k->instance_size && off < 64; off += 8)
+		{
+			hybridclr::ReloadDiagLog(
+				"[ReloadDiag]   uiva +%02d: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+				off, raw[off], raw[off+1], raw[off+2], raw[off+3],
+				raw[off+4], raw[off+5], raw[off+6], raw[off+7]);
+		}
+	}
+	// ===}} AssemblyReloadDiag
+
 	// ==={{ AssemblyReloadDiag
 	// Backward slot-writer scan: walk the transformed instruction stream over
 	// [ipBase, scanEnd) and report the last few instructions whose dst(+2) or
@@ -9547,45 +9585,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __offset = *(uint16_t*)(ip + 6);
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    Copy8((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
-				    // ==={{ AssemblyReloadDiag: when GetAttribBase reads
-				    // s_currVariable (UIVA field at offset 32) and finds it null,
-				    // dump the failing instance's raw memory. This replaces the
-				    // icall approach (which failed: icalls in interpreted
-				    // assemblies are routed to the interpreter, not native). ===
-				    if (__offset == 32)
-				    {
-				        Il2CppObject* __o = *(Il2CppObject**)(localVarBase + __obj);
-				        if (*(void**)((uint8_t*)__o + 32) == NULL
-				            && __o->klass->name != NULL && __o->klass->name[0] == 'U'
-				            && strcmp(__o->klass->name, "UIVariableArray") == 0)
-				        {
-				            static const Il2CppObject* s_dumpedUiva[16];
-				            static int s_dumpedUivaCount = 0;
-				            bool seen = false;
-				            for (int i = 0; i < s_dumpedUivaCount; i++)
-				            {
-				                if (s_dumpedUiva[i] == __o) { seen = true; break; }
-				            }
-				            if (!seen)
-				            {
-				                if (s_dumpedUivaCount < 16)
-				                    s_dumpedUiva[s_dumpedUivaCount++] = __o;
-				                Il2CppClass* __k = __o->klass;
-				                const uint8_t* __raw = (const uint8_t*)__o;
-				                hybridclr::ReloadDiagLog(
-				                    "[ReloadDiag] UIVA-null-dump: obj=%p klass=%p instance_size=%d size_inited=%d image=%s\n",
-				                    __o, (void*)__k, __k->instance_size, __k->size_inited ? 1 : 0,
-				                    __k->image && __k->image->name ? __k->image->name : "?");
-				                for (int32_t __off = 16; __off < __k->instance_size && __off < 64; __off += 8)
-				                {
-				                    hybridclr::ReloadDiagLog(
-				                        "[ReloadDiag]   uiva +%02d: %02x %02x %02x %02x %02x %02x %02x %02x\n",
-				                        __off, __raw[__off], __raw[__off+1], __raw[__off+2], __raw[__off+3],
-				                        __raw[__off+4], __raw[__off+5], __raw[__off+6], __raw[__off+7]);
-				                }
-				            }
-				        }
-				    }
+				    // ==={{ AssemblyReloadDiag ===
+				    ReloadDiagDumpUivaIfS_currVariableNull(*(Il2CppObject**)(localVarBase + __obj), __offset);
 				    // ===}} AssemblyReloadDiag
 				    ip += 8;
 				    continue;
@@ -9658,6 +9659,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __size = *(uint16_t*)(ip + 8);
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    std::memmove((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, __size);
+				    // ==={{ AssemblyReloadDiag ===
+				    ReloadDiagDumpUivaIfS_currVariableNull(*(Il2CppObject**)(localVarBase + __obj), __offset);
+				    // ===}} AssemblyReloadDiag
 				    ip += 16;
 				    continue;
 				}
@@ -9669,6 +9673,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __size = *(uint32_t*)(ip + 8);
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    std::memmove((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, __size);
+				    // ==={{ AssemblyReloadDiag ===
+				    ReloadDiagDumpUivaIfS_currVariableNull(*(Il2CppObject**)(localVarBase + __obj), __offset);
+				    // ===}} AssemblyReloadDiag
 				    ip += 16;
 				    continue;
 				}
