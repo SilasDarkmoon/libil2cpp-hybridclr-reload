@@ -220,7 +220,7 @@ void il2cpp_register_reload_diag_icalls()
     if (s_registered)
         return;
     s_registered = true;
-    InternalCalls::Add("Loxodon.Framework.Views.UIVariableArray::ReloadDiagDumpObject",
+    InternalCalls::Add("Loxodon.Framework.Views.UIVariableArray::ReloadDiagDumpObject(System.Object)",
         (Il2CppMethodPointer)ReloadDiagDumpObjectNative);
 }
 // ===}} AssemblyReloadDiag
