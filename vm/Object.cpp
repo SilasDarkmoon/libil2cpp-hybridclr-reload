@@ -135,6 +135,46 @@ namespace vm
         return obj;
     }
 
+    // ==={{ AssemblyReloadDiag: allocation probe. Classes are registered by
+    // pointer (stable across reloads thanks to reuse) from InterpreterImage
+    // RegisterAllocProbeClasses. The per-allocation cost is a tiny pointer
+    // scan (<=16 entries). Purpose: verify whether Unity's deserializer ever
+    // ALLOCATES the VariableArray/Variable objects that back s_currVariable
+    // after a reload. If no allocation appears at window-creation time, the
+    // deserialization of that field is being skipped entirely on the Unity
+    // native side (not merely written with wrong data). ===
+    static Il2CppClass* s_allocProbeKlass[16];
+    static const char* s_allocProbeName[16];
+    static int s_allocProbeCount = 0;
+
+    void Object::ReloadDiagProbeClass(Il2CppClass *klass)
+    {
+        if (klass == NULL)
+            return;
+        for (int i = 0; i < s_allocProbeCount; i++)
+        {
+            if (s_allocProbeKlass[i] == klass)
+                return;
+        }
+        if (s_allocProbeCount < 16)
+        {
+            s_allocProbeKlass[s_allocProbeCount] = klass;
+            s_allocProbeName[s_allocProbeCount] = klass->name ? klass->name : "?";
+            s_allocProbeCount++;
+        }
+    }
+
+    static inline const char* ReloadDiagAllocProbeMatch(Il2CppClass* klass)
+    {
+        for (int i = 0; i < s_allocProbeCount; i++)
+        {
+            if (s_allocProbeKlass[i] == klass)
+                return s_allocProbeName[i];
+        }
+        return NULL;
+    }
+    // ===}} AssemblyReloadDiag
+
     Il2CppObject* Object::Clone(Il2CppObject *obj)
     {
         Il2CppObject *o;
@@ -273,46 +313,6 @@ namespace vm
 
         return (klass == il2cpp_defaults.object_class) ? obj : NULL;
     }
-
-    // ==={{ AssemblyReloadDiag: allocation probe. Classes are registered by
-    // pointer (stable across reloads thanks to reuse) from InterpreterImage
-    // Pass 3. The per-allocation cost is a tiny pointer scan (<=16 entries).
-    // Purpose: verify whether Unity's deserializer ever ALLOCATES the
-    // VariableArray/Variable objects that back s_currVariable after a
-    // reload. If no allocation appears at window-creation time, the
-    // deserialization of that field is being skipped entirely on the Unity
-    // native side (not merely written with wrong data). ===
-    static Il2CppClass* s_allocProbeKlass[16];
-    static const char* s_allocProbeName[16];
-    static int s_allocProbeCount = 0;
-
-    void Object::ReloadDiagProbeClass(Il2CppClass *klass)
-    {
-        if (klass == NULL)
-            return;
-        for (int i = 0; i < s_allocProbeCount; i++)
-        {
-            if (s_allocProbeKlass[i] == klass)
-                return;
-        }
-        if (s_allocProbeCount < 16)
-        {
-            s_allocProbeKlass[s_allocProbeCount] = klass;
-            s_allocProbeName[s_allocProbeCount] = klass->name ? klass->name : "?";
-            s_allocProbeCount++;
-        }
-    }
-
-    static inline const char* ReloadDiagAllocProbeMatch(Il2CppClass* klass)
-    {
-        for (int i = 0; i < s_allocProbeCount; i++)
-        {
-            if (s_allocProbeKlass[i] == klass)
-                return s_allocProbeName[i];
-        }
-        return NULL;
-    }
-    // ===}} AssemblyReloadDiag
 
     Il2CppObject* Object::New(Il2CppClass *klass)
     {
