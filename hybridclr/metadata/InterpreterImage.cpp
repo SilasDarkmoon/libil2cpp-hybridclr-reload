@@ -3128,6 +3128,22 @@ namespace metadata
 
 			il2cpp::vm::Class::Init(klass);
 
+			// ==={{ AssemblyReloadDiag: register allocation probes for the
+			// classes involved in the s_currVariable deserialization chain,
+			// so Object::New logs when (and whether) they are instantiated
+			// after the reload. ===
+			if (klass->name != NULL && klass->namespaze != NULL)
+			{
+				bool probeAlloc =
+					(strcmp(klass->name, "EntranceWindow") == 0 && klass->namespaze[0] == '\0')
+					|| (strcmp(klass->name, "UIVariableArray") == 0 && strcmp(klass->namespaze, "Loxodon.Framework.Views") == 0)
+					|| (strcmp(klass->name, "VariableArray") == 0 && strcmp(klass->namespaze, "Loxodon.Framework.Views.Variables") == 0)
+					|| (strcmp(klass->name, "Variable") == 0 && strcmp(klass->namespaze, "Loxodon.Framework.Views.Variables") == 0);
+				if (probeAlloc)
+					il2cpp::vm::Object::ReloadDiagProbeClass(klass);
+			}
+			// ===}} AssemblyReloadDiag
+
 			// ==={{ AssemblyReloadDiag: dump serializable reference fields of a
 			// reused MonoBehaviour-derived class AFTER init. Unity's
 			// deserialization resolves each such field's type via

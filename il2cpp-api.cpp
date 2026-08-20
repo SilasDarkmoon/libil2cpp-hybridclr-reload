@@ -284,10 +284,40 @@ Il2CppClass* il2cpp_class_from_il2cpp_type(const Il2CppType* type)
     return Class::FromIl2CppType(type);
 }
 
+// ==={{ AssemblyReloadDiag: MonoScript::RebuildFromAwake resolves the script
+// class via scripting_class_from_fullname -> MonoManager -> this API. Log
+// which IMAGE Unity picked and WHICH klass pointer it got for the probed
+// class names, so we can detect the MonoScript binding to a stale/duplicate
+// class (must be the reused klass, same pointer as DeserProbe shows). ===
+static bool ReloadDiagIsProbedClassName(const char* name)
+{
+    if (name == NULL)
+        return false;
+    char c0 = name[0];
+    if (c0 == 'E')
+        return strcmp(name, "EntranceWindow") == 0;
+    if (c0 == 'U')
+        return strcmp(name, "UIVariableArray") == 0;
+    if (c0 == 'V')
+        return strcmp(name, "VariableArray") == 0 || strcmp(name, "Variable") == 0;
+    return false;
+}
+
 Il2CppClass* il2cpp_class_from_name(const Il2CppImage* image, const char* namespaze, const char *name)
 {
-    return Class::FromName(image, namespaze, name);
+    Il2CppClass* result = Class::FromName(image, namespaze, name);
+    if (ReloadDiagIsProbedClassName(name))
+    {
+        hybridclr::ReloadDiagLog(
+            "[ReloadDiag] class_from_name: %s.%s image=%p(%s) -> klass=%p klassImage=%s\n",
+            namespaze ? namespaze : "", name, (void*)image,
+            image && image->name ? image->name : "?",
+            (void*)result,
+            result && result->image && result->image->name ? result->image->name : "?");
+    }
+    return result;
 }
+// ===}} AssemblyReloadDiag
 
 Il2CppClass* il2cpp_class_get_element_class(Il2CppClass *klass)
 {
@@ -680,10 +710,44 @@ const char* il2cpp_field_get_name(FieldInfo *field)
     return Field::GetName(field);
 }
 
+// ==={{ AssemblyReloadDiag: ShouldTransferField (Unity serialization cache
+// build) decides per-field based on these flags and on [SerializeField]
+// attribute checks. Log what Unity SEES for fields of the probed classes
+// (deduped per field pointer). If flags lost FIELD_ATTRIBUTE_PUBLIC or
+// gained FIELD_ATTRIBUTE_NOT_SERIALIZED after the reload, the field is
+// silently skipped by the serialization commands. ===
+static bool ReloadDiagIsProbedFieldOwner(FieldInfo* field)
+{
+    if (field == NULL || field->parent == NULL || field->parent->name == NULL)
+        return false;
+    return ReloadDiagIsProbedClassName(field->parent->name);
+}
+
 int il2cpp_field_get_flags(FieldInfo *field)
 {
-    return Field::GetFlags(field);
+    int flags = Field::GetFlags(field);
+    if (ReloadDiagIsProbedFieldOwner(field))
+    {
+        static FieldInfo* s_flagsSeen[64];
+        static int s_flagsSeenCount = 0;
+        bool seen = false;
+        for (int i = 0; i < s_flagsSeenCount; i++)
+        {
+            if (s_flagsSeen[i] == field) { seen = true; break; }
+        }
+        if (!seen)
+        {
+            if (s_flagsSeenCount < 64)
+                s_flagsSeen[s_flagsSeenCount++] = field;
+            hybridclr::ReloadDiagLog(
+                "[ReloadDiag] field_get_flags: %s.%s field=%p flags=0x%x (PUBLIC=%d STATIC=%d NOTSERIALIZED=%d)\n",
+                field->parent->name, field->name ? field->name : "?", (void*)field, flags,
+                (flags & 0x7) == 0x6 ? 1 : 0, (flags & 0x10) ? 1 : 0, (flags & 0x80) ? 1 : 0);
+        }
+    }
+    return flags;
 }
+// ===}} AssemblyReloadDiag
 
 Il2CppClass* il2cpp_field_get_parent(FieldInfo *field)
 {
@@ -712,7 +776,42 @@ Il2CppObject* il2cpp_field_get_value_object(FieldInfo *field, Il2CppObject *obj)
 
 bool il2cpp_field_has_attribute(FieldInfo *field, Il2CppClass *attr_class)
 {
-    return Field::HasAttribute(field, attr_class);
+    bool result = Field::HasAttribute(field, attr_class);
+    // ==={{ AssemblyReloadDiag: [SerializeField] / [SerializeReference]
+    // checks gate private fields in ShouldTransferField. If attribute
+    // resolution breaks for reused classes (custom attr tables pointing at
+    // the old image), private serialized fields (e.g. VariableArray's
+    // 'variables' list) get silently skipped. Log the verdict per
+    // (field, attr) pair for probed classes. ===
+    if (ReloadDiagIsProbedFieldOwner(field) && attr_class != NULL && attr_class->name != NULL
+        && (strcmp(attr_class->name, "SerializeField") == 0 || strcmp(attr_class->name, "SerializeReference") == 0
+            || strcmp(attr_class->name, "FormerlySerializedAsAttribute") == 0))
+    {
+        struct FieldAttrPair { FieldInfo* f; Il2CppClass* a; bool r; };
+        static FieldAttrPair s_attrSeen[64];
+        static int s_attrSeenCount = 0;
+        bool seen = false;
+        for (int i = 0; i < s_attrSeenCount; i++)
+        {
+            if (s_attrSeen[i].f == field && s_attrSeen[i].a == attr_class) { seen = true; break; }
+        }
+        if (!seen)
+        {
+            if (s_attrSeenCount < 64)
+            {
+                s_attrSeen[s_attrSeenCount].f = field;
+                s_attrSeen[s_attrSeenCount].a = attr_class;
+                s_attrSeen[s_attrSeenCount].r = result;
+                s_attrSeenCount++;
+            }
+            hybridclr::ReloadDiagLog(
+                "[ReloadDiag] field_has_attribute: %s.%s attr=%s -> %d (fieldParentImage=%s)\n",
+                field->parent->name, field->name ? field->name : "?", attr_class->name, result ? 1 : 0,
+                field->parent->image && field->parent->image->name ? field->parent->image->name : "?");
+        }
+    }
+    // ===}} AssemblyReloadDiag
+    return result;
 }
 
 void il2cpp_field_set_value(Il2CppObject *obj, FieldInfo *field, void *value)

@@ -26,6 +26,9 @@
 #include "vm/String.h"
 #include "vm/Thread.h"
 #include "vm/Type.h"
+// ==={{ AssemblyReloadDiag
+#include "hybridclr/ReloadDiagLog.h"
+// ===}} AssemblyReloadDiag
 
 #if IL2CPP_GC_BOEHM
 #define ALLOC_PTRFREE(obj, vt, size) do { (obj) = (Il2CppObject*)GC_MALLOC_ATOMIC ((size)); (obj)->klass = (vt); (obj)->monitor = NULL;} while (0)
@@ -259,8 +262,60 @@ namespace vm
         return (klass == il2cpp_defaults.object_class) ? obj : NULL;
     }
 
+    // ==={{ AssemblyReloadDiag: allocation probe. Classes are registered by
+    // pointer (stable across reloads thanks to reuse) from InterpreterImage
+    // Pass 3. The per-allocation cost is a tiny pointer scan (<=16 entries).
+    // Purpose: verify whether Unity's deserializer ever ALLOCATES the
+    // VariableArray/Variable objects that back s_currVariable after a
+    // reload. If no allocation appears at window-creation time, the
+    // deserialization of that field is being skipped entirely on the Unity
+    // native side (not merely written with wrong data). ===
+    static Il2CppClass* s_allocProbeKlass[16];
+    static const char* s_allocProbeName[16];
+    static int s_allocProbeCount = 0;
+
+    void Object::ReloadDiagProbeClass(Il2CppClass *klass)
+    {
+        if (klass == NULL)
+            return;
+        for (int i = 0; i < s_allocProbeCount; i++)
+        {
+            if (s_allocProbeKlass[i] == klass)
+                return;
+        }
+        if (s_allocProbeCount < 16)
+        {
+            s_allocProbeKlass[s_allocProbeCount] = klass;
+            s_allocProbeName[s_allocProbeCount] = klass->name ? klass->name : "?";
+            s_allocProbeCount++;
+        }
+    }
+
+    static inline const char* ReloadDiagAllocProbeMatch(Il2CppClass* klass)
+    {
+        for (int i = 0; i < s_allocProbeCount; i++)
+        {
+            if (s_allocProbeKlass[i] == klass)
+                return s_allocProbeName[i];
+        }
+        return NULL;
+    }
+    // ===}} AssemblyReloadDiag
+
     Il2CppObject* Object::New(Il2CppClass *klass)
     {
+        // ==={{ AssemblyReloadDiag
+        const char* probeName = ReloadDiagAllocProbeMatch(klass);
+        if (probeName != NULL)
+        {
+            Il2CppObject* probed = NewAllocSpecific(klass);
+            hybridclr::ReloadDiagLog(
+                "[ReloadDiag] AllocProbe: new %s obj=%p klass=%p image=%s\n",
+                probeName, probed, (void*)klass,
+                klass->image && klass->image->name ? klass->image->name : "?");
+            return probed;
+        }
+        // ===}} AssemblyReloadDiag
         // same as NewAllocSpecific as we only support a single domain
         return NewAllocSpecific(klass);
     }
