@@ -930,16 +930,37 @@ void il2cpp_gc_free_fixed(void* address)
 
 // gchandle
 
+// ==={{ AssemblyReloadDiag: every managed instance that gets CONNECTED to a
+// native Unity object (MonoBehaviour/ScriptableObject wrappers) receives a
+// gchandle, regardless of which creation path produced it (object_new /
+// preallocated / clone). Logging these for the probed classes catches
+// instance-creation events that AllocProbe (Object::New) might miss. ===
+static void ReloadDiagLogGCHandleIfProbed(Il2CppObject* obj, const char* kind)
+{
+    if (obj == NULL || obj->klass == NULL || obj->klass->name == NULL)
+        return;
+    if (!ReloadDiagIsProbedClassName(obj->klass->name))
+        return;
+    hybridclr::ReloadDiagLog(
+        "[ReloadDiag] gchandle_new(%s): obj=%p klass=%p(%s.%s) image=%s\n",
+        kind, obj, (void*)obj->klass,
+        obj->klass->namespaze ? obj->klass->namespaze : "", obj->klass->name,
+        obj->klass->image && obj->klass->image->name ? obj->klass->image->name : "?");
+}
+
 uint32_t il2cpp_gchandle_new(Il2CppObject *obj, bool pinned)
 {
+    ReloadDiagLogGCHandleIfProbed(obj, pinned ? "pinned" : "normal");
     return GCHandle::New(obj, pinned);
 }
 
 uint32_t il2cpp_gchandle_new_weakref(Il2CppObject *obj, bool track_resurrection)
 {
+    ReloadDiagLogGCHandleIfProbed(obj, "weakref");
     // Note that the call to Get will assert if an error occurred.
     return GCHandle::NewWeakref(obj, track_resurrection).Get();
 }
+// ===}} AssemblyReloadDiag
 
 Il2CppObject* il2cpp_gchandle_get_target(uint32_t gchandle)
 {

@@ -141,6 +141,18 @@ namespace vm
         int size;
         IL2CPP_NOT_IMPLEMENTED_NO_ASSERT(Object::Clone, "Finish implementation");
 
+        // ==={{ AssemblyReloadDiag: Object::Clone bypasses Object::New
+        // (Allocate + memcpy), so AllocProbe misses it. Log clones of
+        // probed classes to cover that path. ===
+        const char* probeName = ReloadDiagAllocProbeMatch(obj->klass);
+        if (probeName != NULL)
+        {
+            hybridclr::ReloadDiagLog(
+                "[ReloadDiag] AllocProbe: CLONE %s src=%p srcKlass=%p\n",
+                probeName, obj, (void*)obj->klass);
+        }
+        // ===}} AssemblyReloadDiag
+
         if (obj->klass->rank)
         {
             return Array::Clone((Il2CppArray*)obj);

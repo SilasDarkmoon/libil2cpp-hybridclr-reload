@@ -2815,6 +2815,7 @@ namespace metadata
 	// InitRuntimeMetadatas() for both first load and reloads. ===
 	void InterpreterImage::RegisterAllocProbeClasses()
 	{
+		int registered = 0;
 		for (size_t i = 0; i < _classList.size(); i++)
 		{
 			Il2CppClass* klass = _classList[i];
@@ -2826,7 +2827,16 @@ namespace metadata
 				|| (strcmp(klass->name, "VariableArray") == 0 && strcmp(klass->namespaze, "Loxodon.Framework.Views.Variables") == 0)
 				|| (strcmp(klass->name, "Variable") == 0 && strcmp(klass->namespaze, "Loxodon.Framework.Views.Variables") == 0);
 			if (probeAlloc)
+			{
 				il2cpp::vm::Object::ReloadDiagProbeClass(klass);
+				registered++;
+			}
+		}
+		if (registered > 0)
+		{
+			hybridclr::ReloadDiagLog(
+				"[ReloadDiag] RegisterAllocProbeClasses: image=%s registered=%d\n",
+				_il2cppImage && _il2cppImage->name ? _il2cppImage->name : "?", registered);
 		}
 	}
 	// ===}} AssemblyReloadDiag
