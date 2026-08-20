@@ -9575,6 +9575,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __offset = *(uint16_t*)(ip + 6);
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    (*(int64_t*)(localVarBase + __dst)) = *(uint64_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    // ==={{ AssemblyReloadDiag ===
+				    ReloadDiagDumpUivaIfS_currVariableNull(*(Il2CppObject**)(localVarBase + __obj), __offset);
+				    // ===}} AssemblyReloadDiag
 				    ip += 8;
 				    continue;
 				}
