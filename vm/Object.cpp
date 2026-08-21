@@ -7,6 +7,9 @@
 #include "il2cpp-runtime-stats.h"
 #include "gc/gc_wrapper.h"
 #include "gc/GarbageCollector.h"
+// ==={{ AssemblyReloadDiag
+#include "gc/GCHandle.h"
+// ===}} AssemblyReloadDiag
 #include "metadata/GenericMethod.h"
 #include "metadata/Il2CppTypeCompare.h"
 #include "utils/StringUtils.h"
@@ -174,24 +177,45 @@ namespace vm
         return NULL;
     }
 
-    // Ring buffer of recently-created EntranceWindow instances (asset + clone),
-    // so the interpreter probe can compare their s_currVariable fields.
-    static const int kTrackedEWMax = 6;
-    static Il2CppObject* s_trackedEW[6];
+    // Ring buffer of the 2 most-recently-created EntranceWindow instances,
+    // each kept alive by a STRONG gchandle we own. At window-open the last two
+    // creations are the prefab ASSET component and the scene CLONE. Holding a
+    // strong gchandle guarantees the object is never GC'd, so the dump below
+    // can never dereference a dead pointer (an earlier raw-pointer version
+    // crashed when a tracked temporary was collected). Size 2 keeps only the
+    // asset + clone; older entries have their gchandle freed on eviction.
+    static const int kTrackedEWMax = 2;
+    static uint32_t s_trackedEWHandle[kTrackedEWMax];
     static int s_trackedEWPos = 0;
     static int s_trackedEWCount = 0;
+
+    static void ReloadDiagTrackEW(Il2CppObject* obj)
+    {
+        int slot = s_trackedEWPos % kTrackedEWMax;
+        if (s_trackedEWHandle[slot] != 0)
+            il2cpp::gc::GCHandle::Free(s_trackedEWHandle[slot]);
+        s_trackedEWHandle[slot] = il2cpp::gc::GCHandle::New(obj, false);
+        s_trackedEWPos++;
+        if (s_trackedEWCount < kTrackedEWMax)
+            s_trackedEWCount++;
+    }
 
     void Object::ReloadDiagDumpTrackedEW()
     {
         for (int i = 0; i < s_trackedEWCount; i++)
         {
-            Il2CppObject* o = s_trackedEW[i];
-            if (o == NULL)
+            if (s_trackedEWHandle[i] == 0)
                 continue;
+            Il2CppObject* o = il2cpp::gc::GCHandle::GetTarget(s_trackedEWHandle[i]);
+            if (o == NULL)
+            {
+                hybridclr::ReloadDiagLog("[ReloadDiag] TrackedEW[%d]: (target null)\n", i);
+                continue;
+            }
             Il2CppClass* k = o->klass;
             if (k == NULL || k->name == NULL || strcmp(k->name, "EntranceWindow") != 0)
             {
-                hybridclr::ReloadDiagLog("[ReloadDiag] TrackedEW[%d]: obj=%p (klass invalid/gc'd)\n", i, o);
+                hybridclr::ReloadDiagLog("[ReloadDiag] TrackedEW[%d]: obj=%p (klass invalid)\n", i, o);
                 continue;
             }
             void* scv = *(void**)((uint8_t*)o + 32); // UIVariableArray::s_currVariable @ offset 32
@@ -353,17 +377,12 @@ namespace vm
                 "[ReloadDiag] AllocProbe: new %s obj=%p klass=%p image=%s\n",
                 probeName, probed, (void*)klass,
                 klass->image && klass->image->name ? klass->image->name : "?");
-            // Track EntranceWindow instances (ring buffer) so the interpreter's
-            // GetAttribBase probe can dump the ASSET instance's s_currVariable
-            // alongside the failing clone's, to tell whether the asset's field
-            // was ever populated (asset-deserialization vs clone-copy failure).
+            // Track EntranceWindow instances (kept alive via strong gchandle)
+            // so the interpreter's GetAttribBase probe can dump the ASSET
+            // instance's s_currVariable alongside the failing clone's, to tell
+            // whether the asset's field was ever populated.
             if (strcmp(probeName, "EntranceWindow") == 0)
-            {
-                s_trackedEW[s_trackedEWPos % kTrackedEWMax] = probed;
-                s_trackedEWPos++;
-                if (s_trackedEWCount < kTrackedEWMax)
-                    s_trackedEWCount++;
-            }
+                ReloadDiagTrackEW(probed);
             return probed;
         }
         // ===}} AssemblyReloadDiag
