@@ -684,75 +684,8 @@ namespace interpreter
 		return const_cast<MethodInfo*>(result);
 	}
 
-	// ==={{ AssemblyReloadDiag: when any ldfld reads UIVariableArray's
-	// s_currVariable (field at offset 32) and finds it null, dump the failing
-	// instance's raw memory. Called from the LdfldVarVar_* variants. Deduped
-	// per object. This replaces the icall approach (icalls in interpreted
-	// assemblies are routed to the interpreter, not native). ===
-	// Filter by imi->method (always a valid MethodInfo, safe to read) instead
-	// of obj->klass: the u8/i8 ldfld opcodes serve EVERY 8-byte field read in
-	// the app, and some "obj" slots hold byrefs to value types or other memory
-	// whose ->klass is not dereferenceable. Only inside
-	// UIVariableArray.GetAttribBase is obj guaranteed to be 'this' (a real
-	// UIVA), so only there do we dump.
-	static void ReloadDiagDumpUivaIfS_currVariableNull(const MethodInfo* method, Il2CppObject* obj, uint32_t offset)
-	{
-		if (method == NULL || method->name == NULL
-			|| method->klass == NULL || method->klass->name == NULL)
-			return;
-		if (strcmp(method->name, "GetAttribBase") != 0
-			|| strcmp(method->klass->name, "UIVariableArray") != 0)
-			return;
-		if (obj == NULL)
-			return;
-		// log every field read in GetAttribBase (dedup per obj+offset) to
-		// discover which offset s_currVariable actually uses.
-		struct UivaRead { const Il2CppObject* o; uint32_t off; };
-		static UivaRead s_reads[64];
-		static int s_readsCount = 0;
-		bool seen = false;
-		for (int i = 0; i < s_readsCount; i++)
-		{
-			if (s_reads[i].o == obj && s_reads[i].off == offset) { seen = true; break; }
-		}
-		if (!seen)
-		{
-			if (s_readsCount < 64) { s_reads[s_readsCount].o = obj; s_reads[s_readsCount].off = offset; s_readsCount++; }
-			hybridclr::ReloadDiagLog(
-				"[ReloadDiag] UIVA-ldfld: obj=%p offset=%u value=%p klass=%p instance_size=%d\n",
-				obj, offset, *(void**)((uint8_t*)obj + offset), (void*)obj->klass, obj->klass->instance_size);
-		}
-		if (offset != 32)
-			return;
-		if (*(void**)((uint8_t*)obj + 32) != NULL)
-			return;
-		static const Il2CppObject* s_dumpedUiva[16];
-		static int s_dumpedUivaCount = 0;
-		for (int i = 0; i < s_dumpedUivaCount; i++)
-		{
-			if (s_dumpedUiva[i] == obj)
-				return;
-		}
-		if (s_dumpedUivaCount < 16)
-			s_dumpedUiva[s_dumpedUivaCount++] = obj;
-		Il2CppClass* k = obj->klass;
-		const uint8_t* raw = (const uint8_t*)obj;
-		hybridclr::ReloadDiagLog(
-			"[ReloadDiag] UIVA-null-dump: obj=%p klass=%p instance_size=%d size_inited=%d image=%s\n",
-			obj, (void*)k, k->instance_size, k->size_inited ? 1 : 0,
-			k->image && k->image->name ? k->image->name : "?");
-		for (int32_t off = 16; off < k->instance_size && off < 64; off += 8)
-		{
-			hybridclr::ReloadDiagLog(
-				"[ReloadDiag]   uiva +%02d: %02x %02x %02x %02x %02x %02x %02x %02x\n",
-				off, raw[off], raw[off+1], raw[off+2], raw[off+3],
-				raw[off+4], raw[off+5], raw[off+6], raw[off+7]);
-		}
-	}
-	// ===}} AssemblyReloadDiag
-
-	// ==={{ AssemblyReloadDiag
-	// Backward slot-writer scan: walk the transformed instruction stream over
+// ==={{ AssemblyReloadDiag
+// Backward slot-writer scan: walk the transformed instruction stream over
 	// [ipBase, scanEnd) and report the last few instructions whose dst(+2) or
 	// ret(+4) operand names `slot`. For call-family opcodes the callee is
 	// resolved and printed (offsets verified per-opcode; families with other
@@ -5173,61 +5106,6 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					{
 						CHECK_NOT_NULL_THROW((localVarBase + __argBase)->obj);
 					}
-					// ==={{ AssemblyReloadDiag: dump 'this' at the entry of
-					// UIVariableArray.GetAttribBase, so we can see the failing
-					// UIVA instance's klass and s_currVariable field directly
-					// (the ldfld-based probe couldn't catch the read). ===
-					if (__methodInfo->name != NULL && strcmp(__methodInfo->name, "GetAttribBase") == 0
-						&& __methodInfo->klass != NULL && __methodInfo->klass->name != NULL
-						&& strcmp(__methodInfo->klass->name, "UIVariableArray") == 0)
-					{
-						Il2CppObject* __thisObj = (localVarBase + __argBase)->obj;
-						if (__thisObj != NULL)
-						{
-							static const Il2CppObject* s_gabDumped[16];
-							static int s_gabDumpedCount = 0;
-							bool seen = false;
-							for (int i = 0; i < s_gabDumpedCount; i++)
-							{
-								if (s_gabDumped[i] == __thisObj) { seen = true; break; }
-							}
-							if (!seen)
-							{
-								if (s_gabDumpedCount < 16)
-									s_gabDumped[s_gabDumpedCount++] = __thisObj;
-								Il2CppClass* __k = __thisObj->klass;
-								hybridclr::ReloadDiagLog(
-									"[ReloadDiag] GetAttribBase-this: obj=%p klass=%p(%s) instance_size=%d size_inited=%d image=%s\n",
-									__thisObj, (void*)__k, __k && __k->name ? __k->name : "?",
-									__k ? __k->instance_size : -1, __k ? (__k->size_inited ? 1 : 0) : -1,
-									__k && __k->image && __k->image->name ? __k->image->name : "?");
-								// Dump each instance field by name (walk the parent
-								// chain) with its raw value, so we can see WHICH
-								// serialized fields got populated and which are null.
-								for (Il2CppClass* __c = __k; __c != NULL; __c = __c->parent)
-								{
-									if (__c->fields == NULL || __c->field_count == 0)
-										continue;
-									for (uint16_t __fi = 0; __fi < __c->field_count; __fi++)
-									{
-										FieldInfo* __f = __c->fields + __fi;
-										if (__f->type == NULL || (__f->type->attrs & 0x10)) // skip static
-											continue;
-									void* __val = *(void**)((uint8_t*)__thisObj + __f->offset);
-									hybridclr::ReloadDiagLog(
-										"[ReloadDiag]   field %s::%s offset=%d raw=%p\n",
-										__c->name ? __c->name : "?", __f->name ? __f->name : "?",
-										__f->offset, __val);
-								}
-							}
-							// Also dump the ASSET EntranceWindow instance's
-							// s_currVariable alongside this (clone) instance, to
-							// tell asset-deserialization failure from clone-copy failure.
-							il2cpp::vm::Object::ReloadDiagDumpTrackedEW();
-						}
-					}
-				}
-				// ===}} AssemblyReloadDiag
 					CALL_INTERP_RET((ip + 16), __methodInfo, (StackObject*)(void*)(localVarBase + __argBase), (void*)(localVarBase + __ret));
 				    continue;
 				}
@@ -5341,44 +5219,6 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __ret = *(uint16_t*)(ip + 4);
 				    StackObject* _argBasePtr = (StackObject*)(void*)(localVarBase + __argBase);
 				    MethodInfo* _actualMethod = GET_OBJECT_VIRTUAL_METHOD(_argBasePtr->obj, __method);
-				    // ==={{ AssemblyReloadDiag: log the vtable-resolved target of
-				    // BindingSet`2::Bind virtual calls (reload NRE investigation).
-				    // Pure name reads, no class resolution. ===
-				    if (hybridclr::ReloadDiagEnabled() && __method != NULL && __method->name != NULL
-				        && strcmp(__method->name, "Bind") == 0
-				        && __method->klass != NULL && __method->klass->name != NULL
-				        && strstr(__method->klass->name, "BindingSet") != NULL
-				        && _actualMethod != NULL)
-				    {
-				        Il2CppObject* __recvObj = _argBasePtr->obj;
-				        Il2CppClass* __recvKlass = __recvObj ? __recvObj->klass : NULL;
-				        Il2CppClass* __ack = _actualMethod->klass;
-				        Il2CppGenericClass* __rgclass = __recvKlass ? __recvKlass->generic_class : NULL;
-				        const Il2CppGenericInst* __rinst = __rgclass ? __rgclass->context.class_inst : NULL;
-				        Il2CppObject* __arg1 = (_argBasePtr + 1)->obj; // Bind's target (the bound view/control)
-				        Il2CppClass* __arg1Klass = __arg1 ? __arg1->klass : NULL;
-				        hybridclr::ReloadDiagLog(
-				            "[ReloadDiag] BindVCall: recv=%p recvKlass=%p(%s) gclass=%p classInst=%p argv0=%p argv1=%p target=%p(%s.%s) staticM=%p actualM=%p actualKlass=%p(%s) slot=%u token=0x%08x image=%s interpDataNull=%d\n",
-				            __recvObj, __recvKlass, __recvKlass && __recvKlass->name ? __recvKlass->name : "?",
-				            __rgclass, __rinst,
-				            __rinst && __rinst->type_argc > 0 ? (void*)__rinst->type_argv[0] : NULL,
-				            __rinst && __rinst->type_argc > 1 ? (void*)__rinst->type_argv[1] : NULL,
-				            __arg1, __arg1Klass && __arg1Klass->namespaze ? __arg1Klass->namespaze : "", __arg1Klass && __arg1Klass->name ? __arg1Klass->name : "?",
-				            __method, _actualMethod, __ack, __ack && __ack->name ? __ack->name : "?",
-				            (unsigned)__method->slot,
-				            _actualMethod->token,
-				            __ack && __ack->image && __ack->image->name ? __ack->image->name : "?",
-				            _actualMethod->interpData == NULL ? 1 : 0);
-				        // When Bind's target is null, trace which instruction
-				        // produced it. We are AT the Bind instruction, so the
-				        // frame slots are still live (unlike at catch time).
-				        // Bind(TTarget) -> first parameter sits at argBase+1.
-				        if (__arg1 == NULL)
-				        {
-				            ReloadDiagScanSlotWriters(imi, ipBase, ip, (int)__argBase + 1, "BindArgSource");
-				        }
-				    }
-				    // ===}} AssemblyReloadDiag
 				    if (IS_CLASS_VALUE_TYPE(_actualMethod->klass))
 				    {
 				        _argBasePtr->obj += 1;
@@ -9649,9 +9489,6 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __offset = *(uint16_t*)(ip + 6);
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    (*(int64_t*)(localVarBase + __dst)) = *(int64_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
-				    // ==={{ AssemblyReloadDiag ===
-				    ReloadDiagDumpUivaIfS_currVariableNull(frame->method, *(Il2CppObject**)(localVarBase + __obj), __offset);
-				    // ===}} AssemblyReloadDiag
 				    ip += 8;
 				    continue;
 				}
@@ -9662,9 +9499,6 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __offset = *(uint16_t*)(ip + 6);
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    (*(int64_t*)(localVarBase + __dst)) = *(uint64_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
-				    // ==={{ AssemblyReloadDiag ===
-				    ReloadDiagDumpUivaIfS_currVariableNull(frame->method, *(Il2CppObject**)(localVarBase + __obj), __offset);
-				    // ===}} AssemblyReloadDiag
 				    ip += 8;
 				    continue;
 				}
@@ -9675,9 +9509,6 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __offset = *(uint16_t*)(ip + 6);
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    Copy8((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
-				    // ==={{ AssemblyReloadDiag ===
-				    ReloadDiagDumpUivaIfS_currVariableNull(frame->method, *(Il2CppObject**)(localVarBase + __obj), __offset);
-				    // ===}} AssemblyReloadDiag
 				    ip += 8;
 				    continue;
 				}
@@ -9749,9 +9580,6 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __size = *(uint16_t*)(ip + 8);
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    std::memmove((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, __size);
-				    // ==={{ AssemblyReloadDiag ===
-				    ReloadDiagDumpUivaIfS_currVariableNull(frame->method, *(Il2CppObject**)(localVarBase + __obj), __offset);
-				    // ===}} AssemblyReloadDiag
 				    ip += 16;
 				    continue;
 				}
@@ -9763,9 +9591,6 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __size = *(uint32_t*)(ip + 8);
 				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
 				    std::memmove((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, __size);
-				    // ==={{ AssemblyReloadDiag ===
-				    ReloadDiagDumpUivaIfS_currVariableNull(frame->method, *(Il2CppObject**)(localVarBase + __obj), __offset);
-				    // ===}} AssemblyReloadDiag
 				    ip += 16;
 				    continue;
 				}

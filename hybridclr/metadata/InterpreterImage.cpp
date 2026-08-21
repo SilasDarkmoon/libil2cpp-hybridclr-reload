@@ -1865,31 +1865,6 @@ namespace metadata
 		_classList.resize(typeDefTb.rowNum);
 	}
 
-	// ==={{ AssemblyReloadDiag: register the allocation probe for the classes
-	// involved in the reload NRE investigation at each class's "birth".
-	// _classList is LAZILY filled (InitClass only resizes it), so scanning it
-	// right after InitRuntimeMetadatas finds nothing -- registration must
-	// happen where each class comes into existence: here (lazy creation) and
-	// in RestoreReusedClasses Pass 1 (reused classes). ===
-	static void ReloadDiagProbeAllocIfMatched(Il2CppClass* klass)
-	{
-		if (klass == NULL || klass->name == NULL || klass->namespaze == NULL)
-			return;
-		bool probeAlloc =
-			(strcmp(klass->name, "EntranceWindow") == 0 && klass->namespaze[0] == '\0')
-			|| (strcmp(klass->name, "UIVariableArray") == 0 && strcmp(klass->namespaze, "Loxodon.Framework.Views") == 0)
-			|| (strcmp(klass->name, "VariableArray") == 0 && strcmp(klass->namespaze, "Loxodon.Framework.Views.Variables") == 0)
-			|| (strcmp(klass->name, "Variable") == 0 && strcmp(klass->namespaze, "Loxodon.Framework.Views.Variables") == 0);
-		if (!probeAlloc)
-			return;
-		il2cpp::vm::Object::ReloadDiagProbeClass(klass);
-		hybridclr::ReloadDiagLog(
-			"[ReloadDiag] AllocProbeRegistered: %s.%s klass=%p image=%s\n",
-			klass->namespaze, klass->name, (void*)klass,
-			klass->image && klass->image->name ? klass->image->name : "?");
-	}
-	// ===}} AssemblyReloadDiag
-
 	Il2CppClass* InterpreterImage::GetTypeInfoFromTypeDefinitionRawIndex(uint32_t index)
 	{
 		IL2CPP_ASSERT(index < _classList.size());
@@ -1905,25 +1880,9 @@ namespace metadata
 			return klass;
 		}
 		klass = il2cpp::vm::GlobalMetadata::FromTypeDefinition(EncodeWithIndex(index));
-		// ==={{ AssemblyReloadDiag
-		// Detect duplicate Il2CppClass creation at the source: if the same type
-		// is created from both the old and the new image, the two logs will show
-		// different image pointers with the same full name.
-		if (klass && klass->name && (strstr(klass->name, "Backpack") != NULL || strstr(klass->name, "HomeWindow") != NULL))
-		{
-			ReloadDiagLog(
-				"[ReloadDiag] InterpClassCreated: %s.%s klass=%p interpImage=%p il2cppImage=%p(%s) rawIndex=%u hasReuseData=%d\n",
-				klass->namespaze ? klass->namespaze : "", klass->name, (void*)klass,
-				(void*)this, (void*)_il2cppImage, _il2cppImage ? _il2cppImage->name : "?",
-				index, HasReuseData() ? 1 : 0);
-		}
-		// ===}} AssemblyReloadDiag
-		IL2CPP_ASSERT(klass->interfaces_count <= klass->interface_offsets_count || _typesDefines[index].interfaceOffsetsStart == 0);
+	IL2CPP_ASSERT(klass->interfaces_count <= klass->interface_offsets_count || _typesDefines[index].interfaceOffsetsStart == 0);
 		il2cpp::os::Atomic::FullMemoryBarrier();
 		_classList[index] = klass;
-		// ==={{ AssemblyReloadDiag: birth-point registration (lazy creation) ===
-		ReloadDiagProbeAllocIfMatched(klass);
-		// ===}} AssemblyReloadDiag
 		return klass;
 	}
 
@@ -3047,17 +3006,10 @@ namespace metadata
 						il2cpp::vm::GlobalMetadata::GetIl2CppTypeFromIndex(typeDef.elementTypeIndex));
 			}
 
-	// --- Store in _classList so GetTypeInfoFromTypeDefinitionRawIndex returns it ---
-	_classList[i] = klass;
+// --- Store in _classList so GetTypeInfoFromTypeDefinitionRawIndex returns it ---
+_classList[i] = klass;
 
-	// ==={{ AssemblyReloadDiag: register the allocation probe at the class's
-	// "birth" (reuse path). _classList is lazily filled, so scanning it right
-	// after InitRuntimeMetadatas finds nothing; registration must happen
-	// where each class comes into existence. ===
-	ReloadDiagProbeAllocIfMatched(klass);
-	// ===}} AssemblyReloadDiag
-
-	// ==={{ AssemblyReloadDiag
+// ==={{ AssemblyReloadDiag
 	if (nm && (strstr(nm, "Backpack") != NULL || strstr(nm, "HomeWindow") != NULL))
 		{
 				ReloadDiagLog(
@@ -3162,85 +3114,6 @@ namespace metadata
 			}
 
 			il2cpp::vm::Class::Init(klass);
-
-			// ==={{ AssemblyReloadDiag: dump serializable reference fields of a
-			// reused MonoBehaviour-derived class AFTER init. Unity's
-			// deserialization resolves each such field's type via
-			// Class::FromIl2CppType(field->type) (it ASSERTs when that returns
-			// NULL, so a crash would be diagnostic too). We dump the field type
-			// pointers so we can verify they are non-stale. Only ONE class is
-			// dumped to keep the log small (the mechanism is the same for every
-			// reused class). ===
-			if (klass->name != NULL && (strcmp(klass->name, "EntranceWindow") == 0 || strcmp(klass->name, "UIVariableArray") == 0))
-			{
-				hybridclr::ReloadDiagLog(
-					"[ReloadDiag] DeserProbe: %s klass=%p fieldsPtr=%p field_count=%u size_inited=%d\n",
-					klass->name, (void*)klass, (void*)klass->fields, (unsigned)klass->field_count,
-					klass->size_inited ? 1 : 0);
-				if (klass->fields != NULL)
-				{
-					for (uint16_t fi = 0; fi < klass->field_count; fi++)
-					{
-						const FieldInfo* f = klass->fields + fi;
-						if (f->type == NULL)
-						{
-							hybridclr::ReloadDiagLog("[ReloadDiag]   DeserProbe field[%u] %s type=NULL\n",
-								(unsigned)fi, f->name ? f->name : "?");
-							continue;
-						}
-						bool isRef = f->type->type == IL2CPP_TYPE_CLASS || f->type->type == IL2CPP_TYPE_STRING
-							|| f->type->type == IL2CPP_TYPE_SZARRAY || f->type->type == IL2CPP_TYPE_GENERICINST
-							|| f->type->type == IL2CPP_TYPE_ARRAY;
-						if (!isRef)
-							continue;
-						// Resolve the field type to a class to verify it is NOT
-						// stale (must resolve to the current reused class, not
-						// an old-image / duplicate / null one).
-						Il2CppClass* resolved = il2cpp::vm::Class::FromIl2CppType(f->type);
-						hybridclr::ReloadDiagLog(
-							"[ReloadDiag]   DeserProbe field[%u] %s offset=%d type=%d typeHandle=%p resolved=%p(%s.%s) resolvedImage=%s\n",
-							(unsigned)fi, f->name ? f->name : "?", f->offset, (int)f->type->type,
-							f->type->data.typeHandle,
-							(void*)resolved,
-							resolved && resolved->namespaze ? resolved->namespaze : "",
-							resolved && resolved->name ? resolved->name : "?",
-							resolved && resolved->image && resolved->image->name ? resolved->image->name : "?");
-					}
-				}
-			}
-			// ===}} AssemblyReloadDiag
-
-			// ==={{ AssemblyReloadDiag: dump the FULL field layout (whole
-			// parent chain) of specific reused classes, to verify what field
-			// info Unity deserialization sees after reload (NRE investigation:
-			// window serialized fields null; UI refs live in the base classes
-			// Window/WindowView/UIBehaviour, not in EntranceWindow itself). ===
-			bool dumpFields = klass->name != NULL
-				&& (strcmp(klass->name, "EntranceWindow") == 0 || strcmp(klass->name, "UIVariableArray") == 0
-					|| strcmp(klass->name, "UIVariable") == 0 || strcmp(klass->name, "Window") == 0
-					|| strcmp(klass->name, "WindowView") == 0 || strcmp(klass->name, "UIView") == 0
-					|| strcmp(klass->name, "UIBehaviour") == 0);
-			if (dumpFields)
-			{
-				for (Il2CppClass* chain = klass; chain != NULL; chain = chain->parent)
-				{
-					hybridclr::ReloadDiagLog(
-						"[ReloadDiag] ReusedClassChain: %s.%s field_count=%u instance_size=%d size_inited=%d image=%s\n",
-						chain->namespaze ? chain->namespaze : "", chain->name,
-						(unsigned)chain->field_count, chain->instance_size,
-						chain->size_inited ? 1 : 0,
-						chain->image && chain->image->name ? chain->image->name : "?");
-					for (uint16_t fi = 0; fi < chain->field_count; fi++)
-					{
-						FieldInfo* f = chain->fields + fi;
-						hybridclr::ReloadDiagLog(
-							"[ReloadDiag]   field[%u] %s offset=%d type=%d attrs=0x%x\n",
-							(unsigned)fi, f->name ? f->name : "?", f->offset,
-							f->type ? (int)f->type->type : -1, f->type ? (unsigned)f->type->attrs : 0u);
-					}
-				}
-			}
-			// ===}} AssemblyReloadDiag
 		}
 
 		// --- Generic Pass 3: Call Class::Init on all generic instance

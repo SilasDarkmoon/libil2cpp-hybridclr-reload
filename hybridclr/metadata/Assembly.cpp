@@ -177,7 +177,7 @@ namespace metadata
         }
         else
         {
-            // 普通加载，或重新加载同名程序集：一律走新建逻辑
+            // 普通加载，或重新加载同名程序集
             if (placeHolderAss != nullptr)
             {
                 // 占位程序集已被加载过，本次为重新加载。
@@ -189,8 +189,28 @@ namespace metadata
                 // 非占位程序集也可能重复加载，逆序查找最近注册的同名解释器程序集
                 oldAss = il2cpp::vm::MetadataCache::GetInterpreterAssemblyByName(nameNoExt);
             }
-            ass = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppAssembly))) Il2CppAssembly;
-            image2 = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppImage))) Il2CppImage;
+            if (oldAss != nullptr)
+            {
+                // ==={{ AssemblyReloadReuse
+                // 重新加载同名程序集：复用旧的 Il2CppAssembly/Il2CppImage 指针，而非新建。
+                // Unity MonoManager 的 m_ScriptImages 在启动时经 il2cpp_domain_assembly_open
+                // 按 image 指针注册一次、重载不刷新；若新建 image，复用类的 klass->image 会
+                // 变成 MonoManager 未知的新指针，使 GetAssemblyIndexFromImage 返回 -1，导致
+                // 嵌套 managed 对象字段（如 UIVariableArray.s_currVariable）被序列化指令
+                // 静默剔除（reload NRE 根因）。复用旧指针可让 MonoManager 注册保持有效。
+                ass = oldAss;
+                image2 = oldAss->image;
+                // image2->name 是首次加载时 ConcatNewString 分配的，可安全释放；
+                // image2->nameNoExt 指向旧 raw image 的字符串堆（非独立分配），不可释放，
+                // 直接由下方重新赋值覆盖即可。
+                HYBRIDCLR_FREE((void*)image2->name);
+                // ===}} AssemblyReloadReuse
+            }
+            else
+            {
+                ass = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppAssembly))) Il2CppAssembly;
+                image2 = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppImage))) Il2CppImage;
+            }
         }
 
 		image->InitBasic(image2);
@@ -233,11 +253,6 @@ namespace metadata
 
 		image->InitRuntimeMetadatas();
 
-		// ==={{ AssemblyReloadDiag: register the DumpObject icall once ===
-		extern void il2cpp_register_reload_diag_icalls();
-		il2cpp_register_reload_diag_icalls();
-		// ===}} AssemblyReloadDiag
-
 		// ==={{ AssemblyReloadReuse
 		// After InitRuntimeMetadatas, restore reused Il2CppClass objects:
 		// update their external pointers to the new image/assembly and reset
@@ -263,12 +278,14 @@ namespace metadata
         if (oldAss != nullptr)
         {
             // 重新加载：先把旧程序集从 s_cliAssemblies、s_Assemblies 等缓存中移除，
-            // 再注册新程序集完成替换。
+            // 再注册新程序集完成替换。复用 image 指针的方案下 ass == oldAss，
+            // 此处即"注销再重新注册同一指针"，效果等价于刷新其缓存条目。
             il2cpp::vm::MetadataCache::UnregisterInterpreterAssembly(oldAss);
             // 更新占位程序集列表，保证后续重载能找到最新的同名程序集
             ReplacePlaceHolderAssembly(oldAss, ass);
-            // 注意：旧的 Il2CppAssembly/Il2CppImage 及其元数据可能仍被已创建的
-            // 类型/方法引用，这里有意不释放（泄漏换安全）。
+            // 注意：Il2CppAssembly/Il2CppImage 指针已被复用（见上方），但旧的
+            // InterpreterImage 及其 raw 元数据可能仍被已创建的类型/方法引用，
+            // 这里有意不释放（泄漏换安全）。
         }
 
         il2cpp::vm::MetadataCache::RegisterInterpreterAssembly(ass);

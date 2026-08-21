@@ -169,61 +169,10 @@ const Il2CppImage* il2cpp_get_corlib()
     return Image::GetCorlib();
 }
 
-// ==={{ AssemblyReloadDiag: icall that dumps a managed object's klass
-// pointer and every instance field's raw value, so the failing UIVA
-// instance's memory can be inspected directly from the managed early-out
-// (is s_currVariable genuinely 0? which class is the instance really?). ===
-static void ReloadDiagDumpObjectNative(Il2CppObject* obj)
-{
-    if (obj == NULL)
-    {
-        hybridclr::ReloadDiagLog("[ReloadDiag] DumpObject: obj=NULL\n");
-        return;
-    }
-    Il2CppClass* k = obj->klass;
-    hybridclr::ReloadDiagLog(
-        "[ReloadDiag] DumpObject: obj=%p klass=%p(%s.%s) instance_size=%d size_inited=%d image=%s\n",
-        obj, (void*)k,
-        k && k->namespaze ? k->namespaze : "", k && k->name ? k->name : "?",
-        k ? k->instance_size : -1, k ? (k->size_inited ? 1 : 0) : -1,
-        k && k->image && k->image->name ? k->image->name : "?");
-    if (k == NULL)
-        return;
-    for (Il2CppClass* c = k; c != NULL; c = c->parent)
-    {
-        if (c->fields == NULL || c->field_count == 0)
-            continue;
-        for (uint16_t i = 0; i < c->field_count; i++)
-        {
-            FieldInfo* f = c->fields + i;
-            if (f->type == NULL || (f->type->attrs & 0x10)) // skip static
-                continue;
-            void* raw = *(void**)((char*)obj + f->offset);
-            hybridclr::ReloadDiagLog(
-                "[ReloadDiag]   field[%u] %s::%s offset=%d raw=%p\n",
-                (unsigned)i, c->name ? c->name : "?", f->name ? f->name : "?", f->offset, raw);
-        }
-    }
-}
-
 void il2cpp_add_internal_call(const char* name, Il2CppMethodPointer method)
 {
     return InternalCalls::Add(name, method);
 }
-
-// ==={{ AssemblyReloadDiag: explicit registration entry, called once from
-// hybridclr Assembly::Create so the managed early-out can dump the failing
-// UIVA instance's raw memory. ===
-void il2cpp_register_reload_diag_icalls()
-{
-    static bool s_registered = false;
-    if (s_registered)
-        return;
-    s_registered = true;
-    InternalCalls::Add("Loxodon.Framework.Views.UIVariableArray::ReloadDiagDumpObject(System.Object)",
-        (Il2CppMethodPointer)ReloadDiagDumpObjectNative);
-}
-// ===}} AssemblyReloadDiag
 
 Il2CppMethodPointer il2cpp_resolve_icall(const char* name)
 {
@@ -335,40 +284,10 @@ Il2CppClass* il2cpp_class_from_il2cpp_type(const Il2CppType* type)
     return Class::FromIl2CppType(type);
 }
 
-// ==={{ AssemblyReloadDiag: MonoScript::RebuildFromAwake resolves the script
-// class via scripting_class_from_fullname -> MonoManager -> this API. Log
-// which IMAGE Unity picked and WHICH klass pointer it got for the probed
-// class names, so we can detect the MonoScript binding to a stale/duplicate
-// class (must be the reused klass, same pointer as DeserProbe shows). ===
-static bool ReloadDiagIsProbedClassName(const char* name)
-{
-    if (name == NULL)
-        return false;
-    char c0 = name[0];
-    if (c0 == 'E')
-        return strcmp(name, "EntranceWindow") == 0;
-    if (c0 == 'U')
-        return strcmp(name, "UIVariableArray") == 0;
-    if (c0 == 'V')
-        return strcmp(name, "VariableArray") == 0 || strcmp(name, "Variable") == 0;
-    return false;
-}
-
 Il2CppClass* il2cpp_class_from_name(const Il2CppImage* image, const char* namespaze, const char *name)
 {
-    Il2CppClass* result = Class::FromName(image, namespaze, name);
-    if (ReloadDiagIsProbedClassName(name))
-    {
-        hybridclr::ReloadDiagLog(
-            "[ReloadDiag] class_from_name: %s.%s image=%p(%s) -> klass=%p klassImage=%s\n",
-            namespaze ? namespaze : "", name, (void*)image,
-            image && image->name ? image->name : "?",
-            (void*)result,
-            result && result->image && result->image->name ? result->image->name : "?");
-    }
-    return result;
+    return Class::FromName(image, namespaze, name);
 }
-// ===}} AssemblyReloadDiag
 
 Il2CppClass* il2cpp_class_get_element_class(Il2CppClass *klass)
 {
@@ -380,46 +299,10 @@ const EventInfo* il2cpp_class_get_events(Il2CppClass *klass, void* *iter)
     return Class::GetEvents(klass, iter);
 }
 
-// ==={{ AssemblyReloadDiag: Unity builds its per-class serialization cache
-// by reading the class's fields through this API. Log the field state at
-// call time for the classes involved in the reload NRE investigation, so
-// we can tell WHETHER the cache was built while fields were transiently
-// null (Pass 2 window) or with valid metadata. Deduped per klass pointer;
-// bad-state calls (fields NULL / not size_inited) are always logged. ===
-static bool ReloadDiagIsProbedClass(Il2CppClass* klass)
-{
-    return klass != NULL && klass->name != NULL
-        && (strcmp(klass->name, "EntranceWindow") == 0 || strcmp(klass->name, "UIVariableArray") == 0);
-}
-
 FieldInfo* il2cpp_class_get_fields(Il2CppClass *klass, void* *iter)
 {
-    if (ReloadDiagIsProbedClass(klass) && iter != NULL && *iter == NULL)
-    {
-        static const Il2CppClass* s_getFieldsSeen[32];
-        static int s_getFieldsSeenCount = 0;
-        bool badState = klass->fields == NULL || !klass->size_inited;
-        bool seen = false;
-        for (int i = 0; i < s_getFieldsSeenCount; i++)
-        {
-            if (s_getFieldsSeen[i] == klass) { seen = true; break; }
-        }
-        if (badState || !seen)
-        {
-            if (!seen && s_getFieldsSeenCount < 32)
-                s_getFieldsSeen[s_getFieldsSeenCount++] = klass;
-            hybridclr::ReloadDiagLog(
-                "[ReloadDiag] get_fields: %s.%s klass=%p fieldsPtr=%p field_count=%u size_inited=%d initialized=%d image=%s badState=%d\n",
-                klass->namespaze ? klass->namespaze : "", klass->name, (void*)klass,
-                (void*)klass->fields, (unsigned)klass->field_count,
-                klass->size_inited ? 1 : 0, klass->initialized ? 1 : 0,
-                klass->image && klass->image->name ? klass->image->name : "?",
-                badState ? 1 : 0);
-        }
-    }
     return Class::GetFields(klass, iter);
 }
-// ===}} AssemblyReloadDiag
 
 Il2CppClass* il2cpp_class_get_nested_types(Il2CppClass *klass, void* *iter)
 {
@@ -504,66 +387,33 @@ int32_t il2cpp_class_value_size(Il2CppClass *klass, uint32_t *align)
 int il2cpp_class_get_flags(const Il2CppClass *klass)
 {
     int flags = Class::GetFlags(klass);
-    // ==={{ AssemblyReloadDiag: Unity's CanTransferTypeAsNestedObject gates
-    // nested managed-object fields (like s_currVariable) on
-    // TYPE_ATTRIBUTE_SERIALIZABLE (0x2000) and on the field type's image
-    // being registered in MonoManager. Log what these checks see for the
-    // probed classes after the reload. ===
-    if (klass != NULL && klass->name != NULL && ReloadDiagIsProbedClassName(klass->name))
+    // ==={{ AssemblyReloadDiag: verifies the reload-image-pointer-reuse fix.
+    // Unity's CanTransferTypeAsNestedObject drops a nested managed-object
+    // field (e.g. UIVariableArray.s_currVariable) when
+    // GetAssemblyIndexFromImage(fieldType->image) == -1. MonoManager looks the
+    // image up BY POINTER in m_ScriptImages, populated ONCE at startup via
+    // il2cpp_domain_assembly_open and never refreshed on reload. The fix makes
+    // the reload REUSE the old Il2CppImage pointer, so klass->image keeps
+    // matching MonoManager's cache. Baseline = pre-reload klass->image (==
+    // MonoManager's cached image); after the fix MATCH must stay 1 post-reload
+    // (before the fix it was 0). ===
+    if (klass != NULL && klass->name != NULL && strcmp(klass->name, "VariableArray") == 0)
     {
-        static const Il2CppClass* s_flagsSeen[32];
-        static int s_flagsSeenCount = 0;
-        bool seen = false;
-        for (int i = 0; i < s_flagsSeenCount; i++)
+        static const Il2CppImage* s_firstLoadImage = NULL;
+        if (s_firstLoadImage == NULL && !hybridclr::ReloadDiagEnabled())
+            s_firstLoadImage = klass->image; // pre-reload == MonoManager's cached image
+        if (hybridclr::ReloadDiagEnabled())
         {
-            if (s_flagsSeen[i] == klass) { seen = true; break; }
-        }
-        if (!seen)
-        {
-            if (s_flagsSeenCount < 32)
-                s_flagsSeen[s_flagsSeenCount++] = klass;
-            hybridclr::ReloadDiagLog(
-                "[ReloadDiag] class_get_flags: %s.%s klass=%p flags=0x%x SERIALIZABLE=%d image=%p(%s)\n",
-                klass->namespaze ? klass->namespaze : "", klass->name, (void*)klass, flags,
-                (flags & 0x2000) ? 1 : 0, (void*)klass->image,
-                klass->image && klass->image->name ? klass->image->name : "?");
-        }
-        // ==={{ AssemblyReloadDiag: ROOT-CAUSE CHECK. Unity's
-        // CanTransferTypeAsNestedObject rejects a nested managed-object field
-        // when GetAssemblyIndexFromImage(fieldType->image) == -1. MonoManager
-        // looks the image up BY POINTER in m_ScriptImages, which was populated
-        // ONCE at startup via il2cpp_domain_assembly_open. After a HybridCLR
-        // reload the klass->image is a NEW Il2CppImage pointer that is NOT in
-        // m_ScriptImages, so the lookup returns -1 and the field (e.g.
-        // s_currVariable) is silently dropped from the serialization commands.
-        // Verify by comparing klass->image against the image MonoManager has
-        // (what il2cpp_domain_assembly_open returns) for the same assembly. ===
-        // MonoManager's GetAssemblyIndexFromImage searches its m_ScriptImages
-        // cache, which was populated ONCE at startup (via il2cpp_domain_
-        // assembly_open) and is NOT refreshed on reload. So the correct
-        // baseline is the FIRST-LOAD image (= what MonoManager still holds),
-        // NOT a fresh il2cpp_domain_assembly_open (which returns the reloaded
-        // assembly's new image and would give a false MATCH=1). Capture the
-        // pre-reload klass->image as the baseline, compare post-reload.
-        if (strcmp(klass->name, "VariableArray") == 0)
-        {
-            static const Il2CppImage* s_firstLoadImage = NULL;
-            if (s_firstLoadImage == NULL && !hybridclr::ReloadDiagEnabled())
-                s_firstLoadImage = klass->image; // pre-reload == MonoManager's cached image
-            if (hybridclr::ReloadDiagEnabled())
+            static int s_vaCheckCount = 0;
+            if (s_vaCheckCount < 8)
             {
-                static int s_vaCheckCount = 0;
-                if (s_vaCheckCount < 8)
-                {
-                    s_vaCheckCount++;
-                    hybridclr::ReloadDiagLog(
-                        "[ReloadDiag] ImageRegCheck: VariableArray klass->image=%p monoManagerCache(firstLoad)=%p MATCH=%d\n",
-                        (void*)klass->image, (void*)s_firstLoadImage,
-                        klass->image == s_firstLoadImage ? 1 : 0);
-                }
+                s_vaCheckCount++;
+                hybridclr::ReloadDiagLog(
+                    "[ReloadDiag] ImageRegCheck: VariableArray klass->image=%p monoManagerCache(firstLoad)=%p MATCH=%d\n",
+                    (void*)klass->image, (void*)s_firstLoadImage,
+                    klass->image == s_firstLoadImage ? 1 : 0);
             }
         }
-        // ===}} AssemblyReloadDiag
     }
     // ===}} AssemblyReloadDiag
     return flags;
@@ -824,44 +674,10 @@ const char* il2cpp_field_get_name(FieldInfo *field)
     return Field::GetName(field);
 }
 
-// ==={{ AssemblyReloadDiag: ShouldTransferField (Unity serialization cache
-// build) decides per-field based on these flags and on [SerializeField]
-// attribute checks. Log what Unity SEES for fields of the probed classes
-// (deduped per field pointer). If flags lost FIELD_ATTRIBUTE_PUBLIC or
-// gained FIELD_ATTRIBUTE_NOT_SERIALIZED after the reload, the field is
-// silently skipped by the serialization commands. ===
-static bool ReloadDiagIsProbedFieldOwner(FieldInfo* field)
-{
-    if (field == NULL || field->parent == NULL || field->parent->name == NULL)
-        return false;
-    return ReloadDiagIsProbedClassName(field->parent->name);
-}
-
 int il2cpp_field_get_flags(FieldInfo *field)
 {
-    int flags = Field::GetFlags(field);
-    if (ReloadDiagIsProbedFieldOwner(field))
-    {
-        static FieldInfo* s_flagsSeen[64];
-        static int s_flagsSeenCount = 0;
-        bool seen = false;
-        for (int i = 0; i < s_flagsSeenCount; i++)
-        {
-            if (s_flagsSeen[i] == field) { seen = true; break; }
-        }
-        if (!seen)
-        {
-            if (s_flagsSeenCount < 64)
-                s_flagsSeen[s_flagsSeenCount++] = field;
-            hybridclr::ReloadDiagLog(
-                "[ReloadDiag] field_get_flags: %s.%s field=%p flags=0x%x (PUBLIC=%d STATIC=%d NOTSERIALIZED=%d)\n",
-                field->parent->name, field->name ? field->name : "?", (void*)field, flags,
-                (flags & 0x7) == 0x6 ? 1 : 0, (flags & 0x10) ? 1 : 0, (flags & 0x80) ? 1 : 0);
-        }
-    }
-    return flags;
+    return Field::GetFlags(field);
 }
-// ===}} AssemblyReloadDiag
 
 Il2CppClass* il2cpp_field_get_parent(FieldInfo *field)
 {
@@ -890,42 +706,7 @@ Il2CppObject* il2cpp_field_get_value_object(FieldInfo *field, Il2CppObject *obj)
 
 bool il2cpp_field_has_attribute(FieldInfo *field, Il2CppClass *attr_class)
 {
-    bool result = Field::HasAttribute(field, attr_class);
-    // ==={{ AssemblyReloadDiag: [SerializeField] / [SerializeReference]
-    // checks gate private fields in ShouldTransferField. If attribute
-    // resolution breaks for reused classes (custom attr tables pointing at
-    // the old image), private serialized fields (e.g. VariableArray's
-    // 'variables' list) get silently skipped. Log the verdict per
-    // (field, attr) pair for probed classes. ===
-    if (ReloadDiagIsProbedFieldOwner(field) && attr_class != NULL && attr_class->name != NULL
-        && (strcmp(attr_class->name, "SerializeField") == 0 || strcmp(attr_class->name, "SerializeReference") == 0
-            || strcmp(attr_class->name, "FormerlySerializedAsAttribute") == 0))
-    {
-        struct FieldAttrPair { FieldInfo* f; Il2CppClass* a; bool r; };
-        static FieldAttrPair s_attrSeen[64];
-        static int s_attrSeenCount = 0;
-        bool seen = false;
-        for (int i = 0; i < s_attrSeenCount; i++)
-        {
-            if (s_attrSeen[i].f == field && s_attrSeen[i].a == attr_class) { seen = true; break; }
-        }
-        if (!seen)
-        {
-            if (s_attrSeenCount < 64)
-            {
-                s_attrSeen[s_attrSeenCount].f = field;
-                s_attrSeen[s_attrSeenCount].a = attr_class;
-                s_attrSeen[s_attrSeenCount].r = result;
-                s_attrSeenCount++;
-            }
-            hybridclr::ReloadDiagLog(
-                "[ReloadDiag] field_has_attribute: %s.%s attr=%s -> %d (fieldParentImage=%s)\n",
-                field->parent->name, field->name ? field->name : "?", attr_class->name, result ? 1 : 0,
-                field->parent->image && field->parent->image->name ? field->parent->image->name : "?");
-        }
-    }
-    // ===}} AssemblyReloadDiag
-    return result;
+    return Field::HasAttribute(field, attr_class);
 }
 
 void il2cpp_field_set_value(Il2CppObject *obj, FieldInfo *field, void *value)
@@ -1044,37 +825,16 @@ void il2cpp_gc_free_fixed(void* address)
 
 // gchandle
 
-// ==={{ AssemblyReloadDiag: every managed instance that gets CONNECTED to a
-// native Unity object (MonoBehaviour/ScriptableObject wrappers) receives a
-// gchandle, regardless of which creation path produced it (object_new /
-// preallocated / clone). Logging these for the probed classes catches
-// instance-creation events that AllocProbe (Object::New) might miss. ===
-static void ReloadDiagLogGCHandleIfProbed(Il2CppObject* obj, const char* kind)
-{
-    if (obj == NULL || obj->klass == NULL || obj->klass->name == NULL)
-        return;
-    if (!ReloadDiagIsProbedClassName(obj->klass->name))
-        return;
-    hybridclr::ReloadDiagLog(
-        "[ReloadDiag] gchandle_new(%s): obj=%p klass=%p(%s.%s) image=%s\n",
-        kind, obj, (void*)obj->klass,
-        obj->klass->namespaze ? obj->klass->namespaze : "", obj->klass->name,
-        obj->klass->image && obj->klass->image->name ? obj->klass->image->name : "?");
-}
-
 uint32_t il2cpp_gchandle_new(Il2CppObject *obj, bool pinned)
 {
-    ReloadDiagLogGCHandleIfProbed(obj, pinned ? "pinned" : "normal");
     return GCHandle::New(obj, pinned);
 }
 
 uint32_t il2cpp_gchandle_new_weakref(Il2CppObject *obj, bool track_resurrection)
 {
-    ReloadDiagLogGCHandleIfProbed(obj, "weakref");
     // Note that the call to Get will assert if an error occurred.
     return GCHandle::NewWeakref(obj, track_resurrection).Get();
 }
-// ===}} AssemblyReloadDiag
 
 Il2CppObject* il2cpp_gchandle_get_target(uint32_t gchandle)
 {
@@ -1091,25 +851,6 @@ void il2cpp_gchandle_foreach_get_target(void(*func)(void*, void*), void* userDat
 
 void il2cpp_gc_wbarrier_set_field(Il2CppObject *obj, void **targetAddress, void *object)
 {
-    // ==={{ AssemblyReloadDiag: Unity's deserialization assigns the nested
-    // VariableArray to UIVariableArray.s_currVariable via SetValueOnField ->
-    // SetReferenceValueAt -> this write barrier. Log every such assignment
-    // (filtered: target object is a UIVariableArray, assigned value is a
-    // VariableArray) so we can see WHICH UIVA instances get s_currVariable
-    // populated and which are skipped. ===
-    if (obj != NULL && obj->klass != NULL && obj->klass->name != NULL
-        && strcmp(obj->klass->name, "UIVariableArray") == 0
-        && obj->klass->namespaze != NULL && strcmp(obj->klass->namespaze, "Loxodon.Framework.Views") == 0
-        && object != NULL && ((Il2CppObject*)object)->klass != NULL
-        && ((Il2CppObject*)object)->klass->name != NULL
-        && strcmp(((Il2CppObject*)object)->klass->name, "VariableArray") == 0)
-    {
-        hybridclr::ReloadDiagLog(
-            "[ReloadDiag] WBarrier s_currVariable: uiva=%p value=%p valueKlass=%p offset=%lld\n",
-            obj, object, (void*)((Il2CppObject*)object)->klass,
-            (long long)((char*)targetAddress - (char*)obj));
-    }
-    // ===}} AssemblyReloadDiag
     il2cpp::gc::WriteBarrier::GenericStore(targetAddress, object);
 }
 

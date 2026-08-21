@@ -26,6 +26,7 @@
 - **klass->image 误设 newImage（07-29）**：Pass 1 中 `defIsInterp` 时应设为泛型定义类的 `defKlass->image`。
 - **rehash 三个缓存（07-29/07-30）**：Pass 1 更新 `byval_arg.data.typeHandle` 后，`Il2CppTypeHash` 对 CLASS/VALUETYPE 按 typeHandle 裸指针 hash → 必须 rehash `s_GenericInstSet` + 两个 `s_GenericClassSet`，且 rehash 时**先归一化陈旧指针**（`type_argv[i]`/`gclass->type` 更新为 `&klass->byval_arg`）再重算 hash。
 - **class_inst 的 type_argv 也要归一化（08-06）**：AOT 创建的 class_inst 不在 `s_GenericInstSet`，`RehashGenericClassSet`/`RehashGenericTypeSet` 须对 `gclass->context.class_inst` 调 `NormalizeGenericInstTypeArgv`，否则 hash 陈旧 → 重复条目 → `Expression1<T>→Expression<T>` InvalidCastException。
+- **复用 Il2CppImage/Il2CppAssembly 指针（08-21，修 MonoBehaviour 序列化字段 NRE）**：重载路径（Assembly.cpp）从 `new Il2CppAssembly/new Il2CppImage` 改为 `ass=oldAss; image2=oldAss->image`。**根因**：Unity MonoManager 的 `m_ScriptImages` 启动时经 `il2cpp_domain_assembly_open` 按 image 指针注册一次、重载不刷新；新建 image 使复用类 `klass->image` 变成未知新指针 → `GetAssemblyIndexFromImage` 返回 -1 → `CanTransferTypeAsNestedObject` false → 嵌套 managed 对象字段（如 `UIVariableArray.s_currVariable`）被序列化指令静默剔除 → prefab 反序列化跳过该字段 → NRE。**只 free `image2->name`（独立分配），不 free `image2->nameNoExt`（指向 raw image 字符串堆）**。验证探针 `ImageRegCheck`（il2cpp-api.cpp `il2cpp_class_get_flags`，对比 VariableArray 的 `klass->image` vs 首载 image）：修复后 MATCH=1。
 
 ## Delegate.CreateDelegate "method arguments are incompatible" 根因与修复（08-06，当前方案）
 - 异常来自**托管** mscorlib 预检；枚举等值类型参数只走 `Type == Type`（RuntimeType 引用相等），不过 icall。

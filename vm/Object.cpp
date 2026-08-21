@@ -7,9 +7,6 @@
 #include "il2cpp-runtime-stats.h"
 #include "gc/gc_wrapper.h"
 #include "gc/GarbageCollector.h"
-// ==={{ AssemblyReloadDiag
-#include "gc/GCHandle.h"
-// ===}} AssemblyReloadDiag
 #include "metadata/GenericMethod.h"
 #include "metadata/Il2CppTypeCompare.h"
 #include "utils/StringUtils.h"
@@ -29,9 +26,6 @@
 #include "vm/String.h"
 #include "vm/Thread.h"
 #include "vm/Type.h"
-// ==={{ AssemblyReloadDiag
-#include "hybridclr/ReloadDiagLog.h"
-// ===}} AssemblyReloadDiag
 
 #if IL2CPP_GC_BOEHM
 #define ALLOC_PTRFREE(obj, vt, size) do { (obj) = (Il2CppObject*)GC_MALLOC_ATOMIC ((size)); (obj)->klass = (vt); (obj)->monitor = NULL;} while (0)
@@ -138,112 +132,11 @@ namespace vm
         return obj;
     }
 
-    // ==={{ AssemblyReloadDiag: allocation probe. Classes are registered by
-    // pointer (stable across reloads thanks to reuse) from InterpreterImage
-    // RegisterAllocProbeClasses. The per-allocation cost is a tiny pointer
-    // scan (<=16 entries). Purpose: verify whether Unity's deserializer ever
-    // ALLOCATES the VariableArray/Variable objects that back s_currVariable
-    // after a reload. If no allocation appears at window-creation time, the
-    // deserialization of that field is being skipped entirely on the Unity
-    // native side (not merely written with wrong data). ===
-    static Il2CppClass* s_allocProbeKlass[16];
-    static const char* s_allocProbeName[16];
-    static int s_allocProbeCount = 0;
-
-    void Object::ReloadDiagProbeClass(Il2CppClass *klass)
-    {
-        if (klass == NULL)
-            return;
-        for (int i = 0; i < s_allocProbeCount; i++)
-        {
-            if (s_allocProbeKlass[i] == klass)
-                return;
-        }
-        if (s_allocProbeCount < 16)
-        {
-            s_allocProbeKlass[s_allocProbeCount] = klass;
-            s_allocProbeName[s_allocProbeCount] = klass->name ? klass->name : "?";
-            s_allocProbeCount++;
-        }
-    }
-
-    static inline const char* ReloadDiagAllocProbeMatch(Il2CppClass* klass)
-    {
-        for (int i = 0; i < s_allocProbeCount; i++)
-        {
-            if (s_allocProbeKlass[i] == klass)
-                return s_allocProbeName[i];
-        }
-        return NULL;
-    }
-
-    // Ring buffer of the 2 most-recently-created EntranceWindow instances,
-    // each kept alive by a STRONG gchandle we own. At window-open the last two
-    // creations are the prefab ASSET component and the scene CLONE. Holding a
-    // strong gchandle guarantees the object is never GC'd, so the dump below
-    // can never dereference a dead pointer (an earlier raw-pointer version
-    // crashed when a tracked temporary was collected). Size 2 keeps only the
-    // asset + clone; older entries have their gchandle freed on eviction.
-    static const int kTrackedEWMax = 2;
-    static uint32_t s_trackedEWHandle[kTrackedEWMax];
-    static int s_trackedEWPos = 0;
-    static int s_trackedEWCount = 0;
-
-    static void ReloadDiagTrackEW(Il2CppObject* obj)
-    {
-        int slot = s_trackedEWPos % kTrackedEWMax;
-        if (s_trackedEWHandle[slot] != 0)
-            il2cpp::gc::GCHandle::Free(s_trackedEWHandle[slot]);
-        s_trackedEWHandle[slot] = il2cpp::gc::GCHandle::New(obj, false);
-        s_trackedEWPos++;
-        if (s_trackedEWCount < kTrackedEWMax)
-            s_trackedEWCount++;
-    }
-
-    void Object::ReloadDiagDumpTrackedEW()
-    {
-        for (int i = 0; i < s_trackedEWCount; i++)
-        {
-            if (s_trackedEWHandle[i] == 0)
-                continue;
-            Il2CppObject* o = il2cpp::gc::GCHandle::GetTarget(s_trackedEWHandle[i]);
-            if (o == NULL)
-            {
-                hybridclr::ReloadDiagLog("[ReloadDiag] TrackedEW[%d]: (target null)\n", i);
-                continue;
-            }
-            Il2CppClass* k = o->klass;
-            if (k == NULL || k->name == NULL || strcmp(k->name, "EntranceWindow") != 0)
-            {
-                hybridclr::ReloadDiagLog("[ReloadDiag] TrackedEW[%d]: obj=%p (klass invalid)\n", i, o);
-                continue;
-            }
-            void* scv = *(void**)((uint8_t*)o + 32); // UIVariableArray::s_currVariable @ offset 32
-            void* cvm = *(void**)((uint8_t*)o + 40); // UIVariableArray::_currVariableMap @ offset 40
-            hybridclr::ReloadDiagLog(
-                "[ReloadDiag] TrackedEW[%d]: obj=%p klass=%p s_currVariable(+32)=%p _currVariableMap(+40)=%p instance_size=%d\n",
-                i, o, (void*)k, scv, cvm, k->instance_size);
-        }
-    }
-    // ===}} AssemblyReloadDiag
-
     Il2CppObject* Object::Clone(Il2CppObject *obj)
     {
         Il2CppObject *o;
         int size;
         IL2CPP_NOT_IMPLEMENTED_NO_ASSERT(Object::Clone, "Finish implementation");
-
-        // ==={{ AssemblyReloadDiag: Object::Clone bypasses Object::New
-        // (Allocate + memcpy), so AllocProbe misses it. Log clones of
-        // probed classes to cover that path. ===
-        const char* probeName = ReloadDiagAllocProbeMatch(obj->klass);
-        if (probeName != NULL)
-        {
-            hybridclr::ReloadDiagLog(
-                "[ReloadDiag] AllocProbe: CLONE %s src=%p srcKlass=%p\n",
-                probeName, obj, (void*)obj->klass);
-        }
-        // ===}} AssemblyReloadDiag
 
         if (obj->klass->rank)
         {
@@ -368,24 +261,6 @@ namespace vm
 
     Il2CppObject* Object::New(Il2CppClass *klass)
     {
-        // ==={{ AssemblyReloadDiag
-        const char* probeName = ReloadDiagAllocProbeMatch(klass);
-        if (probeName != NULL)
-        {
-            Il2CppObject* probed = NewAllocSpecific(klass);
-            hybridclr::ReloadDiagLog(
-                "[ReloadDiag] AllocProbe: new %s obj=%p klass=%p image=%s\n",
-                probeName, probed, (void*)klass,
-                klass->image && klass->image->name ? klass->image->name : "?");
-            // Track EntranceWindow instances (kept alive via strong gchandle)
-            // so the interpreter's GetAttribBase probe can dump the ASSET
-            // instance's s_currVariable alongside the failing clone's, to tell
-            // whether the asset's field was ever populated.
-            if (strcmp(probeName, "EntranceWindow") == 0)
-                ReloadDiagTrackEW(probed);
-            return probed;
-        }
-        // ===}} AssemblyReloadDiag
         // same as NewAllocSpecific as we only support a single domain
         return NewAllocSpecific(klass);
     }
