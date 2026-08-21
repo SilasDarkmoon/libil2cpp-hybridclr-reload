@@ -538,21 +538,29 @@ int il2cpp_class_get_flags(const Il2CppClass *klass)
         // s_currVariable) is silently dropped from the serialization commands.
         // Verify by comparing klass->image against the image MonoManager has
         // (what il2cpp_domain_assembly_open returns) for the same assembly. ===
-        // Only check POST-reload (ReloadDiagEnabled), so the limited log
-        // slots capture the post-reload mismatch rather than being consumed
-        // by pre-reload calls (which always MATCH).
-        if (strcmp(klass->name, "VariableArray") == 0 && hybridclr::ReloadDiagEnabled())
+        // MonoManager's GetAssemblyIndexFromImage searches its m_ScriptImages
+        // cache, which was populated ONCE at startup (via il2cpp_domain_
+        // assembly_open) and is NOT refreshed on reload. So the correct
+        // baseline is the FIRST-LOAD image (= what MonoManager still holds),
+        // NOT a fresh il2cpp_domain_assembly_open (which returns the reloaded
+        // assembly's new image and would give a false MATCH=1). Capture the
+        // pre-reload klass->image as the baseline, compare post-reload.
+        if (strcmp(klass->name, "VariableArray") == 0)
         {
-            static int s_vaCheckCount = 0;
-            if (s_vaCheckCount < 8)
+            static const Il2CppImage* s_firstLoadImage = NULL;
+            if (s_firstLoadImage == NULL && !hybridclr::ReloadDiagEnabled())
+                s_firstLoadImage = klass->image; // pre-reload == MonoManager's cached image
+            if (hybridclr::ReloadDiagEnabled())
             {
-                s_vaCheckCount++;
-                const Il2CppAssembly* asmbl = il2cpp_domain_assembly_open(il2cpp_domain_get(), "Loxodon.Framework.dll");
-                const Il2CppImage* registeredImage = asmbl ? il2cpp_assembly_get_image(asmbl) : NULL;
-                hybridclr::ReloadDiagLog(
-                    "[ReloadDiag] ImageRegCheck: VariableArray klass->image=%p registered(domain_assembly_open)=%p MATCH=%d asmbl=%p\n",
-                    (void*)klass->image, (void*)registeredImage,
-                    klass->image == registeredImage ? 1 : 0, (void*)asmbl);
+                static int s_vaCheckCount = 0;
+                if (s_vaCheckCount < 8)
+                {
+                    s_vaCheckCount++;
+                    hybridclr::ReloadDiagLog(
+                        "[ReloadDiag] ImageRegCheck: VariableArray klass->image=%p monoManagerCache(firstLoad)=%p MATCH=%d\n",
+                        (void*)klass->image, (void*)s_firstLoadImage,
+                        klass->image == s_firstLoadImage ? 1 : 0);
+                }
             }
         }
         // ===}} AssemblyReloadDiag
