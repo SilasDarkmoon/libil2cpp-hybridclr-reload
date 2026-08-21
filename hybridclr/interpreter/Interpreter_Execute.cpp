@@ -5213,17 +5213,21 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 										FieldInfo* __f = __c->fields + __fi;
 										if (__f->type == NULL || (__f->type->attrs & 0x10)) // skip static
 											continue;
-										void* __val = *(void**)((uint8_t*)__thisObj + __f->offset);
-										hybridclr::ReloadDiagLog(
-											"[ReloadDiag]   field %s::%s offset=%d raw=%p\n",
-											__c->name ? __c->name : "?", __f->name ? __f->name : "?",
-											__f->offset, __val);
-									}
+									void* __val = *(void**)((uint8_t*)__thisObj + __f->offset);
+									hybridclr::ReloadDiagLog(
+										"[ReloadDiag]   field %s::%s offset=%d raw=%p\n",
+										__c->name ? __c->name : "?", __f->name ? __f->name : "?",
+										__f->offset, __val);
 								}
 							}
+							// Also dump the ASSET EntranceWindow instance's
+							// s_currVariable alongside this (clone) instance, to
+							// tell asset-deserialization failure from clone-copy failure.
+							il2cpp::vm::Object::ReloadDiagDumpTrackedEW();
 						}
 					}
-					// ===}} AssemblyReloadDiag
+				}
+				// ===}} AssemblyReloadDiag
 					CALL_INTERP_RET((ip + 16), __methodInfo, (StackObject*)(void*)(localVarBase + __argBase), (void*)(localVarBase + __ret));
 				    continue;
 				}

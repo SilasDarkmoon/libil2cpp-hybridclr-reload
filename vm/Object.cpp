@@ -173,6 +173,34 @@ namespace vm
         }
         return NULL;
     }
+
+    // Ring buffer of recently-created EntranceWindow instances (asset + clone),
+    // so the interpreter probe can compare their s_currVariable fields.
+    static const int kTrackedEWMax = 6;
+    static Il2CppObject* s_trackedEW[6];
+    static int s_trackedEWPos = 0;
+    static int s_trackedEWCount = 0;
+
+    void Object::ReloadDiagDumpTrackedEW()
+    {
+        for (int i = 0; i < s_trackedEWCount; i++)
+        {
+            Il2CppObject* o = s_trackedEW[i];
+            if (o == NULL)
+                continue;
+            Il2CppClass* k = o->klass;
+            if (k == NULL || k->name == NULL || strcmp(k->name, "EntranceWindow") != 0)
+            {
+                hybridclr::ReloadDiagLog("[ReloadDiag] TrackedEW[%d]: obj=%p (klass invalid/gc'd)\n", i, o);
+                continue;
+            }
+            void* scv = *(void**)((uint8_t*)o + 32); // UIVariableArray::s_currVariable @ offset 32
+            void* cvm = *(void**)((uint8_t*)o + 40); // UIVariableArray::_currVariableMap @ offset 40
+            hybridclr::ReloadDiagLog(
+                "[ReloadDiag] TrackedEW[%d]: obj=%p klass=%p s_currVariable(+32)=%p _currVariableMap(+40)=%p instance_size=%d\n",
+                i, o, (void*)k, scv, cvm, k->instance_size);
+        }
+    }
     // ===}} AssemblyReloadDiag
 
     Il2CppObject* Object::Clone(Il2CppObject *obj)
@@ -325,6 +353,17 @@ namespace vm
                 "[ReloadDiag] AllocProbe: new %s obj=%p klass=%p image=%s\n",
                 probeName, probed, (void*)klass,
                 klass->image && klass->image->name ? klass->image->name : "?");
+            // Track EntranceWindow instances (ring buffer) so the interpreter's
+            // GetAttribBase probe can dump the ASSET instance's s_currVariable
+            // alongside the failing clone's, to tell whether the asset's field
+            // was ever populated (asset-deserialization vs clone-copy failure).
+            if (strcmp(probeName, "EntranceWindow") == 0)
+            {
+                s_trackedEW[s_trackedEWPos % kTrackedEWMax] = probed;
+                s_trackedEWPos++;
+                if (s_trackedEWCount < kTrackedEWMax)
+                    s_trackedEWCount++;
+            }
             return probed;
         }
         // ===}} AssemblyReloadDiag

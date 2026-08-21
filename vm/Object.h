@@ -28,6 +28,9 @@ namespace vm
         // (reload NRE investigation: does Unity's deserializer ever create
         // the VariableArray/Variable objects behind s_currVariable?). ===
         static void ReloadDiagProbeClass(Il2CppClass *klass);
+        // Dump the s_currVariable field of all tracked EntranceWindow
+        // instances (asset + clone) to compare population state.
+        static void ReloadDiagDumpTrackedEW();
         // ===}} AssemblyReloadDiag
         static void* Unbox(Il2CppObject* obj);
         static void UnboxNullable(Il2CppObject* obj, Il2CppClass* nullableArgumentClass, void* storage);
