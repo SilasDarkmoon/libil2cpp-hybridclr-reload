@@ -5173,6 +5173,49 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					{
 						CHECK_NOT_NULL_THROW((localVarBase + __argBase)->obj);
 					}
+					// ==={{ AssemblyReloadDiag: dump 'this' at the entry of
+					// UIVariableArray.GetAttribBase, so we can see the failing
+					// UIVA instance's klass and s_currVariable field directly
+					// (the ldfld-based probe couldn't catch the read). ===
+					if (__methodInfo->name != NULL && strcmp(__methodInfo->name, "GetAttribBase") == 0
+						&& __methodInfo->klass != NULL && __methodInfo->klass->name != NULL
+						&& strcmp(__methodInfo->klass->name, "UIVariableArray") == 0)
+					{
+						Il2CppObject* __thisObj = (localVarBase + __argBase)->obj;
+						if (__thisObj != NULL)
+						{
+							static const Il2CppObject* s_gabDumped[16];
+							static int s_gabDumpedCount = 0;
+							bool seen = false;
+							for (int i = 0; i < s_gabDumpedCount; i++)
+							{
+								if (s_gabDumped[i] == __thisObj) { seen = true; break; }
+							}
+							if (!seen)
+							{
+								if (s_gabDumpedCount < 16)
+									s_gabDumped[s_gabDumpedCount++] = __thisObj;
+								Il2CppClass* __k = __thisObj->klass;
+								const uint8_t* __raw = (const uint8_t*)__thisObj;
+								hybridclr::ReloadDiagLog(
+									"[ReloadDiag] GetAttribBase-this: obj=%p klass=%p(%s) instance_size=%d size_inited=%d image=%s\n",
+									__thisObj, (void*)__k, __k && __k->name ? __k->name : "?",
+									__k ? __k->instance_size : -1, __k ? (__k->size_inited ? 1 : 0) : -1,
+									__k && __k->image && __k->image->name ? __k->image->name : "?");
+								if (__k != NULL)
+								{
+									for (int32_t __off = 16; __off < __k->instance_size && __off < 64; __off += 8)
+									{
+										hybridclr::ReloadDiagLog(
+											"[ReloadDiag]   gabThis +%02d: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+											__off, __raw[__off], __raw[__off+1], __raw[__off+2], __raw[__off+3],
+											__raw[__off+4], __raw[__off+5], __raw[__off+6], __raw[__off+7]);
+									}
+								}
+							}
+						}
+					}
+					// ===}} AssemblyReloadDiag
 					CALL_INTERP_RET((ip + 16), __methodInfo, (StackObject*)(void*)(localVarBase + __argBase), (void*)(localVarBase + __ret));
 				    continue;
 				}
