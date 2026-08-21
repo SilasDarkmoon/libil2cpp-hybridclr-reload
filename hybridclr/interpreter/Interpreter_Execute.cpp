@@ -5196,20 +5196,28 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 								if (s_gabDumpedCount < 16)
 									s_gabDumped[s_gabDumpedCount++] = __thisObj;
 								Il2CppClass* __k = __thisObj->klass;
-								const uint8_t* __raw = (const uint8_t*)__thisObj;
 								hybridclr::ReloadDiagLog(
 									"[ReloadDiag] GetAttribBase-this: obj=%p klass=%p(%s) instance_size=%d size_inited=%d image=%s\n",
 									__thisObj, (void*)__k, __k && __k->name ? __k->name : "?",
 									__k ? __k->instance_size : -1, __k ? (__k->size_inited ? 1 : 0) : -1,
 									__k && __k->image && __k->image->name ? __k->image->name : "?");
-								if (__k != NULL)
+								// Dump each instance field by name (walk the parent
+								// chain) with its raw value, so we can see WHICH
+								// serialized fields got populated and which are null.
+								for (Il2CppClass* __c = __k; __c != NULL; __c = __c->parent)
 								{
-									for (int32_t __off = 16; __off < __k->instance_size && __off < 64; __off += 8)
+									if (__c->fields == NULL || __c->field_count == 0)
+										continue;
+									for (uint16_t __fi = 0; __fi < __c->field_count; __fi++)
 									{
+										FieldInfo* __f = __c->fields + __fi;
+										if (__f->type == NULL || (__f->type->attrs & 0x10)) // skip static
+											continue;
+										void* __val = *(void**)((uint8_t*)__thisObj + __f->offset);
 										hybridclr::ReloadDiagLog(
-											"[ReloadDiag]   gabThis +%02d: %02x %02x %02x %02x %02x %02x %02x %02x\n",
-											__off, __raw[__off], __raw[__off+1], __raw[__off+2], __raw[__off+3],
-											__raw[__off+4], __raw[__off+5], __raw[__off+6], __raw[__off+7]);
+											"[ReloadDiag]   field %s::%s offset=%d raw=%p\n",
+											__c->name ? __c->name : "?", __f->name ? __f->name : "?",
+											__f->offset, __val);
 									}
 								}
 							}
