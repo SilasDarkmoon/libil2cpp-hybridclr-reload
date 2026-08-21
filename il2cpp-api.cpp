@@ -538,7 +538,10 @@ int il2cpp_class_get_flags(const Il2CppClass *klass)
         // s_currVariable) is silently dropped from the serialization commands.
         // Verify by comparing klass->image against the image MonoManager has
         // (what il2cpp_domain_assembly_open returns) for the same assembly. ===
-        if (strcmp(klass->name, "VariableArray") == 0)
+        // Only check POST-reload (ReloadDiagEnabled), so the limited log
+        // slots capture the post-reload mismatch rather than being consumed
+        // by pre-reload calls (which always MATCH).
+        if (strcmp(klass->name, "VariableArray") == 0 && hybridclr::ReloadDiagEnabled())
         {
             static int s_vaCheckCount = 0;
             if (s_vaCheckCount < 8)
