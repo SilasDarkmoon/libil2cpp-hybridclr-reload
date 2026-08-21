@@ -528,10 +528,7 @@ int il2cpp_class_get_flags(const Il2CppClass *klass)
                 (flags & 0x2000) ? 1 : 0, (void*)klass->image,
                 klass->image && klass->image->name ? klass->image->name : "?");
         }
-    }
-    // ===}} AssemblyReloadDiag
-    return flags;
-}
+        // ==={{ AssemblyReloadDiag: ROOT-CAUSE CHECK. Unity's\n        // CanTransferTypeAsNestedObject rejects a nested managed-object field\n        // when GetAssemblyIndexFromImage(fieldType->image) == -1. MonoManager\n        // looks the image up BY POINTER in m_ScriptImages, which was populated\n        // ONCE at startup via il2cpp_domain_assembly_open. After a HybridCLR\n        // reload the klass->image is a NEW Il2CppImage pointer that is NOT in\n        // m_ScriptImages, so the lookup returns -1 and the field (e.g.\n        // s_currVariable) is silently dropped from the serialization commands.\n        // Verify by comparing klass->image against the image MonoManager has\n        // (what il2cpp_domain_assembly_open returns) for the same assembly. ===\n        if (strcmp(klass->name, \"VariableArray\") == 0)\n        {\n            static int s_vaCheckCount = 0;\n            if (s_vaCheckCount < 8)\n            {\n                s_vaCheckCount++;\n                const Il2CppAssembly* asmbl = il2cpp_domain_assembly_open(il2cpp_domain_get(), \"Loxodon.Framework.dll\");\n                const Il2CppImage* registeredImage = asmbl ? il2cpp_assembly_get_image(asmbl) : NULL;\n                hybridclr::ReloadDiagLog(\n                    \"[ReloadDiag] ImageRegCheck: VariableArray klass->image=%p registered(domain_assembly_open)=%p MATCH=%d asmbl=%p\\n\",\n                    (void*)klass->image, (void*)registeredImage,\n                    klass->image == registeredImage ? 1 : 0, (void*)asmbl);\n            }\n        }\n        // ===}} AssemblyReloadDiag\n    }\n    // ===}} AssemblyReloadDiag\n    return flags;\n}
 
 bool il2cpp_class_is_abstract(const Il2CppClass *klass)
 {
