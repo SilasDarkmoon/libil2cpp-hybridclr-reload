@@ -503,7 +503,34 @@ int32_t il2cpp_class_value_size(Il2CppClass *klass, uint32_t *align)
 
 int il2cpp_class_get_flags(const Il2CppClass *klass)
 {
-    return Class::GetFlags(klass);
+    int flags = Class::GetFlags(klass);
+    // ==={{ AssemblyReloadDiag: Unity's CanTransferTypeAsNestedObject gates
+    // nested managed-object fields (like s_currVariable) on
+    // TYPE_ATTRIBUTE_SERIALIZABLE (0x2000) and on the field type's image
+    // being registered in MonoManager. Log what these checks see for the
+    // probed classes after the reload. ===
+    if (klass != NULL && klass->name != NULL && ReloadDiagIsProbedClassName(klass->name))
+    {
+        static const Il2CppClass* s_flagsSeen[32];
+        static int s_flagsSeenCount = 0;
+        bool seen = false;
+        for (int i = 0; i < s_flagsSeenCount; i++)
+        {
+            if (s_flagsSeen[i] == klass) { seen = true; break; }
+        }
+        if (!seen)
+        {
+            if (s_flagsSeenCount < 32)
+                s_flagsSeen[s_flagsSeenCount++] = klass;
+            hybridclr::ReloadDiagLog(
+                "[ReloadDiag] class_get_flags: %s.%s klass=%p flags=0x%x SERIALIZABLE=%d image=%p(%s)\n",
+                klass->namespaze ? klass->namespaze : "", klass->name, (void*)klass, flags,
+                (flags & 0x2000) ? 1 : 0, (void*)klass->image,
+                klass->image && klass->image->name ? klass->image->name : "?");
+        }
+    }
+    // ===}} AssemblyReloadDiag
+    return flags;
 }
 
 bool il2cpp_class_is_abstract(const Il2CppClass *klass)
