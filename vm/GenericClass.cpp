@@ -17,7 +17,6 @@
 #include "vm/Type.h"
 #include "hybridclr/metadata/MetadataUtil.h"
 #include "hybridclr/metadata/MetadataModule.h"
-#include "hybridclr/ReloadDiagLog.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-runtime-metadata.h"
 #include "il2cpp-runtime-stats.h"
@@ -216,13 +215,7 @@ namespace vm
                 }
             }
         }
-        if (fixedCount > 0)
-        {
-            hybridclr::ReloadDiagLog(
-                "[ReloadDiag] RepairStaleGenericInstance: klass=%p(%s.%s) gclass=%p fixed=%d\n",
-                (void*)klass, klass->namespaze ? klass->namespaze : "", klass->name ? klass->name : "?",
-                (void*)gclass, (int)fixedCount);
-        }
+        (void)fixedCount;
     }
 
     // After an assembly reload, a generic instance's context.class_inst may
@@ -530,38 +523,6 @@ namespace vm
             il2cpp::os::Atomic::ExchangePointer(&gclass->cached_class, cacheGclass->cached_class);
             return gclass->cached_class;
         }
-        // ==={{ AssemblyReloadDiag
-        // Cache miss -> a NEW generic instance class will be created. If any
-        // generic argument is a stale (old-image) Il2CppType of a reloaded
-        // interpreter type, this creates a duplicate class whose inflated
-        // method parameters keep the stale typeHandle -> Type == Type fails.
-        bool reloadDiagEntered = hybridclr::ReloadDiagEnabled() && hybridclr::ReloadDiagTryEnter();
-        if (reloadDiagEntered && !gclass->cached_class && gclass->context.class_inst)
-        {
-            const Il2CppGenericInst* inst = gclass->context.class_inst;
-            for (uint32_t ai = 0; ai < inst->type_argc; ++ai)
-            {
-                const Il2CppType* at = inst->type_argv[ai];
-                if (at == NULL || at->byref || (at->type != IL2CPP_TYPE_VALUETYPE && at->type != IL2CPP_TYPE_CLASS))
-                    continue;
-                Il2CppClass* ak = MetadataCache::GetTypeInfoFromType(at);
-                if (ak == NULL || ak->name == NULL)
-                    continue;
-                if (strstr(ak->name, "Backpack") == NULL && strstr(ak->name, "HomeWindow") == NULL)
-                    continue;
-                Il2CppClass* defKlass = GetTypeDefinition(gclass);
-                hybridclr::ReloadDiagLog(
-                    "[ReloadDiag] GenericClassCacheMiss: def=%s.%s gclass=%p argv%u il2cppType=%p typeHandle=%p argKlass=%s.%s %p argKlassByval=%p argKlassByvalHandle=%p isByvalOfKlass=%d\n",
-                    defKlass && defKlass->namespaze ? defKlass->namespaze : "", defKlass ? defKlass->name : "?",
-                    (void*)gclass, ai, (const void*)at, (void*)at->data.typeHandle,
-                    ak->namespaze ? ak->namespaze : "", ak->name, (void*)ak,
-                    (void*)&ak->byval_arg, (void*)ak->byval_arg.data.typeHandle,
-                    at == &ak->byval_arg ? 1 : 0);
-            }
-        }
-        if (reloadDiagEntered)
-            hybridclr::ReloadDiagLeave();
-        // ===}} AssemblyReloadDiag
         if (!gclass->cached_class)
         {
             // Il2CppClass uses a fixed-length layout (IL2CPP_MAX_VTABLE_SLOT_COUNT inline vtable slots) for types

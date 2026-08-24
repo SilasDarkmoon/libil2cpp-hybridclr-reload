@@ -20,7 +20,6 @@
 #include "vm/Reflection.h"
 #include "vm/Class.h"
 #include "vm/GenericClass.h"
-#include "../ReloadDiagLog.h"
 #include "os/Atomic.h"
 #include "os/Directory.h"
 #include "os/Environment.h"
@@ -2252,22 +2251,6 @@ namespace metadata
 	//IL2CPP_ASSERT(methodDef);
 
 	uint32_t typeDefIndex = GetTypeRawIndex(typeDef);
-	// ==={{ AssemblyReloadDiag: detect a stale typeDef (pointing into a
-	// DIFFERENT InterpreterImage's _typesDefines than `this`). Log it and
-	// return null instead of crashing on the out-of-range vtable access, so
-	// we can see the FULL set of stale classes rather than dying on the first. ===
-	if (typeDef < &_typesDefines[0] || typeDef >= &_typesDefines[0] + _typesDefines.size())
-	{
-		hybridclr::ReloadDiagLog(
-			"[ReloadDiag] VTableSlot-STALE: klass=%p(%s) klassImage=%p(%s) typeDef=%p encodesImageIdx=%d thisImage=%p(index=%d) typesDefines=[%p,+%d) typeDefIndex=%u vTableSlot=%d\n",
-			(void*)klass, klass->name ? klass->name : "?",
-			(void*)klass->image, klass->image && klass->image->name ? klass->image->name : "?",
-			(void*)typeDef, (int)hybridclr::metadata::DecodeImageIndex(typeDef->byvalTypeIndex),
-			(void*)this, _index, (void*)&_typesDefines[0], (int)_typesDefines.size(),
-			typeDefIndex, (int)vTableSlot);
-		return nullptr;
-	}
-	// ===}} AssemblyReloadDiag
 	IL2CPP_ASSERT(typeDefIndex < (uint32_t)_typeDetails.size());
 	TypeDefinitionDetail& td = _typeDetails[typeDefIndex];
 
@@ -2836,19 +2819,14 @@ namespace metadata
 					break;
 				}
 			}
-			if (!isUnitySerialized)
-				continue;
-			il2cpp::vm::Class::Init(klass);
-			prewarmed++;
-		}
-		if (prewarmed > 0)
-		{
-			hybridclr::ReloadDiagLog(
-				"[ReloadDiag] PrewarmUnitySerializedClasses: image=%s prewarmed=%d total=%d\n",
-				_il2cppImage && _il2cppImage->name ? _il2cppImage->name : "?", (int)prewarmed, (int)_classList.size());
-		}
+		if (!isUnitySerialized)
+			continue;
+		il2cpp::vm::Class::Init(klass);
+		prewarmed++;
 	}
-	// ===}} AssemblyReloadReuse
+	(void)prewarmed;
+}
+// ===}} AssemblyReloadReuse
 
 	void InterpreterImage::RestoreReusedClasses()
 	{
@@ -2941,22 +2919,13 @@ namespace metadata
 					}
 				}
 #endif
-			if (!expanded)
-			{
-				// ==={{ AssemblyReloadDiag
-				if (nm && (strstr(nm, "Backpack") != NULL || strstr(nm, "HomeWindow") != NULL))
-				{
-				ReloadDiagLog(
-					"[ReloadDiag] InterpClassReuseRejected: %s klass=%p newVtableCount=%u allocated=%u interpImage=%p\n",
-						fullName.c_str(), (void*)klass, (unsigned)newVtableCount,
-						(unsigned)klass->vtable_allocated_count, (void*)this);
-				}
-				// ===}} AssemblyReloadDiag
-				// Cannot reuse this class.
-				_reuseClassMap.erase(it);
-				continue;
-			}
-			}
+		if (!expanded)
+		{
+			// Cannot reuse this class.
+			_reuseClassMap.erase(it);
+			continue;
+		}
+		}
 
 			// --- Update external pointers to new image/assembly ---
 			klass->image = _il2cppImage;
@@ -3029,15 +2998,6 @@ namespace metadata
 // --- Store in _classList so GetTypeInfoFromTypeDefinitionRawIndex returns it ---
 _classList[i] = klass;
 
-// ==={{ AssemblyReloadDiag
-	if (nm && (strstr(nm, "Backpack") != NULL || strstr(nm, "HomeWindow") != NULL))
-		{
-				ReloadDiagLog(
-					"[ReloadDiag] InterpClassReused: %s klass=%p interpImage=%p il2cppImage=%p(%s) rawIndex=%u\n",
-				fullName.c_str(), (void*)klass, (void*)this, (void*)_il2cppImage,
-				_il2cppImage ? _il2cppImage->name : "?", (unsigned)i);
-		}
-		// ===}} AssemblyReloadDiag
 
 		// Remove from the reuse map (already reused).
 		_reuseClassMap.erase(it);

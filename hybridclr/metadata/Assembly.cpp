@@ -280,8 +280,6 @@ namespace metadata
 			// From now on, normalize stale type_argv at generic member
 			// inflation / cache lookup time (see GenericClass.cpp).
 			il2cpp::vm::GenericClass::EnableReloadArgvNormalization();
-			ReloadDiagLog("[ReloadDiag] DiagEnabled after restore: il2cppImage=%p(%s)\n",
-				(void*)ass->image, ass->image ? ass->image->name : "?");
 			// ===}} AssemblyReloadDiag
 		}
 		il2cpp::vm::GenericClass::EndReloadRestore();

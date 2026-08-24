@@ -27,7 +27,6 @@
 #include "utils/Il2CppHashMap.h"
 #include "utils/StringUtils.h"
 #include "utils/HashUtils.h"
-#include "hybridclr/ReloadDiagLog.h"
 #include "gc/AppendOnlyGCHashMap.h"
 
 #include <string.h>
@@ -286,26 +285,6 @@ namespace vm
 
         typeObject->type = type;
 
-        // ==={{ AssemblyReloadDiag
-        // Type == Type in managed code is reference equality on the cached
-        // Il2CppReflectionType. s_TypeMap is keyed by Il2CppType* but compared
-        // by content (typeHandle for CLASS/VALUETYPE). A second creation for
-        // the same class means two Il2CppType keys were NOT content-equal
-        // (e.g. stale typeHandle) -> Type == Type fails in CreateDelegate.
-        if (type != NULL && !type->byref && (type->type == IL2CPP_TYPE_VALUETYPE || type->type == IL2CPP_TYPE_CLASS))
-        {
-            Il2CppClass* k = Class::FromIl2CppType(type);
-            if (k != NULL && k->name != NULL && (strstr(k->name, "Backpack") != NULL || strstr(k->name, "HomeWindow") != NULL))
-            {
-                hybridclr::ReloadDiagLog(
-                    "[ReloadDiag] TypeObjectCreated: %s.%s keyType=%p typeHandle=%p klass=%p klassByval=%p image=%p(%s) runtimeType=%p\n",
-                    k->namespaze ? k->namespaze : "", k->name, (const void*)type, (void*)type->data.typeHandle,
-                    (void*)k, (void*)&k->byval_arg, (void*)k->image, k->image ? k->image->name : "?",
-                    (void*)typeObject);
-            }
-        }
-        // ===}} AssemblyReloadDiag
-
         return s_TypeMap->GetOrAdd(type, typeObject);
     }
 
@@ -398,61 +377,6 @@ namespace vm
 
             il2cpp_array_setref(res, i, param);
         }
-
-        // ==={{ AssemblyReloadDiag
-        // The failing Delegate.CreateDelegate check compares
-        //   method.GetParameters()[i].ParameterType == delegateInvoke.GetParameters()[i].ParameterType
-        // which is reference equality on the cached Il2CppReflectionType.
-        // Dump both sides' parameter Il2CppType*/typeHandle so we can see
-        // which side still holds a stale (old-image) type table entry.
-        bool reloadDiagEntered = hybridclr::ReloadDiagEnabled() && hybridclr::ReloadDiagTryEnter();
-        if (reloadDiagEntered && method->name != NULL
-            && (strcmp(method->name, "OnClickBackPackBtn") == 0
-                || (strcmp(method->name, "Invoke") == 0 && method->klass != NULL && method->klass->name != NULL && strstr(method->klass->name, "Action") != NULL)))
-        {
-            // Dump the generic instance identity: klass/gclass/class_inst and
-            // the CURRENT type_argv content. Comparing klass with the
-            // pre-reload delegate klass tells whether a duplicate generic
-            // instance class was created (cache miss from stale type_argv).
-            Il2CppClass* methodKlass = method->klass;
-            Il2CppGenericClass* gclass = methodKlass ? methodKlass->generic_class : NULL;
-            const Il2CppGenericInst* classInst = gclass ? gclass->context.class_inst : NULL;
-            hybridclr::ReloadDiagLog(
-                "[ReloadDiag] GetParamObjectsHdr: %s.%s method=%p klass=%p gclass=%p class_inst=%p\n",
-                methodKlass && methodKlass->name ? methodKlass->name : "?", method->name,
-                (const void*)method, (void*)methodKlass, (void*)gclass, (const void*)classInst);
-            if (classInst != NULL)
-            {
-                for (uint32_t ai = 0; ai < classInst->type_argc; ++ai)
-                {
-                    const Il2CppType* at = classInst->type_argv[ai];
-                    Il2CppClass* ak = (at != NULL && !at->byref && (at->type == IL2CPP_TYPE_VALUETYPE || at->type == IL2CPP_TYPE_CLASS))
-                        ? Class::FromIl2CppType(at) : NULL;
-                    hybridclr::ReloadDiagLog(
-                        "[ReloadDiag] GetParamObjectsArgv: %s.%s argv%u il2cppType=%p typeHandle=%p argKlass=%s.%s %p isByvalOfKlass=%d\n",
-                        methodKlass && methodKlass->name ? methodKlass->name : "?", method->name, ai,
-                        (const void*)at, ak != NULL ? (void*)at->data.typeHandle : NULL,
-                        ak && ak->namespaze ? ak->namespaze : "", ak ? ak->name : "?", (void*)ak,
-                        (ak != NULL && at == &ak->byval_arg) ? 1 : 0);
-                }
-            }
-            for (int i = 0; i < method->parameters_count; ++i)
-            {
-                const Il2CppType* pt = method->parameters[i];
-                Il2CppClass* pk = (pt != NULL && !pt->byref && (pt->type == IL2CPP_TYPE_VALUETYPE || pt->type == IL2CPP_TYPE_CLASS))
-                    ? Class::FromIl2CppType(pt) : NULL;
-                hybridclr::ReloadDiagLog(
-                    "[ReloadDiag] GetParamObjects: %s.%s method=%p param%d il2cppType=%p typeHandle=%p paramKlass=%s.%s %p isByvalOfKlass=%d\n",
-                    method->klass && method->klass->name ? method->klass->name : "?", method->name,
-                    (const void*)method, i, (const void*)pt,
-                    pk != NULL ? (void*)pt->data.typeHandle : NULL,
-                    pk && pk->namespaze ? pk->namespaze : "", pk ? pk->name : "?", (void*)pk,
-                    (pk != NULL && pt == &pk->byval_arg) ? 1 : 0);
-            }
-        }
-        if (reloadDiagEntered)
-            hybridclr::ReloadDiagLeave();
-        // ===}} AssemblyReloadDiag
 
         return s_ParametersMap->GetOrAdd(key, res);
     }

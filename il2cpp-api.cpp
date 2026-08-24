@@ -43,11 +43,6 @@
 #include "gc/GCHandle.h"
 #include "gc/WriteBarrierValidation.h"
 
-// ==={{ AssemblyReloadDiag
-#include "hybridclr/ReloadDiagLog.h"
-#include <string.h>
-// ===}} AssemblyReloadDiag
-
 #include <locale.h>
 #include <fstream>
 #include <string>
@@ -386,37 +381,7 @@ int32_t il2cpp_class_value_size(Il2CppClass *klass, uint32_t *align)
 
 int il2cpp_class_get_flags(const Il2CppClass *klass)
 {
-    int flags = Class::GetFlags(klass);
-    // ==={{ AssemblyReloadDiag: verifies the reload-image-pointer-reuse fix.
-    // Unity's CanTransferTypeAsNestedObject drops a nested managed-object
-    // field (e.g. UIVariableArray.s_currVariable) when
-    // GetAssemblyIndexFromImage(fieldType->image) == -1. MonoManager looks the
-    // image up BY POINTER in m_ScriptImages, populated ONCE at startup via
-    // il2cpp_domain_assembly_open and never refreshed on reload. The fix makes
-    // the reload REUSE the old Il2CppImage pointer, so klass->image keeps
-    // matching MonoManager's cache. Baseline = pre-reload klass->image (==
-    // MonoManager's cached image); after the fix MATCH must stay 1 post-reload
-    // (before the fix it was 0). ===
-    if (klass != NULL && klass->name != NULL && strcmp(klass->name, "VariableArray") == 0)
-    {
-        static const Il2CppImage* s_firstLoadImage = NULL;
-        if (s_firstLoadImage == NULL && !hybridclr::ReloadDiagEnabled())
-            s_firstLoadImage = klass->image; // pre-reload == MonoManager's cached image
-        if (hybridclr::ReloadDiagEnabled())
-        {
-            static int s_vaCheckCount = 0;
-            if (s_vaCheckCount < 8)
-            {
-                s_vaCheckCount++;
-                hybridclr::ReloadDiagLog(
-                    "[ReloadDiag] ImageRegCheck: VariableArray klass->image=%p monoManagerCache(firstLoad)=%p MATCH=%d\n",
-                    (void*)klass->image, (void*)s_firstLoadImage,
-                    klass->image == s_firstLoadImage ? 1 : 0);
-            }
-        }
-    }
-    // ===}} AssemblyReloadDiag
-    return flags;
+    return Class::GetFlags(klass);
 }
 
 bool il2cpp_class_is_abstract(const Il2CppClass *klass)
