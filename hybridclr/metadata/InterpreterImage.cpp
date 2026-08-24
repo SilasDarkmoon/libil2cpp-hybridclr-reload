@@ -2241,15 +2241,31 @@ namespace metadata
 
 	const MethodInfo* InterpreterImage::GetMethodInfoFromVTableSlot(const Il2CppClass* klass, int32_t vTableSlot)
 	{
-		IL2CPP_ASSERT(!klass->generic_class);
-		const Il2CppTypeDefinition* typeDef = (Il2CppTypeDefinition*)klass->typeMetadataHandle;
-		//const Il2CppMethodDefinition* methodDef = GetMethodDefinitionFromVTableSlot((Il2CppTypeDefinition*)klass->typeMetadataHandle, vTableSlot);
-		// FIX ME. why return null?
-		//IL2CPP_ASSERT(methodDef);
+	IL2CPP_ASSERT(!klass->generic_class);
+	const Il2CppTypeDefinition* typeDef = (Il2CppTypeDefinition*)klass->typeMetadataHandle;
+	//const Il2CppMethodDefinition* methodDef = GetMethodDefinitionFromVTableSlot((Il2CppTypeDefinition*)klass->typeMetadataHandle, vTableSlot);
+	// FIX ME. why return null?
+	//IL2CPP_ASSERT(methodDef);
 
-		uint32_t typeDefIndex = GetTypeRawIndex(typeDef);
-		IL2CPP_ASSERT(typeDefIndex < (uint32_t)_typeDetails.size());
-		TypeDefinitionDetail& td = _typeDetails[typeDefIndex];
+	uint32_t typeDefIndex = GetTypeRawIndex(typeDef);
+	// ==={{ AssemblyReloadDiag: detect a stale typeDef (pointing into a
+	// DIFFERENT InterpreterImage's _typesDefines than `this`). Log it and
+	// return null instead of crashing on the out-of-range vtable access, so
+	// we can see the FULL set of stale classes rather than dying on the first. ===
+	if (typeDef < &_typesDefines[0] || typeDef >= &_typesDefines[0] + _typesDefines.size())
+	{
+		hybridclr::ReloadDiagLog(
+			"[ReloadDiag] VTableSlot-STALE: klass=%p(%s) klassImage=%p(%s) typeDef=%p encodesImageIdx=%d thisImage=%p(index=%d) typesDefines=[%p,+%d) typeDefIndex=%u vTableSlot=%d\n",
+			(void*)klass, klass->name ? klass->name : "?",
+			(void*)klass->image, klass->image && klass->image->name ? klass->image->name : "?",
+			(void*)typeDef, (int)hybridclr::metadata::DecodeImageIndex(typeDef->byvalTypeIndex),
+			(void*)this, _index, (void*)&_typesDefines[0], (int)_typesDefines.size(),
+			typeDefIndex, (int)vTableSlot);
+		return nullptr;
+	}
+	// ===}} AssemblyReloadDiag
+	IL2CPP_ASSERT(typeDefIndex < (uint32_t)_typeDetails.size());
+	TypeDefinitionDetail& td = _typeDetails[typeDefIndex];
 
 		IL2CPP_ASSERT(vTableSlot >= 0 && vTableSlot < (int32_t)td.vtableCount);
 		VirtualMethodImpl& vmi = td.vtable[vTableSlot];

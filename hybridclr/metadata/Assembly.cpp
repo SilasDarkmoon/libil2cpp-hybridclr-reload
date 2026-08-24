@@ -189,13 +189,30 @@ namespace metadata
                 // 非占位程序集也可能重复加载，逆序查找最近注册的同名解释器程序集
                 oldAss = il2cpp::vm::MetadataCache::GetInterpreterAssemblyByName(nameNoExt);
             }
-            // 注意：曾尝试"复用旧 Il2CppImage 指针"修复 MonoManager image 注册
-            // （GetAssemblyIndexFromImage=-1 导致嵌套 managed 字段被剔除的 NRE），
-            // 但泛型还原（RestoreCachedGenericClasses / RehashGenericClassSet）依赖
-            // "新旧 image 是不同指针"来归一化陈旧元数据，复用后新旧同指针导致泛型
-            // 实例 typeMetadataHandle 停留在旧元数据而越界崩溃，故回退为新建。
-            ass = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppAssembly))) Il2CppAssembly;
-            image2 = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppImage))) Il2CppImage;
+            if (oldAss != nullptr)
+            {
+                // ==={{ AssemblyReloadReuse
+                // 重新加载同名程序集：复用旧的 Il2CppAssembly/Il2CppImage 指针，而非新建。
+                // Unity MonoManager 的 m_ScriptImages 在启动时经 il2cpp_domain_assembly_open
+                // 按 image 指针注册一次、重载不刷新；若新建 image，复用类的 klass->image 会
+                // 变成 MonoManager 未知的新指针，使 GetAssemblyIndexFromImage 返回 -1，导致
+                // 嵌套 managed 对象字段（如 UIVariableArray.s_currVariable）被序列化指令
+                // 静默剔除（reload NRE 根因）。复用旧指针可让 MonoManager 注册保持有效。
+                // 注意：配套地，泛型还原的"新旧判定"必须改为按 InterpreterImage 区分
+                // （新旧元数据在不同的 InterpreterImage 对象里，尽管共享 image2 指针）。
+                ass = oldAss;
+                image2 = oldAss->image;
+                // image2->name 是首次加载时 ConcatNewString 分配的，可安全释放；
+                // image2->nameNoExt 指向旧 raw image 的字符串堆（非独立分配），不可释放，
+                // 直接由下方重新赋值覆盖即可。
+                HYBRIDCLR_FREE((void*)image2->name);
+                // ===}} AssemblyReloadReuse
+            }
+            else
+            {
+                ass = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppAssembly))) Il2CppAssembly;
+                image2 = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppImage))) Il2CppImage;
+            }
         }
 
 		image->InitBasic(image2);
