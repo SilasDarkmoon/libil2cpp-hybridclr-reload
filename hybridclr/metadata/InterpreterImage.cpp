@@ -142,12 +142,16 @@ namespace metadata
 		image2->metadataHandle = reinterpret_cast<Il2CppMetadataImageHandle>(metadataImage);
 #endif
 
-		image2->nameToClassHashTable = nullptr;
-		image2->codeGenModule = nullptr;
+	image2->nameToClassHashTable = nullptr;
+	image2->codeGenModule = nullptr;
 
-		image2->token = EncodeWithIndex(0); // TODO
-		image2->dynamic = 0;
-	}
+	// ==={{ AssemblyReloadReuse: image2->token is NOT set here. When reusing
+	// the old image pointer, GetImage(image2) routes by image2->token; flipping
+	// it to the new index here would make the collect phase (CollectReusable-
+	// Objects) route to the NEW image instead of the old one. Assembly::Create
+	// sets image2->token = new index only AFTER the collect phase completes. ===
+	image2->dynamic = 0;
+}
 
 	void InterpreterImage::InitRuntimeMetadatas()
 	{

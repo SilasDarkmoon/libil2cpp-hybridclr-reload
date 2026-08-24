@@ -251,9 +251,19 @@ namespace metadata
 				}
 			}
 		}
-		// ===}} AssemblyReloadReuse
+	// ===}} AssemblyReloadReuse
 
-		image->InitRuntimeMetadatas();
+	// ==={{ AssemblyReloadReuse: now that the collect phase is done, flip
+	// image2->token to the NEW image index. During the collect phase above,
+	// image2->token still held the OLD index, so GetImage(image2) routed to
+	// the OLD InterpreterImage (correct for reading old metadata). From here
+	// on (InitRuntimeMetadatas / RestoreReusedClasses / runtime), it must
+	// route to the NEW InterpreterImage. (For first load there is no collect
+	// phase; this simply sets the token before any metadata access.) ===
+	image2->token = image->EncodeWithIndex(0);
+	// ===}} AssemblyReloadReuse
+
+	image->InitRuntimeMetadatas();
 
 		// ==={{ AssemblyReloadReuse
 		// After InitRuntimeMetadatas, restore reused Il2CppClass objects:
