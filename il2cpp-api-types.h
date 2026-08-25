@@ -19,6 +19,10 @@ typedef struct Il2CppArray Il2CppArray;
 typedef struct Il2CppDelegate Il2CppDelegate;
 typedef struct Il2CppDomain Il2CppDomain;
 typedef struct Il2CppImage Il2CppImage;
+// API 边界 Adapter（实验）：il2cpp-api-functions.h 中 image 相关 API 实际收发的是
+// Il2CppImageAdapter*（地址稳定的包装，内部指向真实 Il2CppImage）。对 Unity 而言
+// 同为 opaque 指针，ABI 不变。定义见 il2cpp-api-adapters.h。
+typedef struct Il2CppImageAdapter Il2CppImageAdapter;
 typedef struct Il2CppException Il2CppException;
 typedef struct Il2CppProfiler Il2CppProfiler;
 typedef struct Il2CppObject Il2CppObject;

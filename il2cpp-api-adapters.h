@@ -107,12 +107,14 @@ namespace api
     };
 
     // ---- Il2CppImage 边界接口（供 il2cpp-api.cpp / il2cpp-mono-api.cpp 使用）----
+    // 与 il2cpp-api-functions.h 中 image 相关 API 的声明类型保持一致
+    // （const Il2CppImageAdapter*），消除 reinterpret_cast 伪装。
 
-    // 出方向：真实 image -> adapter，以 API 声明类型（const Il2CppImage*）返回。
-    const Il2CppImage* WrapImage(const Il2CppImage* real);
+    // 出方向：真实 image -> adapter，find-or-create。
+    const Il2CppImageAdapter* WrapImage(const Il2CppImage* real);
 
-    // 入方向：边界传回的 "image"（实为 adapter）-> 真实 image。
-    const Il2CppImage* UnwrapImage(const Il2CppImage* adapterLike);
+    // 入方向：边界传回的 adapter -> 当前真实 image。
+    const Il2CppImage* UnwrapImage(const Il2CppImageAdapter* adapter);
 
     // 热重载归并：oldReal/newReal 共用 adapter，adapter 当前 real 切到 newReal。
     void RemapImageReal(const Il2CppImage* oldReal, const Il2CppImage* newReal);

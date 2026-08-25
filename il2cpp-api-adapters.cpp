@@ -13,14 +13,14 @@ namespace api
         return s_ImageAdapterMap;
     }
 
-    const Il2CppImage* WrapImage(const Il2CppImage* real)
+    const Il2CppImageAdapter* WrapImage(const Il2CppImage* real)
     {
-        return reinterpret_cast<const Il2CppImage*>(GetImageAdapterMap().Wrap(real));
+        return GetImageAdapterMap().Wrap(real);
     }
 
-    const Il2CppImage* UnwrapImage(const Il2CppImage* adapterLike)
+    const Il2CppImage* UnwrapImage(const Il2CppImageAdapter* adapter)
     {
-        return ImageAdapterMap::Unwrap(reinterpret_cast<const Il2CppImageAdapter*>(adapterLike));
+        return ImageAdapterMap::Unwrap(adapter);
     }
 
     void RemapImageReal(const Il2CppImage* oldReal, const Il2CppImage* newReal)

@@ -160,7 +160,7 @@ size_t il2cpp_memory_pool_get_region_size()
     return il2cpp::utils::MemoryPool::GetRegionSize();
 }
 
-const Il2CppImage* il2cpp_get_corlib()
+const Il2CppImageAdapter* il2cpp_get_corlib()
 {
     return il2cpp::api::WrapImage(Image::GetCorlib());
 }
@@ -228,7 +228,7 @@ int il2cpp_array_element_size(const Il2CppClass* klass)
 }
 
 // assembly
-const Il2CppImage* il2cpp_assembly_get_image(const Il2CppAssembly *assembly)
+const Il2CppImageAdapter* il2cpp_assembly_get_image(const Il2CppAssembly *assembly)
 {
     return il2cpp::api::WrapImage(Assembly::GetImage(assembly));
 }
@@ -280,7 +280,7 @@ Il2CppClass* il2cpp_class_from_il2cpp_type(const Il2CppType* type)
     return Class::FromIl2CppType(type);
 }
 
-Il2CppClass* il2cpp_class_from_name(const Il2CppImage* image, const char* namespaze, const char *name)
+Il2CppClass* il2cpp_class_from_name(const Il2CppImageAdapter* image, const char* namespaze, const char *name)
 {
     return Class::FromName(il2cpp::api::UnwrapImage(image), namespaze, name);
 }
@@ -430,7 +430,7 @@ bool il2cpp_class_is_enum(const Il2CppClass *klass)
     return Class::IsEnum(klass);
 }
 
-const Il2CppImage* il2cpp_class_get_image(Il2CppClass* klass)
+const Il2CppImageAdapter* il2cpp_class_get_image(Il2CppClass* klass)
 {
     return il2cpp::api::WrapImage(Class::GetImage(klass));
 }
@@ -573,7 +573,7 @@ void il2cpp_raise_exception(Il2CppException* exc)
     Exception::Raise(exc);
 }
 
-Il2CppException* il2cpp_exception_from_name_msg(const Il2CppImage* image, const char *name_space, const char *name, const char *msg)
+Il2CppException* il2cpp_exception_from_name_msg(const Il2CppImageAdapter* image, const char *name_space, const char *name, const char *msg)
 {
     return Exception::FromNameMsg(il2cpp::api::UnwrapImage(image), name_space, name, msg);
 }
@@ -1356,32 +1356,32 @@ bool il2cpp_type_is_pointer_type(const Il2CppType *type)
 
 // image
 
-const Il2CppAssembly* il2cpp_image_get_assembly(const Il2CppImage *image)
+const Il2CppAssembly* il2cpp_image_get_assembly(const Il2CppImageAdapter *image)
 {
     return Image::GetAssembly(il2cpp::api::UnwrapImage(image));
 }
 
-const char* il2cpp_image_get_name(const Il2CppImage *image)
+const char* il2cpp_image_get_name(const Il2CppImageAdapter *image)
 {
     return Image::GetName(il2cpp::api::UnwrapImage(image));
 }
 
-const char* il2cpp_image_get_filename(const Il2CppImage *image)
+const char* il2cpp_image_get_filename(const Il2CppImageAdapter *image)
 {
     return Image::GetFileName(il2cpp::api::UnwrapImage(image));
 }
 
-const MethodInfo* il2cpp_image_get_entry_point(const Il2CppImage *image)
+const MethodInfo* il2cpp_image_get_entry_point(const Il2CppImageAdapter *image)
 {
     return Image::GetEntryPoint(il2cpp::api::UnwrapImage(image));
 }
 
-size_t il2cpp_image_get_class_count(const Il2CppImage * image)
+size_t il2cpp_image_get_class_count(const Il2CppImageAdapter * image)
 {
     return Image::GetNumTypes(il2cpp::api::UnwrapImage(image));
 }
 
-const Il2CppClass* il2cpp_image_get_class(const Il2CppImage * image, size_t index)
+const Il2CppClass* il2cpp_image_get_class(const Il2CppImageAdapter * image, size_t index)
 {
     return Image::GetType(il2cpp::api::UnwrapImage(image), static_cast<AssemblyTypeIndex>(index));
 }

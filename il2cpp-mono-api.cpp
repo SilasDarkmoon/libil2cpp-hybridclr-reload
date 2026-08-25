@@ -326,13 +326,13 @@ static void error_init(MonoError* error)
 
 uint32_t mono_image_get_entry_point(MonoImage *image)
 {
-    const MethodInfo* entryPoint = il2cpp::vm::Image::GetEntryPoint(const_cast<Il2CppImage*>(il2cpp::api::UnwrapImage((Il2CppImage*)image)));
+    const MethodInfo* entryPoint = il2cpp::vm::Image::GetEntryPoint(il2cpp::api::UnwrapImage((const Il2CppImageAdapter*)image));
     return entryPoint == NULL ? 0 : entryPoint->token;
 }
 
 const char* mono_image_get_filename(MonoImage *image)
 {
-    return il2cpp_image_get_filename((Il2CppImage *)image);
+    return il2cpp_image_get_filename((const Il2CppImageAdapter *)image);
 }
 
 const char* mono_image_get_guid(MonoImage *image)
@@ -347,12 +347,12 @@ int32_t mono_image_is_dynamic(MonoImage *image)
 
 MonoAssembly* mono_image_get_assembly(MonoImage *image)
 {
-    return (MonoAssembly*)il2cpp_image_get_assembly((Il2CppImage *)image);
+    return (MonoAssembly*)il2cpp_image_get_assembly((const Il2CppImageAdapter*)image);
 }
 
 const char* mono_image_get_name(MonoImage *image)
 {
-    return il2cpp_image_get_name((Il2CppImage *)image);
+    return il2cpp_image_get_name((const Il2CppImageAdapter*)image);
 }
 
 MonoDomain* mono_get_root_domain(void)
@@ -800,7 +800,7 @@ MonoGenericClass* mono_class_get_generic_class(MonoClass* monoClass)
 
 MonoClass* mono_class_try_load_from_name(MonoImage* image, const char* namespaze, const char* name)
 {
-    return (MonoClass*)il2cpp_class_from_name((const Il2CppImage*)image, namespaze, name);
+    return (MonoClass*)il2cpp_class_from_name((const Il2CppImageAdapter*)image, namespaze, name);
 }
 
 int32_t mono_class_is_gtd(MonoClass* klass)
@@ -1439,7 +1439,7 @@ MonoType* mono_reflection_get_type_checked(MonoAssemblyLoadContext *alc, MonoIma
 {
     error_init(error);
 
-    Il2CppClass *klass = il2cpp::vm::Image::FromTypeNameParseInfo(const_cast<Il2CppImage*>(il2cpp::api::UnwrapImage((Il2CppImage*)image)), *((il2cpp::vm::TypeNameParseInfo*)((Il2CppMonoTypeNameParse*)info)->il2cppTypeNameParseInfo), ignorecase);
+    Il2CppClass *klass = il2cpp::vm::Image::FromTypeNameParseInfo(il2cpp::api::UnwrapImage((const Il2CppImageAdapter*)image), *((il2cpp::vm::TypeNameParseInfo*)((Il2CppMonoTypeNameParse*)info)->il2cppTypeNameParseInfo), ignorecase);
     if (!klass)
         return NULL;
 
