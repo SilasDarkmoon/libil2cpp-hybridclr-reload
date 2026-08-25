@@ -4,6 +4,7 @@
 #include "il2cpp-config.h"
 
 #include "il2cpp-api.h"
+#include "il2cpp-api-adapters.h"
 #include "il2cpp-mono-api.h"
 
 #include "il2cpp-class-internals.h"
@@ -325,7 +326,7 @@ static void error_init(MonoError* error)
 
 uint32_t mono_image_get_entry_point(MonoImage *image)
 {
-    const MethodInfo* entryPoint = il2cpp::vm::Image::GetEntryPoint((Il2CppImage*)image);
+    const MethodInfo* entryPoint = il2cpp::vm::Image::GetEntryPoint(const_cast<Il2CppImage*>(il2cpp::api::UnwrapImage((Il2CppImage*)image)));
     return entryPoint == NULL ? 0 : entryPoint->token;
 }
 
@@ -1438,7 +1439,7 @@ MonoType* mono_reflection_get_type_checked(MonoAssemblyLoadContext *alc, MonoIma
 {
     error_init(error);
 
-    Il2CppClass *klass = il2cpp::vm::Image::FromTypeNameParseInfo((Il2CppImage*)image, *((il2cpp::vm::TypeNameParseInfo*)((Il2CppMonoTypeNameParse*)info)->il2cppTypeNameParseInfo), ignorecase);
+    Il2CppClass *klass = il2cpp::vm::Image::FromTypeNameParseInfo(const_cast<Il2CppImage*>(il2cpp::api::UnwrapImage((Il2CppImage*)image)), *((il2cpp::vm::TypeNameParseInfo*)((Il2CppMonoTypeNameParse*)info)->il2cppTypeNameParseInfo), ignorecase);
     if (!klass)
         return NULL;
 
@@ -1666,7 +1667,7 @@ void mono_threadpool_resume()
 
 MonoImage* mono_assembly_get_image_internal(MonoAssembly* assembly)
 {
-    return (MonoImage*)il2cpp::vm::Assembly::GetImage((Il2CppAssembly*)assembly);
+    return (MonoImage*)il2cpp::api::WrapImage(il2cpp::vm::Assembly::GetImage((Il2CppAssembly*)assembly));
 }
 
 int32_t mono_verifier_is_method_valid_generic_instantiation(MonoMethod* method)
