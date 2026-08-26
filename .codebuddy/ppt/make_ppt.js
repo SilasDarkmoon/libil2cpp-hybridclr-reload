@@ -494,7 +494,36 @@ pitSlide("坑 3 / 08-04 ~ 07", "Delegate.CreateDelegate：method arguments are i
   ], ORANGE);
 }
 
-// ============ S15 经验总结 ============
+// ============ S15 工程使用方法 ============
+{
+  const s = baseSlide("工程使用方法：三步接入", "如何使用");
+  const steps = [
+    ["Install", "Unity 编辑器中使用正常的 HybridCLR 菜单执行 Install", "HybridCLR/Installer 菜单安装后，会在项目下生成改造过的 il2cpp 库目录：\nHybridCLRData\\\nLocalIl2CppData-{Runtime}\\", TEAL_DK],
+    ["替换", "把该目录下的 il2cpp 库内容替换成本 git 库内容即可", "本仓库 = HybridCLR 官方 libil2cpp + 热重载改造（指针复用 / 二次加载 / vtable 混合布局）\n替换后重新构建 GameAssembly 生效", NAVY2],
+    ["使用", "业务侧照常走 HybridCLR 热更流程加载 DLL", "同一程序集二次加载即触发热重载路径：复用旧类 / 旧方法指针，原地接上新元数据", TEAL_DK],
+  ];
+  const cw = 3.95, ch = 3.6, gx = 0.55, gy = 1.6, gap = 0.25;
+  steps.forEach((st, i) => {
+    const x = gx + i * (cw + gap);
+    s.addShape(pres.shapes.RECTANGLE, { x, y: gy, w: cw, h: ch, fill: { color: CARD }, line: { color: LINE, width: 1 }, shadow: mkShadow() });
+    s.addShape(pres.shapes.RECTANGLE, { x, y: gy, w: cw, h: 0.58, fill: { color: st[3] } });
+    s.addText(`STEP ${i + 1}   ${st[0]}`, { x: x + 0.15, y: gy, w: cw - 0.3, h: 0.58, margin: 0, fontFace: FONT, fontSize: 14.5, bold: true, color: "FFFFFF", valign: "middle" });
+    s.addText([
+      { text: st[1], options: { fontSize: 12.5, bold: true, color: NAVY, breakLine: true, paraSpaceAfter: 8 } },
+      { text: st[2], options: { fontSize: 11, color: MUTED } },
+    ], { x: x + 0.18, y: gy + 0.72, w: cw - 0.36, h: ch - 0.9, margin: 0, fontFace: FONT, valign: "top" });
+    if (i < steps.length - 1) {
+      s.addShape(pres.shapes.RIGHT_ARROW, { x: x + cw + 0.03, y: gy + ch / 2 - 0.12, w: 0.2, h: 0.24, fill: { color: TEAL } });
+    }
+  });
+  s.addShape(pres.shapes.RECTANGLE, { x: 0.55, y: 5.55, w: 12.35, h: 1.3, fill: { color: NAVY } });
+  s.addText([
+    { text: "为什么这么简单？", options: { fontSize: 13.5, bold: true, color: TEAL, breakLine: true } },
+    { text: "全部改造都在 libil2cpp 层完成 —— 对 Unity 引擎与 HybridCLR 上层完全透明，不依赖任何 Unity 版本特定补丁；升级 Unity 时只需对新版 LocalIl2CppData 重新做一次替换。", options: { fontSize: 12, color: "FFFFFF" } },
+  ], { x: 0.85, y: 5.72, w: 11.8, h: 1.0, margin: 0, fontFace: FONT, valign: "top" });
+}
+
+// ============ S16 经验总结 ============
 {
   const s = baseSlide("经验总结", "Takeaways");
   const lessons = [
