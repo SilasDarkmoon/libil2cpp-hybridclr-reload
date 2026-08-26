@@ -42,10 +42,11 @@ struct Il2CppAssemblyAdapter
 
 // FieldInfo 的边界适配器，语义同上。注意 FieldInfo 嵌入在 Il2CppClass::fields
 // 数组内按值分配，其地址稳定性依赖类；热重载归并时需按 (parent, 字段名) 配对
-// 新旧 FieldInfo（见 RemapFieldReal 注释）。
+// 新旧 FieldInfo（见 RemapFieldReal 注释）。real 为 const 指针以满足模板约定，
+// UnwrapField 交出时 const_cast 成可变指针（field API 签名多为非 const FieldInfo*）。
 struct FieldInfoAdapter
 {
-    FieldInfo* real;
+    const FieldInfo* real;
 };
 
 namespace il2cpp
