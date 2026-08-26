@@ -12,6 +12,8 @@ typedef struct Il2CppType Il2CppType;
 typedef struct EventInfo EventInfo;
 typedef struct MethodInfo MethodInfo;
 typedef struct FieldInfo FieldInfo;
+// 同 Il2CppImageAdapter：field 相关 API 实际收发 FieldInfoAdapter*。定义见 il2cpp-api-adapters.h。
+typedef struct FieldInfoAdapter FieldInfoAdapter;
 typedef struct PropertyInfo PropertyInfo;
 
 typedef struct Il2CppAssembly Il2CppAssembly;

@@ -50,12 +50,12 @@ DO_API(Il2CppClass*, il2cpp_class_from_name, (const Il2CppImageAdapter * image, 
 DO_API(Il2CppClass*, il2cpp_class_from_system_type, (Il2CppReflectionType * type));
 DO_API(Il2CppClass*, il2cpp_class_get_element_class, (Il2CppClass * klass));
 DO_API(const EventInfo*, il2cpp_class_get_events, (Il2CppClass * klass, void* *iter));
-DO_API(FieldInfo*, il2cpp_class_get_fields, (Il2CppClass * klass, void* *iter));
+DO_API(FieldInfoAdapter*, il2cpp_class_get_fields, (Il2CppClass * klass, void* *iter));
 DO_API(Il2CppClass*, il2cpp_class_get_nested_types, (Il2CppClass * klass, void* *iter));
 DO_API(Il2CppClass*, il2cpp_class_get_interfaces, (Il2CppClass * klass, void* *iter));
 DO_API(const PropertyInfo*, il2cpp_class_get_properties, (Il2CppClass * klass, void* *iter));
 DO_API(const PropertyInfo*, il2cpp_class_get_property_from_name, (Il2CppClass * klass, const char *name));
-DO_API(FieldInfo*, il2cpp_class_get_field_from_name, (Il2CppClass * klass, const char *name));
+DO_API(FieldInfoAdapter*, il2cpp_class_get_field_from_name, (Il2CppClass * klass, const char *name));
 DO_API(const MethodInfo*, il2cpp_class_get_methods, (Il2CppClass * klass, void* *iter));
 DO_API(const MethodInfo*, il2cpp_class_get_method_from_name, (Il2CppClass * klass, const char* name, int argsCount));
 DO_API(const char*, il2cpp_class_get_name, (Il2CppClass * klass));
@@ -107,19 +107,19 @@ DO_API(void, il2cpp_unhandled_exception, (Il2CppException*));
 DO_API(void, il2cpp_native_stack_trace, (const Il2CppException * ex, uintptr_t** addresses, int* numFrames, char** imageUUID, char** imageName));
 
 // field
-DO_API(int, il2cpp_field_get_flags, (FieldInfo * field));
-DO_API(const char*, il2cpp_field_get_name, (FieldInfo * field));
-DO_API(Il2CppClass*, il2cpp_field_get_parent, (FieldInfo * field));
-DO_API(size_t, il2cpp_field_get_offset, (FieldInfo * field));
-DO_API(const Il2CppType*, il2cpp_field_get_type, (FieldInfo * field));
-DO_API(void, il2cpp_field_get_value, (Il2CppObject * obj, FieldInfo * field, void *value));
-DO_API(Il2CppObject*, il2cpp_field_get_value_object, (FieldInfo * field, Il2CppObject * obj));
-DO_API(bool, il2cpp_field_has_attribute, (FieldInfo * field, Il2CppClass * attr_class));
-DO_API(void, il2cpp_field_set_value, (Il2CppObject * obj, FieldInfo * field, void *value));
-DO_API(void, il2cpp_field_static_get_value, (FieldInfo * field, void *value));
-DO_API(void, il2cpp_field_static_set_value, (FieldInfo * field, void *value));
-DO_API(void, il2cpp_field_set_value_object, (Il2CppObject * instance, FieldInfo * field, Il2CppObject * value));
-DO_API(bool, il2cpp_field_is_literal, (FieldInfo * field));
+DO_API(int, il2cpp_field_get_flags, (FieldInfoAdapter * field));
+DO_API(const char*, il2cpp_field_get_name, (FieldInfoAdapter * field));
+DO_API(Il2CppClass*, il2cpp_field_get_parent, (FieldInfoAdapter * field));
+DO_API(size_t, il2cpp_field_get_offset, (FieldInfoAdapter * field));
+DO_API(const Il2CppType*, il2cpp_field_get_type, (FieldInfoAdapter * field));
+DO_API(void, il2cpp_field_get_value, (Il2CppObject * obj, FieldInfoAdapter * field, void *value));
+DO_API(Il2CppObject*, il2cpp_field_get_value_object, (FieldInfoAdapter * field, Il2CppObject * obj));
+DO_API(bool, il2cpp_field_has_attribute, (FieldInfoAdapter * field, Il2CppClass * attr_class));
+DO_API(void, il2cpp_field_set_value, (Il2CppObject * obj, FieldInfoAdapter * field, void *value));
+DO_API(void, il2cpp_field_static_get_value, (FieldInfoAdapter * field, void *value));
+DO_API(void, il2cpp_field_static_set_value, (FieldInfoAdapter * field, void *value));
+DO_API(void, il2cpp_field_set_value_object, (Il2CppObject * instance, FieldInfoAdapter * field, Il2CppObject * value));
+DO_API(bool, il2cpp_field_is_literal, (FieldInfoAdapter * field));
 // gc
 DO_API(void, il2cpp_gc_collect, (int maxGenerations));
 DO_API(int32_t, il2cpp_gc_collect_a_little, ());
@@ -302,7 +302,7 @@ DO_API(void, il2cpp_unity_install_unitytls_interface, (const void* unitytlsInter
 // custom attributes
 DO_API(Il2CppCustomAttrInfo*, il2cpp_custom_attrs_from_class, (Il2CppClass * klass));
 DO_API(Il2CppCustomAttrInfo*, il2cpp_custom_attrs_from_method, (const MethodInfo * method));
-DO_API(Il2CppCustomAttrInfo*, il2cpp_custom_attrs_from_field, (const FieldInfo * field));
+DO_API(Il2CppCustomAttrInfo*, il2cpp_custom_attrs_from_field, (const FieldInfoAdapter * field));
 
 DO_API(Il2CppObject*, il2cpp_custom_attrs_get_attr, (Il2CppCustomAttrInfo * ainfo, Il2CppClass * attr_klass));
 DO_API(bool, il2cpp_custom_attrs_has_attr, (Il2CppCustomAttrInfo * ainfo, Il2CppClass * attr_klass));

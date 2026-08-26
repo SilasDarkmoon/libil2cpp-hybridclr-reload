@@ -746,7 +746,7 @@ int32_t mono_class_is_abstract(MonoClass * klass)
 
 int32_t mono_class_field_is_special_static(MonoClassField* field)
 {
-    return il2cpp::vm::Field::IsNormalStatic((FieldInfo*)field) ? 0 : 1;
+    return il2cpp::vm::Field::IsNormalStatic(il2cpp::api::UnwrapField((const FieldInfoAdapter*)field)) ? 0 : 1;
 }
 
 MonoGenericContext* mono_class_get_context(MonoClass* klass)
@@ -1095,7 +1095,7 @@ uintptr_t mono_array_length(MonoArray *array)
 
 const char* mono_field_get_name(MonoClassField *field)
 {
-    return il2cpp::vm::Field::GetName((FieldInfo*)field);
+    return il2cpp::vm::Field::GetName(il2cpp::api::UnwrapField((const FieldInfoAdapter*)field));
 }
 
 void mono_field_set_value(MonoObject *obj, MonoClassField *field, void *value)
@@ -1105,7 +1105,7 @@ void mono_field_set_value(MonoObject *obj, MonoClassField *field, void *value)
 
 void mono_field_static_set_value_internal(MonoVTable *vt, MonoClassField *field, void *value)
 {
-    il2cpp::vm::Field::StaticSetValue((FieldInfo*)field, value);
+    il2cpp::vm::Field::StaticSetValue(il2cpp::api::UnwrapField((const FieldInfoAdapter*)field), value);
 }
 
 MonoObject* mono_field_get_value_object_checked(MonoDomain* domain, MonoClassField* field, MonoObject* obj, MonoError* error)
@@ -1116,17 +1116,17 @@ MonoObject* mono_field_get_value_object_checked(MonoDomain* domain, MonoClassFie
 
 MonoClass* mono_field_get_parent(MonoClassField *field)
 {
-    return (MonoClass*)il2cpp::vm::Field::GetParent((FieldInfo*)field);
+    return (MonoClass*)il2cpp::vm::Field::GetParent(il2cpp::api::UnwrapField((const FieldInfoAdapter*)field));
 }
 
 uint32_t mono_field_get_offset(MonoClassField *field)
 {
-    return (uint32_t)il2cpp::vm::Field::GetOffset((FieldInfo*)field);
+    return (uint32_t)il2cpp::vm::Field::GetOffset(il2cpp::api::UnwrapField((const FieldInfoAdapter*)field));
 }
 
 MonoType* mono_field_get_type(MonoClassField *field)
 {
-    return (MonoType*)il2cpp::vm::Field::GetType((FieldInfo*)field);
+    return (MonoType*)il2cpp::vm::Field::GetType(il2cpp::api::UnwrapField((const FieldInfoAdapter*)field));
 }
 
 uint16_t* mono_string_chars(MonoString *monoStr)
@@ -1773,7 +1773,8 @@ MonoClass* mono_class_get_checked(MonoImage *image, uint32_t type_token, MonoErr
 
 void* mono_vtype_get_field_addr(void* vtype, MonoClassField *field)
 {
-    return ((char*)vtype) + ((FieldInfo*)field)->offset - sizeof(Il2CppObject);
+    // 边界传回的 field 实为 adapter，先解包再读 offset 字段
+    return ((char*)vtype) + il2cpp::api::UnwrapField((const FieldInfoAdapter*)field)->offset - sizeof(Il2CppObject);
 }
 
 MonoClass* mono_class_create_array(MonoClass *element_class, uint32_t rank)
@@ -1830,5 +1831,6 @@ MonoCustomAttrInfo* mono_custom_attrs_from_property_checked(MonoClass *klass, Mo
 
 MonoCustomAttrInfo* mono_custom_attrs_from_field_checked(MonoClass *klass, MonoClassField *field, MonoError *error)
 {
-    return (MonoCustomAttrInfo*)il2cpp::vm::MetadataCache::GetCustomAttributeTypeToken(((Il2CppClass*)klass)->image, ((FieldInfo*)field)->token);
+    // field 实为 adapter，先解包再读 token 字段（klass 暂未 adapter 化，保持原样）
+    return (MonoCustomAttrInfo*)il2cpp::vm::MetadataCache::GetCustomAttributeTypeToken(((Il2CppClass*)klass)->image, il2cpp::api::UnwrapField((const FieldInfoAdapter*)field)->token);
 }

@@ -26,6 +26,7 @@
 
 struct Il2CppImage;
 struct Il2CppAssembly;
+struct FieldInfo;
 
 // Il2CppImage 的边界适配器。交给 Unity 的 "const Il2CppImage*" 实际上是本结构体的地址。
 struct Il2CppImageAdapter
@@ -37,6 +38,14 @@ struct Il2CppImageAdapter
 struct Il2CppAssemblyAdapter
 {
     const Il2CppAssembly* real;
+};
+
+// FieldInfo 的边界适配器，语义同上。注意 FieldInfo 嵌入在 Il2CppClass::fields
+// 数组内按值分配，其地址稳定性依赖类；热重载归并时需按 (parent, 字段名) 配对
+// 新旧 FieldInfo（见 RemapFieldReal 注释）。
+struct FieldInfoAdapter
+{
+    FieldInfo* real;
 };
 
 namespace il2cpp
@@ -140,5 +149,18 @@ namespace api
     // 出方向（数组）：把当前 assembly 列表包装成 adapter 指针数组。
     // 返回的缓冲区归 AdapterMap 所有，下次调用前有效；adapter 本身地址稳定。
     const Il2CppAssemblyAdapter* const* WrapAssemblyArray(const Il2CppAssembly* const* assemblies, size_t count);
+
+    // ---- FieldInfo 边界接口 ----
+    // 注意：FieldInfo API 签名多为非 const FieldInfo*，UnwrapField 返回 FieldInfo*。
+
+    // 出方向：真实 FieldInfo -> adapter，find-or-create。
+    FieldInfoAdapter* WrapField(FieldInfo* real);
+
+    // 入方向：边界传回的 adapter -> 当前真实 FieldInfo。
+    FieldInfo* UnwrapField(const FieldInfoAdapter* adapter);
+
+    // 热重载归并：oldReal/newReal 共用 adapter，adapter 当前 real 切到 newReal。
+    // FieldInfo 嵌入类体分配，新旧配对须由重载流程按 (parent 类, 字段名) 完成。
+    void RemapFieldReal(FieldInfo* oldReal, FieldInfo* newReal);
 }
 }

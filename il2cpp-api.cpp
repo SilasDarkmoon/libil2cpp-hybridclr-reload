@@ -295,9 +295,9 @@ const EventInfo* il2cpp_class_get_events(Il2CppClass *klass, void* *iter)
     return Class::GetEvents(klass, iter);
 }
 
-FieldInfo* il2cpp_class_get_fields(Il2CppClass *klass, void* *iter)
+FieldInfoAdapter* il2cpp_class_get_fields(Il2CppClass *klass, void* *iter)
 {
-    return Class::GetFields(klass, iter);
+    return il2cpp::api::WrapField(Class::GetFields(klass, iter));
 }
 
 Il2CppClass* il2cpp_class_get_nested_types(Il2CppClass *klass, void* *iter)
@@ -320,9 +320,9 @@ const PropertyInfo* il2cpp_class_get_property_from_name(Il2CppClass *klass, cons
     return Class::GetPropertyFromName(klass, name);
 }
 
-FieldInfo* il2cpp_class_get_field_from_name(Il2CppClass* klass, const char *name)
+FieldInfoAdapter* il2cpp_class_get_field_from_name(Il2CppClass* klass, const char *name)
 {
-    return Class::GetFieldFromName(klass, name);
+    return il2cpp::api::WrapField(Class::GetFieldFromName(klass, name));
 }
 
 const MethodInfo* il2cpp_class_get_methods(Il2CppClass *klass, void* *iter)
@@ -635,69 +635,70 @@ void il2cpp_native_stack_trace(const Il2CppException * ex, uintptr_t** addresses
 
 // field
 
-const char* il2cpp_field_get_name(FieldInfo *field)
+const char* il2cpp_field_get_name(FieldInfoAdapter *field)
 {
-    return Field::GetName(field);
+    return Field::GetName(il2cpp::api::UnwrapField(field));
 }
 
-int il2cpp_field_get_flags(FieldInfo *field)
+int il2cpp_field_get_flags(FieldInfoAdapter *field)
 {
-    return Field::GetFlags(field);
+    return Field::GetFlags(il2cpp::api::UnwrapField(field));
 }
 
-Il2CppClass* il2cpp_field_get_parent(FieldInfo *field)
+Il2CppClass* il2cpp_field_get_parent(FieldInfoAdapter *field)
 {
-    return Field::GetParent(field);
+    return Field::GetParent(il2cpp::api::UnwrapField(field));
 }
 
-size_t il2cpp_field_get_offset(FieldInfo *field)
+size_t il2cpp_field_get_offset(FieldInfoAdapter *field)
 {
-    return Field::GetOffset(field);
+    return Field::GetOffset(il2cpp::api::UnwrapField(field));
 }
 
-const Il2CppType* il2cpp_field_get_type(FieldInfo *field)
+const Il2CppType* il2cpp_field_get_type(FieldInfoAdapter *field)
 {
-    return Field::GetType(field);
+    return Field::GetType(il2cpp::api::UnwrapField(field));
 }
 
-void il2cpp_field_get_value(Il2CppObject *obj, FieldInfo *field, void *value)
+void il2cpp_field_get_value(Il2CppObject *obj, FieldInfoAdapter *field, void *value)
 {
-    return Field::GetValue(obj, field, value);
+    return Field::GetValue(obj, il2cpp::api::UnwrapField(field), value);
 }
 
-Il2CppObject* il2cpp_field_get_value_object(FieldInfo *field, Il2CppObject *obj)
+Il2CppObject* il2cpp_field_get_value_object(FieldInfoAdapter *field, Il2CppObject *obj)
 {
-    return Field::GetValueObject(field, obj);
+    return Field::GetValueObject(il2cpp::api::UnwrapField(field), obj);
 }
 
-bool il2cpp_field_has_attribute(FieldInfo *field, Il2CppClass *attr_class)
+bool il2cpp_field_has_attribute(FieldInfoAdapter *field, Il2CppClass *attr_class)
 {
-    return Field::HasAttribute(field, attr_class);
+    return Field::HasAttribute(il2cpp::api::UnwrapField(field), attr_class);
 }
 
-void il2cpp_field_set_value(Il2CppObject *obj, FieldInfo *field, void *value)
+void il2cpp_field_set_value(Il2CppObject *obj, FieldInfoAdapter *field, void *value)
 {
-    Field::SetValue(obj, field, value);
+    Field::SetValue(obj, il2cpp::api::UnwrapField(field), value);
 }
 
-void il2cpp_field_set_value_object(Il2CppObject* objectInstance, FieldInfo* field, Il2CppObject* value)
+void il2cpp_field_set_value_object(Il2CppObject* objectInstance, FieldInfoAdapter* field, Il2CppObject* value)
 {
-    Field::SetInstanceFieldValueObject(objectInstance, field, value);
+    Field::SetInstanceFieldValueObject(objectInstance, il2cpp::api::UnwrapField(field), value);
 }
 
-void il2cpp_field_static_get_value(FieldInfo *field, void *value)
+void il2cpp_field_static_get_value(FieldInfoAdapter *field, void *value)
 {
-    Field::StaticGetValue(field, value);
+    Field::StaticGetValue(il2cpp::api::UnwrapField(field), value);
 }
 
-void il2cpp_field_static_set_value(FieldInfo *field, void *value)
+void il2cpp_field_static_set_value(FieldInfoAdapter *field, void *value)
 {
-    Field::StaticSetValue(field, value);
+    Field::StaticSetValue(il2cpp::api::UnwrapField(field), value);
 }
 
-bool il2cpp_field_is_literal(FieldInfo *field)
+bool il2cpp_field_is_literal(FieldInfoAdapter *field)
 {
-    return (field->type->attrs & FIELD_ATTRIBUTE_LITERAL) != 0;
+    FieldInfo* real = il2cpp::api::UnwrapField(field);
+    return (real->type->attrs & FIELD_ATTRIBUTE_LITERAL) != 0;
 }
 
 // gc
@@ -1453,9 +1454,10 @@ Il2CppCustomAttrInfo* il2cpp_custom_attrs_from_method(const MethodInfo * method)
     return (Il2CppCustomAttrInfo*)(MetadataCache::GetCustomAttributeTypeToken(method->klass->image, method->token));
 }
 
-Il2CppCustomAttrInfo* il2cpp_custom_attrs_from_field(const FieldInfo * field)
+Il2CppCustomAttrInfo* il2cpp_custom_attrs_from_field(const FieldInfoAdapter * field)
 {
-    return (Il2CppCustomAttrInfo*)(MetadataCache::GetCustomAttributeTypeToken(field->parent->image, field->token));
+    FieldInfo* real = il2cpp::api::UnwrapField(field);
+    return (Il2CppCustomAttrInfo*)(MetadataCache::GetCustomAttributeTypeToken(real->parent->image, real->token));
 }
 
 bool il2cpp_custom_attrs_has_attr(Il2CppCustomAttrInfo *ainfo, Il2CppClass *attr_klass)

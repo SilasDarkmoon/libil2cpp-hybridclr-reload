@@ -64,5 +64,31 @@ namespace api
             s_Buffer.push_back(GetAssemblyAdapterMap().Wrap(assemblies[i]));
         return count > 0 ? &s_Buffer[0] : NULL;
     }
+
+    // ---- FieldInfo ----
+
+    typedef AdapterMap<FieldInfo, FieldInfoAdapter> FieldAdapterMap;
+
+    static FieldAdapterMap& GetFieldAdapterMap()
+    {
+        static FieldAdapterMap s_FieldAdapterMap;
+        return s_FieldAdapterMap;
+    }
+
+    FieldInfoAdapter* WrapField(FieldInfo* real)
+    {
+        return GetFieldAdapterMap().Wrap(real);
+    }
+
+    FieldInfo* UnwrapField(const FieldInfoAdapter* adapter)
+    {
+        // field API 签名多为非 const FieldInfo*，此处统一交出可变指针。
+        return const_cast<FieldInfo*>(FieldAdapterMap::Unwrap(adapter));
+    }
+
+    void RemapFieldReal(FieldInfo* oldReal, FieldInfo* newReal)
+    {
+        GetFieldAdapterMap().RemapReal(oldReal, newReal);
+    }
 }
 }
