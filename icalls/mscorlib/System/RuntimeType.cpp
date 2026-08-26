@@ -1074,7 +1074,7 @@ namespace System
         int32_t numberOfVirtualMethods = 0;
         for (int i = 0; i < numberOfMethods; ++i)
         {
-            const MethodInfo* method = il2cpp_class_get_methods(iklass, &iter);
+            const MethodInfo* method = vm::Class::GetMethods(iklass, &iter);
             if (method->flags & METHOD_ATTRIBUTE_VIRTUAL)
                 numberOfVirtualMethods++;
         }
@@ -1116,10 +1116,10 @@ namespace System
         int virtualMethodIndex = 0;
         for (int i = 0; i < numberOfMethods; ++i)
         {
-            const MethodInfo* method = il2cpp_class_get_methods(iklass, &iter);
+            const MethodInfo* method = vm::Class::GetMethods(iklass, &iter);
             if (method->flags & METHOD_ATTRIBUTE_VIRTUAL)
             {
-                Il2CppReflectionMethod* member = il2cpp_method_get_object(method, iklass);
+                Il2CppReflectionMethod* member = vm::Reflection::GetMethodObject(method, iklass);
                 il2cpp_array_setref(*methods, virtualMethodIndex, member);
 
                 const MethodInfo* targetMethod = invokeDataStart[i].method;
@@ -1141,13 +1141,13 @@ namespace System
                     else
                     {
                         // Normal DIM case
-                        member = il2cpp_method_get_object(targetMethod, targetMethod->klass);
+                        member = vm::Reflection::GetMethodObject(targetMethod, targetMethod->klass);
                     }
                 }
                 else
                 {
                     // Normal interface implementation
-                    member = il2cpp_method_get_object(targetMethod, klass);
+                    member = vm::Reflection::GetMethodObject(targetMethod, klass);
                 }
                 il2cpp_array_setref(*targets, virtualMethodIndex, member);
                 virtualMethodIndex++;

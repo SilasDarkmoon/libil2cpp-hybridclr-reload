@@ -263,7 +263,8 @@ namespace Reflection
         else
             klass = method->klass;
 
-        res = il2cpp_method_get_object(method, klass);
+        // method 来自托管 mhandle（真实 MethodInfo*），icall 内部直调 vm，不经 adapter 边界
+        res = vm::Reflection::GetMethodObject(method, klass);
         return res;
     }
 

@@ -325,14 +325,14 @@ FieldInfoAdapter* il2cpp_class_get_field_from_name(Il2CppClass* klass, const cha
     return il2cpp::api::WrapField(Class::GetFieldFromName(klass, name));
 }
 
-const MethodInfo* il2cpp_class_get_methods(Il2CppClass *klass, void* *iter)
+const MethodInfoAdapter* il2cpp_class_get_methods(Il2CppClass *klass, void* *iter)
 {
-    return Class::GetMethods(klass, iter);
+    return il2cpp::api::WrapMethod(Class::GetMethods(klass, iter));
 }
 
-const MethodInfo* il2cpp_class_get_method_from_name(Il2CppClass *klass, const char* name, int argsCount)
+const MethodInfoAdapter* il2cpp_class_get_method_from_name(Il2CppClass *klass, const char* name, int argsCount)
 {
-    return Class::GetMethodFromName(klass, name, argsCount);
+    return il2cpp::api::WrapMethod(Class::GetMethodFromName(klass, name, argsCount));
 }
 
 const char* il2cpp_class_get_name(Il2CppClass *klass)
@@ -904,82 +904,83 @@ void il2cpp_unity_liveness_free_struct(void* state)
 
 // method
 
-const Il2CppType* il2cpp_method_get_return_type(const MethodInfo* method)
+const Il2CppType* il2cpp_method_get_return_type(const MethodInfoAdapter* method)
 {
-    return Method::GetReturnType(method);
+    return Method::GetReturnType(il2cpp::api::UnwrapMethod(method));
 }
 
-const MethodInfo* il2cpp_method_get_from_reflection(const Il2CppReflectionMethod *method)
+const MethodInfoAdapter* il2cpp_method_get_from_reflection(const Il2CppReflectionMethod *method)
 {
-    return Reflection::GetMethod(method);
+    return il2cpp::api::WrapMethod(Reflection::GetMethod(method));
 }
 
-Il2CppReflectionMethod* il2cpp_method_get_object(const MethodInfo *method, Il2CppClass *refclass)
+Il2CppReflectionMethod* il2cpp_method_get_object(const MethodInfoAdapter *method, Il2CppClass *refclass)
 {
-    return Reflection::GetMethodObject(method, refclass);
+    return Reflection::GetMethodObject(il2cpp::api::UnwrapMethod(method), refclass);
 }
 
-const char* il2cpp_method_get_name(const MethodInfo *method)
+const char* il2cpp_method_get_name(const MethodInfoAdapter *method)
 {
-    return Method::GetName(method);
+    return Method::GetName(il2cpp::api::UnwrapMethod(method));
 }
 
-bool il2cpp_method_is_generic(const MethodInfo *method)
+bool il2cpp_method_is_generic(const MethodInfoAdapter *method)
 {
-    return Method::IsGeneric(method);
+    return Method::IsGeneric(il2cpp::api::UnwrapMethod(method));
 }
 
-bool il2cpp_method_is_inflated(const MethodInfo *method)
+bool il2cpp_method_is_inflated(const MethodInfoAdapter *method)
 {
-    return Method::IsInflated(method);
+    return Method::IsInflated(il2cpp::api::UnwrapMethod(method));
 }
 
-bool il2cpp_method_is_instance(const MethodInfo *method)
+bool il2cpp_method_is_instance(const MethodInfoAdapter *method)
 {
-    return Method::IsInstance(method);
+    return Method::IsInstance(il2cpp::api::UnwrapMethod(method));
 }
 
-uint32_t il2cpp_method_get_param_count(const MethodInfo *method)
+uint32_t il2cpp_method_get_param_count(const MethodInfoAdapter *method)
 {
-    return Method::GetParamCount(method);
+    return Method::GetParamCount(il2cpp::api::UnwrapMethod(method));
 }
 
-const Il2CppType* il2cpp_method_get_param(const MethodInfo *method, uint32_t index)
+const Il2CppType* il2cpp_method_get_param(const MethodInfoAdapter *method, uint32_t index)
 {
-    return Method::GetParam(method, index);
+    return Method::GetParam(il2cpp::api::UnwrapMethod(method), index);
 }
 
-Il2CppClass* il2cpp_method_get_class(const MethodInfo *method)
+Il2CppClass* il2cpp_method_get_class(const MethodInfoAdapter *method)
 {
-    return Method::GetClass(method);
+    return Method::GetClass(il2cpp::api::UnwrapMethod(method));
 }
 
-bool il2cpp_method_has_attribute(const MethodInfo *method, Il2CppClass *attr_class)
+bool il2cpp_method_has_attribute(const MethodInfoAdapter *method, Il2CppClass *attr_class)
 {
-    return Method::HasAttribute(method, attr_class);
+    return Method::HasAttribute(il2cpp::api::UnwrapMethod(method), attr_class);
 }
 
-Il2CppClass* il2cpp_method_get_declaring_type(const MethodInfo* method)
+Il2CppClass* il2cpp_method_get_declaring_type(const MethodInfoAdapter* method)
 {
-    return Method::GetDeclaringType(method);
+    return Method::GetDeclaringType(il2cpp::api::UnwrapMethod(method));
 }
 
-uint32_t il2cpp_method_get_flags(const MethodInfo *method, uint32_t *iflags)
+uint32_t il2cpp_method_get_flags(const MethodInfoAdapter *method, uint32_t *iflags)
 {
+    const MethodInfo* real = il2cpp::api::UnwrapMethod(method);
     if (iflags != 0)
-        *iflags = Method::GetImplementationFlags(method);
+        *iflags = Method::GetImplementationFlags(real);
 
-    return Method::GetFlags(method);
+    return Method::GetFlags(real);
 }
 
-uint32_t il2cpp_method_get_token(const MethodInfo *method)
+uint32_t il2cpp_method_get_token(const MethodInfoAdapter *method)
 {
-    return Method::GetToken(method);
+    return Method::GetToken(il2cpp::api::UnwrapMethod(method));
 }
 
-const char *il2cpp_method_get_param_name(const MethodInfo *method, uint32_t index)
+const char *il2cpp_method_get_param_name(const MethodInfoAdapter *method, uint32_t index)
 {
-    return Method::GetParamName(method, index);
+    return Method::GetParamName(il2cpp::api::UnwrapMethod(method), index);
 }
 
 // profiler
@@ -996,9 +997,32 @@ void il2cpp_profiler_set_events(Il2CppProfileFlags events)
     Profiler::SetEvents(events);
 }
 
-void il2cpp_profiler_install_enter_leave(Il2CppProfileMethodFunc enter, Il2CppProfileMethodFunc fleave)
+// profiler method 回调桥接：API 面回调收 MethodInfoAdapter*，vm 侧回调收真实
+// MethodInfo*。Unity 实际只注册一个 profiler 的 enter/leave（ScriptingProfiler），
+// 多次注册后者覆盖前者，与 vm::Profiler::InstallEnterLeave 的 back() 语义一致。
+namespace
 {
-    Profiler::InstallEnterLeave(enter, fleave);
+    static Il2CppProfileMethodFuncAdapter s_ProfilerMethodEnterCallback = NULL;
+    static Il2CppProfileMethodFuncAdapter s_ProfilerMethodLeaveCallback = NULL;
+
+    static void ProfilerMethodEnterBridge(Il2CppProfiler* prof, const MethodInfo* method)
+    {
+        if (s_ProfilerMethodEnterCallback != NULL)
+            s_ProfilerMethodEnterCallback(prof, il2cpp::api::WrapMethod(method));
+    }
+
+    static void ProfilerMethodLeaveBridge(Il2CppProfiler* prof, const MethodInfo* method)
+    {
+        if (s_ProfilerMethodLeaveCallback != NULL)
+            s_ProfilerMethodLeaveCallback(prof, il2cpp::api::WrapMethod(method));
+    }
+}
+
+void il2cpp_profiler_install_enter_leave(Il2CppProfileMethodFuncAdapter enter, Il2CppProfileMethodFuncAdapter fleave)
+{
+    s_ProfilerMethodEnterCallback = enter;
+    s_ProfilerMethodLeaveCallback = fleave;
+    Profiler::InstallEnterLeave(ProfilerMethodEnterBridge, ProfilerMethodLeaveBridge);
 }
 
 void il2cpp_profiler_install_allocation(Il2CppProfileAllocFunc callback)
@@ -1030,14 +1054,14 @@ const char* il2cpp_property_get_name(PropertyInfo *prop)
     return Property::GetName(prop);
 }
 
-const MethodInfo* il2cpp_property_get_get_method(PropertyInfo *prop)
+const MethodInfoAdapter* il2cpp_property_get_get_method(PropertyInfo *prop)
 {
-    return Property::GetGetMethod(prop);
+    return il2cpp::api::WrapMethod(Property::GetGetMethod(prop));
 }
 
-const MethodInfo* il2cpp_property_get_set_method(PropertyInfo *prop)
+const MethodInfoAdapter* il2cpp_property_get_set_method(PropertyInfo *prop)
 {
-    return Property::GetSetMethod(prop);
+    return il2cpp::api::WrapMethod(Property::GetSetMethod(prop));
 }
 
 Il2CppClass* il2cpp_property_get_parent(PropertyInfo *prop)
@@ -1062,9 +1086,9 @@ uint32_t il2cpp_object_get_size(Il2CppObject* obj)
     return Object::GetSize(obj);
 }
 
-const MethodInfo* il2cpp_object_get_virtual_method(Il2CppObject *obj, const MethodInfo *method)
+const MethodInfoAdapter* il2cpp_object_get_virtual_method(Il2CppObject *obj, const MethodInfoAdapter *method)
 {
-    return Object::GetVirtualMethod(obj, method);
+    return il2cpp::api::WrapMethod(Object::GetVirtualMethod(obj, il2cpp::api::UnwrapMethod(method)));
 }
 
 Il2CppObject* il2cpp_object_new(const Il2CppClass *klass)
@@ -1129,15 +1153,15 @@ bool il2cpp_monitor_try_wait(Il2CppObject* obj, uint32_t timeout)
 
 // runtime
 
-Il2CppObject* il2cpp_runtime_invoke_convert_args(const MethodInfo *method, void *obj, Il2CppObject **params, int paramCount, Il2CppException **exc)
+Il2CppObject* il2cpp_runtime_invoke_convert_args(const MethodInfoAdapter *method, void *obj, Il2CppObject **params, int paramCount, Il2CppException **exc)
 {
-    return Runtime::InvokeConvertArgs(method, obj, params, paramCount, exc);
+    return Runtime::InvokeConvertArgs(il2cpp::api::UnwrapMethod(method), obj, params, paramCount, exc);
 }
 
-Il2CppObject* il2cpp_runtime_invoke(const MethodInfo *method,
+Il2CppObject* il2cpp_runtime_invoke(const MethodInfoAdapter *method,
     void *obj, void **params, Il2CppException **exc)
 {
-    return Runtime::Invoke(method, obj, params, exc);
+    return Runtime::Invoke(il2cpp::api::UnwrapMethod(method), obj, params, exc);
 }
 
 void il2cpp_runtime_class_init(Il2CppClass* klass)
@@ -1232,38 +1256,83 @@ bool il2cpp_is_vm_thread(Il2CppThread *thread)
 
 // stacktrace
 
-void il2cpp_current_thread_walk_frame_stack(Il2CppFrameWalkFunc func, void* user_data)
+// frame walk 桥接：vm 内部遍历产生真实 Il2CppStackFrameInfo（method 为真实指针），
+// 桥接处转换成 adapter 版再投递给 API 面回调。两结构布局一致。
+namespace
 {
-    StackTrace::WalkFrameStack(func, user_data);
+    struct FrameWalkBridgeContext
+    {
+        Il2CppFrameWalkFuncAdapter userCallback;
+        void* userData;
+    };
+
+    static void FrameWalkBridge(const Il2CppStackFrameInfo* info, void* userData)
+    {
+        FrameWalkBridgeContext* ctx = (FrameWalkBridgeContext*)userData;
+        Il2CppStackFrameInfoAdapter adapted;
+        il2cpp::api::WrapStackFrameInfo(*info, adapted);
+        ctx->userCallback(&adapted, ctx->userData);
+    }
 }
 
-void il2cpp_thread_walk_frame_stack(Il2CppThread *thread, Il2CppFrameWalkFunc func, void *user_data)
+void il2cpp_current_thread_walk_frame_stack(Il2CppFrameWalkFuncAdapter func, void* user_data)
 {
-    return StackTrace::WalkThreadFrameStack(thread, func, user_data);
+    FrameWalkBridgeContext ctx = { func, user_data };
+    StackTrace::WalkFrameStack(FrameWalkBridge, &ctx);
 }
 
-bool il2cpp_current_thread_get_top_frame(Il2CppStackFrameInfo* frame)
+void il2cpp_thread_walk_frame_stack(Il2CppThread *thread, Il2CppFrameWalkFuncAdapter func, void *user_data)
+{
+    FrameWalkBridgeContext ctx = { func, user_data };
+    return StackTrace::WalkThreadFrameStack(thread, FrameWalkBridge, &ctx);
+}
+
+bool il2cpp_current_thread_get_top_frame(Il2CppStackFrameInfoAdapter* frame)
 {
     IL2CPP_ASSERT(frame);
-    return StackTrace::GetTopStackFrame(*frame);
+    Il2CppStackFrameInfo internalFrame;
+    if (StackTrace::GetTopStackFrame(internalFrame))
+    {
+        il2cpp::api::WrapStackFrameInfo(internalFrame, *frame);
+        return true;
+    }
+    return false;
 }
 
-bool il2cpp_thread_get_top_frame(Il2CppThread* thread, Il2CppStackFrameInfo* frame)
+bool il2cpp_thread_get_top_frame(Il2CppThread* thread, Il2CppStackFrameInfoAdapter* frame)
 {
     IL2CPP_ASSERT(frame);
-    return StackTrace::GetThreadTopStackFrame(thread, *frame);
+    Il2CppStackFrameInfo internalFrame;
+    if (StackTrace::GetThreadTopStackFrame(thread, internalFrame))
+    {
+        il2cpp::api::WrapStackFrameInfo(internalFrame, *frame);
+        return true;
+    }
+    return false;
 }
 
-bool il2cpp_current_thread_get_frame_at(int32_t offset, Il2CppStackFrameInfo* frame)
+bool il2cpp_current_thread_get_frame_at(int32_t offset, Il2CppStackFrameInfoAdapter* frame)
 {
     IL2CPP_ASSERT(frame);
-    return StackTrace::GetStackFrameAt(offset, *frame);
+    Il2CppStackFrameInfo internalFrame;
+    if (StackTrace::GetStackFrameAt(offset, internalFrame))
+    {
+        il2cpp::api::WrapStackFrameInfo(internalFrame, *frame);
+        return true;
+    }
+    return false;
 }
 
-bool il2cpp_thread_get_frame_at(Il2CppThread* thread, int32_t offset, Il2CppStackFrameInfo* frame)
+bool il2cpp_thread_get_frame_at(Il2CppThread* thread, int32_t offset, Il2CppStackFrameInfoAdapter* frame)
 {
     IL2CPP_ASSERT(frame);
-    return StackTrace::GetThreadStackFrameAt(thread, offset, *frame);
+    Il2CppStackFrameInfo internalFrame;
+    if (StackTrace::GetThreadStackFrameAt(thread, offset, internalFrame))
+    {
+        il2cpp::api::WrapStackFrameInfo(internalFrame, *frame);
+        return true;
+    }
+    return false;
 }
 
 int32_t il2cpp_current_thread_get_stack_depth()
@@ -1372,9 +1441,9 @@ const char* il2cpp_image_get_filename(const Il2CppImageAdapter *image)
     return Image::GetFileName(il2cpp::api::UnwrapImage(image));
 }
 
-const MethodInfo* il2cpp_image_get_entry_point(const Il2CppImageAdapter *image)
+const MethodInfoAdapter* il2cpp_image_get_entry_point(const Il2CppImageAdapter *image)
 {
-    return Image::GetEntryPoint(il2cpp::api::UnwrapImage(image));
+    return il2cpp::api::WrapMethod(Image::GetEntryPoint(il2cpp::api::UnwrapImage(image)));
 }
 
 size_t il2cpp_image_get_class_count(const Il2CppImageAdapter * image)
@@ -1429,10 +1498,10 @@ void il2cpp_register_debugger_agent_transport(Il2CppDebuggerTransport * debugger
 #endif
 }
 
-bool il2cpp_debug_get_method_info(const MethodInfo* method, Il2CppMethodDebugInfo* methodDebugInfo)
+bool il2cpp_debug_get_method_info(const MethodInfoAdapter* method, Il2CppMethodDebugInfo* methodDebugInfo)
 {
 #if IL2CPP_ENABLE_NATIVE_STACKTRACES
-    return il2cpp::utils::NativeSymbol::GetMethodDebugInfo(method, methodDebugInfo);
+    return il2cpp::utils::NativeSymbol::GetMethodDebugInfo(il2cpp::api::UnwrapMethod(method), methodDebugInfo);
 #else
     return false;
 #endif
@@ -1449,9 +1518,10 @@ Il2CppCustomAttrInfo* il2cpp_custom_attrs_from_class(Il2CppClass *klass)
     return (Il2CppCustomAttrInfo*)(MetadataCache::GetCustomAttributeTypeToken(klass->image, klass->token));
 }
 
-Il2CppCustomAttrInfo* il2cpp_custom_attrs_from_method(const MethodInfo * method)
+Il2CppCustomAttrInfo* il2cpp_custom_attrs_from_method(const MethodInfoAdapter * method)
 {
-    return (Il2CppCustomAttrInfo*)(MetadataCache::GetCustomAttributeTypeToken(method->klass->image, method->token));
+    const MethodInfo* real = il2cpp::api::UnwrapMethod(method);
+    return (Il2CppCustomAttrInfo*)(MetadataCache::GetCustomAttributeTypeToken(real->klass->image, real->token));
 }
 
 Il2CppCustomAttrInfo* il2cpp_custom_attrs_from_field(const FieldInfoAdapter * field)

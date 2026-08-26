@@ -538,7 +538,7 @@ MonoClassField* mono_class_get_fields_internal(MonoClass* klass, void* *iter)
 
 MonoMethod* mono_class_get_methods(MonoClass* klass, void* *iter)
 {
-    return (MonoMethod*)il2cpp::vm::Class::GetMethods((Il2CppClass*)klass, iter);
+    return (MonoMethod*)il2cpp::api::WrapMethod(il2cpp::vm::Class::GetMethods((Il2CppClass*)klass, iter));
 }
 
 MonoProperty* mono_class_get_properties(MonoClass* klass, void* *iter)
@@ -665,7 +665,6 @@ GPtrArray* mono_class_get_methods_by_name(MonoClass* il2cppMonoKlass, const char
     Il2CppGPtrArray *array;
     Il2CppClass *klass = (Il2CppClass*)il2cppMonoKlass;
     Il2CppClass *startklass;
-    MethodInfo *method;
     void* iter;
     int match;
     int (*compare_func) (const char *s1, const char *s2) = NULL;
@@ -682,8 +681,14 @@ handle_parent:
     mono_class_setup_vtable((MonoClass*)klass);
 
     iter = NULL;
-    while ((method = (MethodInfo*)mono_class_get_methods((MonoClass*)klass, &iter)))
+    while (true)
     {
+        // mono_class_get_methods 返回 adapter；循环体内需要真实 MethodInfo 做字段访问，
+        // 数组里存放 adapter（作为边界句柄返回给调用方）。
+        MethodInfoAdapter* methodAdapter = (MethodInfoAdapter*)mono_class_get_methods((MonoClass*)klass, &iter);
+        if (methodAdapter == NULL)
+            break;
+        MethodInfo* method = (MethodInfo*)il2cpp::api::UnwrapMethod(methodAdapter);
         match = 0;
 
         if (!allow_ctors && method->name[0] == '.' && (strcmp(method->name, ".ctor") == 0 || strcmp(method->name, ".cctor") == 0))
@@ -722,7 +727,7 @@ handle_parent:
         }
 
         match = 0;
-        il2cpp_g_ptr_array_add(array, method);
+        il2cpp_g_ptr_array_add(array, methodAdapter);
     }
 
     if (!(bflags & BFLAGS_DeclaredOnly) && (klass = klass->parent))
@@ -757,13 +762,13 @@ MonoGenericContext* mono_class_get_context(MonoClass* klass)
 MonoMethod* mono_class_inflate_generic_method_full_checked(MonoMethod* method, MonoClass* klass_hint, MonoGenericContext* context, MonoError* error)
 {
     error_init(error);
-    return (MonoMethod*)il2cpp::metadata::GenericMetadata::Inflate((MethodInfo*)method, (Il2CppGenericContext*)context);
+    return (MonoMethod*)il2cpp::api::WrapMethod(il2cpp::metadata::GenericMetadata::Inflate(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method), (Il2CppGenericContext*)context));
 }
 
 MonoMethod* mono_class_inflate_generic_method_checked(MonoMethod* method, MonoGenericContext* context, MonoError* error)
 {
     error_init(error);
-    return (MonoMethod*)il2cpp::metadata::GenericMetadata::Inflate((MethodInfo*)method, (Il2CppGenericContext*)context);
+    return (MonoMethod*)il2cpp::api::WrapMethod(il2cpp::metadata::GenericMetadata::Inflate(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method), (Il2CppGenericContext*)context));
 }
 
 int32_t mono_class_is_nullable(MonoClass* klass)
@@ -875,7 +880,7 @@ int32_t mono_class_is_enum(MonoClass * klass)
 
 MonoMethodSignature* mono_method_signature_internal(MonoMethod *m)
 {
-    MethodInfo* method = (MethodInfo*)m;
+    MethodInfo* method = (MethodInfo*)il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)m);
 
     if (method_signatures == NULL)
         method_signatures = new MethodSignatureMap();
@@ -903,7 +908,8 @@ MonoDebugLocalsInfo* mono_debug_lookup_locals(MonoMethod *method)
     const Il2CppMethodExecutionContextInfo * executionContextInfo;
     const Il2CppMethodHeaderInfo *headerInfo;
     const Il2CppMethodScope *scopes;
-    il2cpp::utils::Debugger::GetMethodExecutionContextInfo((const MethodInfo*)method, &executionContextInfoCount, &executionContextInfo, &headerInfo, &scopes);
+    const MethodInfo* realMethod = il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method);
+    il2cpp::utils::Debugger::GetMethodExecutionContextInfo(realMethod, &executionContextInfoCount, &executionContextInfo, &headerInfo, &scopes);
 
     Il2CppMonoDebugLocalsInfo* locals = (Il2CppMonoDebugLocalsInfo*)IL2CPP_CALLOC(1, sizeof(Il2CppMonoDebugLocalsInfo));
     locals->num_locals = executionContextInfoCount;
@@ -911,12 +917,12 @@ MonoDebugLocalsInfo* mono_debug_lookup_locals(MonoMethod *method)
     locals->locals = (Il2CppMonoDebugLocalVar*)IL2CPP_CALLOC(executionContextInfoCount, sizeof(Il2CppMonoDebugLocalVar));
     for (int i = 0; i < locals->num_locals; ++i)
     {
-        locals->locals[i].name = (char*)il2cpp::utils::Debugger::GetLocalName((const MethodInfo*)method, executionContextInfo[i].nameIndex);
+        locals->locals[i].name = (char*)il2cpp::utils::Debugger::GetLocalName(realMethod, executionContextInfo[i].nameIndex);
         locals->locals[i].index = i;
 
         /* hack we should point to blocks allocated below? */
         locals->locals[i].block = (Il2CppMonoDebugCodeBlock*)IL2CPP_CALLOC(1, sizeof(Il2CppMonoDebugCodeBlock));
-        const Il2CppMethodScope* scope = il2cpp::utils::Debugger::GetLocalScope((const MethodInfo*)method, executionContextInfo[i].scopeIndex);
+        const Il2CppMethodScope* scope = il2cpp::utils::Debugger::GetLocalScope(realMethod, executionContextInfo[i].scopeIndex);
         locals->locals[i].block->start_offset = scope->startOffset;
         locals->locals[i].block->end_offset = scope->endOffset;
     }
@@ -968,7 +974,7 @@ MonoDebugMethodJitInfo* mono_debug_find_method(MonoMethod *method, MonoDomain *d
 
 void mono_method_get_param_names(MonoMethod *m, const char **names)
 {
-    MethodInfo* method = (MethodInfo*)m;
+    const MethodInfo* method = il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)m);
     uint32_t numberOfParameters = il2cpp::vm::Method::GetParamCount(method);
     for (uint32_t i = 0; i < numberOfParameters; ++i)
         names[i] = il2cpp::vm::Method::GetParamName(method, i);
@@ -976,12 +982,12 @@ void mono_method_get_param_names(MonoMethod *m, const char **names)
 
 MonoGenericContext* mono_method_get_context(MonoMethod* monoMethod)
 {
-    MethodInfo* method = (MethodInfo*)monoMethod;
+    const MethodInfo* method = il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)monoMethod);
 
     if (!method->is_inflated || method->is_generic)
         return NULL;
 
-    return (MonoGenericContext*)&((MethodInfo*)method)->genericMethod->context;
+    return (MonoGenericContext*)&method->genericMethod->context;
 }
 
 MonoMethodHeader* mono_method_get_header_checked(MonoMethod *method, MonoError *error)
@@ -996,7 +1002,7 @@ MonoMethodHeader* mono_method_get_header_checked(MonoMethod *method, MonoError *
     const Il2CppMethodScope *scopes;
     MonoGenericContext* context = mono_method_get_context(method);
 
-    il2cpp::utils::Debugger::GetMethodExecutionContextInfo((const MethodInfo*)method, &executionContextInfoCount, &executionContextInfo, &headerInfo, &scopes);
+    il2cpp::utils::Debugger::GetMethodExecutionContextInfo(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method), &executionContextInfoCount, &executionContextInfo, &headerInfo, &scopes);
 
     Il2CppMonoMethodHeader* header = (Il2CppMonoMethodHeader*)IL2CPP_CALLOC(1, sizeof(Il2CppMonoMethodHeader) + (executionContextInfoCount * sizeof(Il2CppType*)));
     header->code_size = headerInfo->code_size;
@@ -1017,12 +1023,12 @@ void mono_metadata_free_mh(MonoMethodHeader *mh)
 
 char* mono_method_full_name(MonoMethod* method, int32_t signature)
 {
-    return il2cpp::utils::StringUtils::StringDuplicate(((MethodInfo*)method)->name);
+    return il2cpp::utils::StringUtils::StringDuplicate(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method)->name);
 }
 
 MonoGenericContainer* mono_method_get_generic_container(MonoMethod* monoMethod)
 {
-    MethodInfo * method = (MethodInfo*)monoMethod;
+    const MethodInfo* method = il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)monoMethod);
 
     if (method->is_inflated || !method->is_generic)
         return NULL;
@@ -1044,35 +1050,36 @@ MonoMethod* mono_method_get_declaring_generic_method(MonoMethod* method)
 
 const char* mono_method_get_name(MonoMethod *method)
 {
-    return il2cpp::vm::Method::GetName((const MethodInfo*)method);
+    return il2cpp::vm::Method::GetName(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method));
 }
 
 MonoClass* mono_method_get_class(MonoMethod *method)
 {
-    return (MonoClass*)il2cpp::vm::Method::GetClass((const MethodInfo*)method);
+    return (MonoClass*)il2cpp::vm::Method::GetClass(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method));
 }
 
 uint32_t mono_method_get_flags(MonoMethod *method, uint32_t *iflags)
 {
+    const MethodInfo* real = il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method);
     if (iflags != 0)
-        *iflags = il2cpp::vm::Method::GetImplementationFlags((const MethodInfo*)method);
+        *iflags = il2cpp::vm::Method::GetImplementationFlags(real);
 
-    return il2cpp::vm::Method::GetFlags((const MethodInfo*)method);
+    return il2cpp::vm::Method::GetFlags(real);
 }
 
 uint32_t mono_method_get_token(MonoMethod *method)
 {
-    return il2cpp::vm::Method::GetToken((const MethodInfo*)method);
+    return il2cpp::vm::Method::GetToken(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method));
 }
 
 bool mono_method_is_generic(MonoMethod *method)
 {
-    return il2cpp::vm::Method::IsGeneric((const MethodInfo*)method);
+    return il2cpp::vm::Method::IsGeneric(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method));
 }
 
 bool mono_method_is_inflated(MonoMethod *method)
 {
-    return il2cpp::vm::Method::IsInflated((const MethodInfo*)method);
+    return il2cpp::vm::Method::IsInflated(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method));
 }
 
 int32_t mono_array_element_size(MonoClass *monoClass)
@@ -1173,7 +1180,7 @@ void* mono_object_unbox_internal(MonoObject *monoObj)
 
 MonoMethod* mono_object_get_virtual_method_internal(MonoObject *obj, MonoMethod *method)
 {
-    return (MonoMethod*)il2cpp::vm::Object::GetVirtualMethod((Il2CppObject*)obj, (const MethodInfo*)method);
+    return (MonoMethod*)il2cpp::api::WrapMethod(il2cpp::vm::Object::GetVirtualMethod((Il2CppObject*)obj, il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method)));
 }
 
 MonoObject* mono_object_new_checked(MonoDomain* domain, MonoClass* klass, MonoError* error)
@@ -1675,7 +1682,8 @@ int32_t mono_verifier_is_method_valid_generic_instantiation(MonoMethod* method)
     if (!method)
         return 0;
 
-    if (!((MethodInfo*)method)->is_generic && ((MethodInfo*)method)->is_inflated && ((MethodInfo*)method)->methodPointer)
+    const MethodInfo* real = il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method);
+    if (!real->is_generic && real->is_inflated && real->methodPointer)
         return 1;
 
     return 0;
@@ -1821,7 +1829,9 @@ MonoCustomAttrInfo* mono_custom_attrs_from_class_checked(MonoClass *klass, MonoE
 
 MonoCustomAttrInfo* mono_custom_attrs_from_method_checked(MonoMethod *method, MonoError *error)
 {
-    return (MonoCustomAttrInfo*)il2cpp::vm::MetadataCache::GetCustomAttributeTypeToken(((MethodInfo*)method)->klass->image, ((MethodInfo*)method)->token);
+    // 边界传回的 method 实为 adapter，先解包再访问结构体字段
+    const MethodInfo* real = il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method);
+    return (MonoCustomAttrInfo*)il2cpp::vm::MetadataCache::GetCustomAttributeTypeToken(real->klass->image, real->token);
 }
 
 MonoCustomAttrInfo* mono_custom_attrs_from_property_checked(MonoClass *klass, MonoProperty *property, MonoError *error)

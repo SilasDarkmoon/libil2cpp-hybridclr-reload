@@ -90,5 +90,41 @@ namespace api
     {
         GetFieldAdapterMap().RemapReal(oldReal, newReal);
     }
+
+    // ---- MethodInfo ----
+
+    typedef AdapterMap<MethodInfo, MethodInfoAdapter> MethodAdapterMap;
+
+    static MethodAdapterMap& GetMethodAdapterMap()
+    {
+        static MethodAdapterMap s_MethodAdapterMap;
+        return s_MethodAdapterMap;
+    }
+
+    const MethodInfoAdapter* WrapMethod(const MethodInfo* real)
+    {
+        return GetMethodAdapterMap().Wrap(real);
+    }
+
+    const MethodInfo* UnwrapMethod(const MethodInfoAdapter* adapter)
+    {
+        return MethodAdapterMap::Unwrap(adapter);
+    }
+
+    void RemapMethodReal(const MethodInfo* oldReal, const MethodInfo* newReal)
+    {
+        GetMethodAdapterMap().RemapReal(oldReal, newReal);
+    }
+
+    // ---- 栈帧边界转换 ----
+
+    void WrapStackFrameInfo(const Il2CppStackFrameInfo& from, Il2CppStackFrameInfoAdapter& to)
+    {
+        to.method = WrapMethod(from.method);
+        to.raw_ip = from.raw_ip;
+        to.sourceCodeLineNumber = from.sourceCodeLineNumber;
+        to.ilOffset = from.ilOffset;
+        to.filePath = from.filePath;
+    }
 }
 }

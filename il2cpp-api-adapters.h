@@ -21,12 +21,14 @@
 #include <stddef.h>
 #include <unordered_map>
 
+#include "il2cpp-api-types.h"
 #include "os/Mutex.h"
 #include "utils/Memory.h"
 
 struct Il2CppImage;
 struct Il2CppAssembly;
 struct FieldInfo;
+struct MethodInfo;
 
 // Il2CppImage 的边界适配器。交给 Unity 的 "const Il2CppImage*" 实际上是本结构体的地址。
 struct Il2CppImageAdapter
@@ -47,6 +49,12 @@ struct Il2CppAssemblyAdapter
 struct FieldInfoAdapter
 {
     const FieldInfo* real;
+};
+
+// MethodInfo 的边界适配器，语义同上。
+struct MethodInfoAdapter
+{
+    const MethodInfo* real;
 };
 
 namespace il2cpp
@@ -163,5 +171,22 @@ namespace api
     // 热重载归并：oldReal/newReal 共用 adapter，adapter 当前 real 切到 newReal。
     // FieldInfo 嵌入类体分配，新旧配对须由重载流程按 (parent 类, 字段名) 完成。
     void RemapFieldReal(FieldInfo* oldReal, FieldInfo* newReal);
+
+    // ---- MethodInfo 边界接口 ----
+
+    // 出方向：真实 MethodInfo -> adapter，find-or-create。
+    const MethodInfoAdapter* WrapMethod(const MethodInfo* real);
+
+    // 入方向：边界传回的 adapter -> 当前真实 MethodInfo。
+    const MethodInfo* UnwrapMethod(const MethodInfoAdapter* adapter);
+
+    // 热重载归并：oldReal/newReal 共用 adapter，adapter 当前 real 切到 newReal。
+    void RemapMethodReal(const MethodInfo* oldReal, const MethodInfo* newReal);
+
+    // ---- 栈帧边界转换 ----
+    // 内部（vm/ 等）继续使用 Il2CppStackFrameInfo（method 为真实指针）；
+    // 仅 API 出口经本函数转换成 adapter 版再投递给 Unity。
+
+    void WrapStackFrameInfo(const Il2CppStackFrameInfo& from, Il2CppStackFrameInfoAdapter& to);
 }
 }

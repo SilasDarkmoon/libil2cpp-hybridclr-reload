@@ -24,7 +24,8 @@
 - 2026-08-24：用户决定仍做**实验**，代码库已重置为全新状态；选型结论=Il2CppImage 是最佳入手点（见当日日志）。
 
 ## Adapter 实验进展（2026-08-26 更新）
-- **Il2CppImage adapter 已完成并验证通过**（强类型版：il2cpp-api-functions.h 的 11 个 image API 签名直接声明 `Il2CppImageAdapter*`，extern "C" 按名解析故 ABI 不变；il2cpp-api-types.h 有 opaque typedef；实现见 il2cpp-api-adapters.h/.cpp 的 `AdapterMap<RealT,AdapterT>` 模板：Wrap find-or-create / Unwrap / RemapReal 多 Real→一 Adapter、adapter 只持当前 real、泄漏换稳定）。
+- **已完成并验证通过**：Il2CppImage、Il2CppAssembly、FieldInfo（强类型版：api-functions.h 签名直接声明 Adapter*，extern "C" 按名解析故 ABI 不变；实现见 il2cpp-api-adapters.h/.cpp 的 `AdapterMap<RealT,AdapterT>` 模板：Wrap find-or-create / Unwrap / RemapReal 多 Real→一 Adapter、adapter 只持当前 real、泄漏换稳定）。
 - **推广范式六步**：①api-types.h 加 opaque typedef ②adapters.h 加 struct+接口 ③api-functions.h 改签名 ④api.cpp 定义同步+包/解 ⑤mono-api.cpp 边界同步（注意直调 vm:: 和直解引用结构体字段的点）⑥全库搜调用方。
-- **下一步=Il2CppAssembly**（已预勘，清单见 2026-08-26 日志）；路线图：Assembly → FieldInfo → MethodInfo → Il2CppType/Il2CppClass（内容键，机制不同）。
-- **已知欠账（adapter 够不着的边界，同类记录）**：托管堆内裸指针——Il2CppReflectionModule 持 Il2CppImage*、Il2CppReflectionAssembly 持 Il2CppAssembly*、Il2CppReflectionType 持 Il2CppType*。
+- **MethodInfo（API 层收敛版，2026-08-26 实施）**：首版改 Il2CppStackFrameInfo.method 字段类型波及 vm/hybridclr/codegen 等 18 文件**被用户回滚**。新方案（用户指定）：**平行结构**——内部继续用原 Il2CppStackFrameInfo（method=真实指针），API 出口转换成 Il2CppStackFrameInfoAdapter（布局镜像，method=MethodInfoAdapter*）；walk/profiler 回调用新 typedef（Il2CppFrameWalkFuncAdapter/Il2CppProfileMethodFuncAdapter），**旧 typedef 不动**（vm 头文件在用）；trampoline/bridge 全在 api.cpp。**新约束（长期）：改动限制在 API 接口层，不动 vm/ 等内部源文件；改动面过大先问再动手**。
+- **路线图**：MethodInfo（进行中）→ Il2CppType/Il2CppClass（内容键，机制不同）。
+- **已知欠账（adapter 够不着的边界，同类记录）**：托管堆内裸指针——Il2CppReflectionModule 持 Il2CppImage*、Il2CppReflectionAssembly 持 Il2CppAssembly*、Il2CppReflectionType 持 Il2CppType*、Il2CppReflectionMethod 持 MethodInfo*；gc/WriteBarrierValidation（默认关宏）与 debugger/（MONO_DEBUGGER 构建）两处非默认编译路径待同步。

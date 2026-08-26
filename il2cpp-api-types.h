@@ -11,6 +11,8 @@ typedef struct Il2CppClass Il2CppClass;
 typedef struct Il2CppType Il2CppType;
 typedef struct EventInfo EventInfo;
 typedef struct MethodInfo MethodInfo;
+// 同 Il2CppImageAdapter：method 相关 API 实际收发 MethodInfoAdapter*。定义见 il2cpp-api-adapters.h。
+typedef struct MethodInfoAdapter MethodInfoAdapter;
 typedef struct FieldInfo FieldInfo;
 // 同 Il2CppImageAdapter：field 相关 API 实际收发 FieldInfoAdapter*。定义见 il2cpp-api-adapters.h。
 typedef struct FieldInfoAdapter FieldInfoAdapter;
@@ -126,6 +128,20 @@ typedef struct Il2CppStackFrameInfo
     const char* filePath;
 } Il2CppStackFrameInfo;
 
+// API 边界 Adapter 版栈帧（实验）：il2cpp 内部继续使用上面的 Il2CppStackFrameInfo
+// （method 为真实 MethodInfo*）；仅 API 出口（get_top_frame / get_frame_at /
+// walk_frame_stack / profiler 回调）经本结构投递给 Unity，method 为稳定 adapter。
+// 字段布局与 Il2CppStackFrameInfo 完全一致（指针同宽），Unity 预编译引擎按旧结构
+// 读写该内存（读偏移 0 的 method 指针传回 method API）依然正确。
+typedef struct Il2CppStackFrameInfoAdapter
+{
+    const MethodInfoAdapter *method;
+    uintptr_t raw_ip;
+    int sourceCodeLineNumber;
+    int ilOffset;
+    const char* filePath;
+} Il2CppStackFrameInfoAdapter;
+
 typedef void(*Il2CppMethodPointer)();
 
 typedef struct Il2CppMethodDebugInfo
@@ -182,8 +198,14 @@ typedef char Il2CppNativeChar;
 typedef void (*il2cpp_register_object_callback)(Il2CppObject** arr, int size, void* userdata);
 typedef void* (*il2cpp_liveness_reallocate_callback)(void* ptr, size_t size, void* userdata);
 typedef void (*Il2CppFrameWalkFunc) (const Il2CppStackFrameInfo *info, void *user_data);
+// API 边界版 frame walk 回调：info 为 adapter 结构（method 是 MethodInfoAdapter*）。
+// Il2CppFrameWalkFunc 保持原样供 vm 内部使用（回调由 API 层桥接）。
+typedef void (*Il2CppFrameWalkFuncAdapter) (const Il2CppStackFrameInfoAdapter *info, void *user_data);
 typedef void (*Il2CppProfileFunc) (Il2CppProfiler* prof);
 typedef void (*Il2CppProfileMethodFunc) (Il2CppProfiler* prof, const MethodInfo *method);
+// API 边界版 profiler method 回调：method 为 MethodInfoAdapter*。
+// Il2CppProfileMethodFunc 保持原样供 vm 内部使用（回调由 API 层桥接）。
+typedef void (*Il2CppProfileMethodFuncAdapter) (Il2CppProfiler* prof, const MethodInfoAdapter *method);
 typedef void (*Il2CppProfileAllocFunc) (Il2CppProfiler* prof, Il2CppObject *obj, Il2CppClass *klass);
 typedef void (*Il2CppProfileGCFunc) (Il2CppProfiler* prof, Il2CppGCEvent event, int generation);
 typedef void (*Il2CppProfileGCResizeFunc) (Il2CppProfiler* prof, int64_t new_size);
