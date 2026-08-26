@@ -15,6 +15,8 @@ typedef struct FieldInfo FieldInfo;
 typedef struct PropertyInfo PropertyInfo;
 
 typedef struct Il2CppAssembly Il2CppAssembly;
+// 同 Il2CppImageAdapter：assembly 相关 API 实际收发 Il2CppAssemblyAdapter*。定义见 il2cpp-api-adapters.h。
+typedef struct Il2CppAssemblyAdapter Il2CppAssemblyAdapter;
 typedef struct Il2CppArray Il2CppArray;
 typedef struct Il2CppDelegate Il2CppDelegate;
 typedef struct Il2CppDomain Il2CppDomain;

@@ -34,7 +34,7 @@ DO_API(Il2CppClass*, il2cpp_bounded_array_class_get, (Il2CppClass * element_clas
 DO_API(int, il2cpp_array_element_size, (const Il2CppClass * array_class));
 
 // assembly
-DO_API(const Il2CppImageAdapter*, il2cpp_assembly_get_image, (const Il2CppAssembly * assembly));
+DO_API(const Il2CppImageAdapter*, il2cpp_assembly_get_image, (const Il2CppAssemblyAdapter * assembly));
 
 // class
 DO_API(void, il2cpp_class_for_each, (void(*klassReportFunc)(Il2CppClass* klass, void* userData), void* userData));
@@ -94,8 +94,8 @@ DO_API(uint64_t, il2cpp_stats_get_value, (Il2CppStat stat));
 
 // domain
 DO_API(Il2CppDomain*, il2cpp_domain_get, ());
-DO_API(const Il2CppAssembly*, il2cpp_domain_assembly_open, (Il2CppDomain * domain, const char* name));
-DO_API(const Il2CppAssembly**, il2cpp_domain_get_assemblies, (const Il2CppDomain * domain, size_t * size));
+DO_API(const Il2CppAssemblyAdapter*, il2cpp_domain_assembly_open, (Il2CppDomain * domain, const char* name));
+DO_API(const Il2CppAssemblyAdapter* const*, il2cpp_domain_get_assemblies, (const Il2CppDomain * domain, size_t * size));
 
 // exception
 DO_API_NO_RETURN(void, il2cpp_raise_exception, (Il2CppException*));
@@ -271,7 +271,7 @@ DO_API(bool, il2cpp_type_is_static, (const Il2CppType * type));
 DO_API(bool, il2cpp_type_is_pointer_type, (const Il2CppType * type));
 
 // image
-DO_API(const Il2CppAssembly*, il2cpp_image_get_assembly, (const Il2CppImageAdapter * image));
+DO_API(const Il2CppAssemblyAdapter*, il2cpp_image_get_assembly, (const Il2CppImageAdapter * image));
 DO_API(const char*, il2cpp_image_get_name, (const Il2CppImageAdapter * image));
 DO_API(const char*, il2cpp_image_get_filename, (const Il2CppImageAdapter * image));
 DO_API(const MethodInfo*, il2cpp_image_get_entry_point, (const Il2CppImageAdapter * image));

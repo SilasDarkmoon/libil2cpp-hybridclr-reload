@@ -25,11 +25,18 @@
 #include "utils/Memory.h"
 
 struct Il2CppImage;
+struct Il2CppAssembly;
 
 // Il2CppImage 的边界适配器。交给 Unity 的 "const Il2CppImage*" 实际上是本结构体的地址。
 struct Il2CppImageAdapter
 {
     const Il2CppImage* real;
+};
+
+// Il2CppAssembly 的边界适配器，语义同 Il2CppImageAdapter。
+struct Il2CppAssemblyAdapter
+{
+    const Il2CppAssembly* real;
 };
 
 namespace il2cpp
@@ -118,5 +125,20 @@ namespace api
 
     // 热重载归并：oldReal/newReal 共用 adapter，adapter 当前 real 切到 newReal。
     void RemapImageReal(const Il2CppImage* oldReal, const Il2CppImage* newReal);
+
+    // ---- Il2CppAssembly 边界接口 ----
+
+    // 出方向：真实 assembly -> adapter，find-or-create。
+    const Il2CppAssemblyAdapter* WrapAssembly(const Il2CppAssembly* real);
+
+    // 入方向：边界传回的 adapter -> 当前真实 assembly。
+    const Il2CppAssembly* UnwrapAssembly(const Il2CppAssemblyAdapter* adapter);
+
+    // 热重载归并：oldReal/newReal 共用 adapter，adapter 当前 real 切到 newReal。
+    void RemapAssemblyReal(const Il2CppAssembly* oldReal, const Il2CppAssembly* newReal);
+
+    // 出方向（数组）：把当前 assembly 列表包装成 adapter 指针数组。
+    // 返回的缓冲区归 AdapterMap 所有，下次调用前有效；adapter 本身地址稳定。
+    const Il2CppAssemblyAdapter* const* WrapAssemblyArray(const Il2CppAssembly* const* assemblies, size_t count);
 }
 }

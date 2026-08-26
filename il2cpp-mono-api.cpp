@@ -386,7 +386,7 @@ void mono_domain_unlock(MonoDomain* domain)
 
 const MonoAssembly* mono_domain_get_corlib(MonoDomain *domain)
 {
-    return (MonoAssembly*)il2cpp::vm::Image::GetAssembly((Il2CppImage*)il2cpp_defaults.corlib);
+    return (MonoAssembly*)il2cpp::api::WrapAssembly(il2cpp::vm::Image::GetAssembly((Il2CppImage*)il2cpp_defaults.corlib));
 }
 
 MonoAssembly* mono_domain_get_assemblies_iter(MonoAppDomain *domain, void** iter)
@@ -401,14 +401,14 @@ MonoAssembly* mono_domain_get_assemblies_iter(MonoAppDomain *domain, void** iter
         il2cpp::vm::AssemblyVector::iterator *pIter = new il2cpp::vm::AssemblyVector::iterator();
         *pIter = assemblies->begin();
         *iter = pIter;
-        return (MonoAssembly*)**pIter;
+        return (MonoAssembly*)il2cpp::api::WrapAssembly(**pIter);
     }
 
     il2cpp::vm::AssemblyVector::iterator *pIter = (il2cpp::vm::AssemblyVector::iterator*)*iter;
     (*pIter)++;
     if (*pIter != assemblies->end())
     {
-        return (MonoAssembly*)(**pIter);
+        return (MonoAssembly*)il2cpp::api::WrapAssembly(**pIter);
     }
     else
     {
@@ -1667,7 +1667,7 @@ void mono_threadpool_resume()
 
 MonoImage* mono_assembly_get_image_internal(MonoAssembly* assembly)
 {
-    return (MonoImage*)il2cpp::api::WrapImage(il2cpp::vm::Assembly::GetImage((Il2CppAssembly*)assembly));
+    return (MonoImage*)il2cpp::api::WrapImage(il2cpp::vm::Assembly::GetImage(il2cpp::api::UnwrapAssembly((const Il2CppAssemblyAdapter*)assembly)));
 }
 
 int32_t mono_verifier_is_method_valid_generic_instantiation(MonoMethod* method)
@@ -1808,7 +1808,9 @@ MonoType* mono_get_object_type()
 
 MonoCustomAttrInfo* mono_custom_attrs_from_assembly_checked(MonoAssembly *assembly, int32_t ignore_missing, MonoError *error)
 {
-    return (MonoCustomAttrInfo*)il2cpp::vm::MetadataCache::GetCustomAttributeTypeToken(((Il2CppAssembly*)assembly)->image, ((Il2CppAssembly*)assembly)->token);
+    // 边界传回的 assembly 实为 adapter，先解包再访问结构体字段
+    const Il2CppAssembly* real = il2cpp::api::UnwrapAssembly((const Il2CppAssemblyAdapter*)assembly);
+    return (MonoCustomAttrInfo*)il2cpp::vm::MetadataCache::GetCustomAttributeTypeToken(real->image, real->token);
 }
 
 MonoCustomAttrInfo* mono_custom_attrs_from_class_checked(MonoClass *klass, MonoError *error)

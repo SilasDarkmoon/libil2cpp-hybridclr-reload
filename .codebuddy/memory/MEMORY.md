@@ -22,3 +22,9 @@
 - 用户提议 il2cpp-api-functions.h 边界包 Il2CppClassAdapter/Il2CppTypeAdapter（TypeAdapter 持 ClassAdapter*，入边界解出真实 klass 填 typeHandle）。
 - 结论：边界层自洽，但只覆盖 4 类指针逃逸边界的 1 个（引擎 API）；覆盖不了 ①obj->klass（GC/AOT/解释器编译期偏移直解引用）②托管反射句柄（RuntimeType.value/RuntimeMethodInfo.mhandle，icall 读写不经 API）③泛型缓存+AOT 游离 class_inst（typeHandle 裸指针 hash，枚举不全）。adapter 能替代的工作量≈10-20%。
 - 2026-08-24：用户决定仍做**实验**，代码库已重置为全新状态；选型结论=Il2CppImage 是最佳入手点（见当日日志）。
+
+## Adapter 实验进展（2026-08-26 更新）
+- **Il2CppImage adapter 已完成并验证通过**（强类型版：il2cpp-api-functions.h 的 11 个 image API 签名直接声明 `Il2CppImageAdapter*`，extern "C" 按名解析故 ABI 不变；il2cpp-api-types.h 有 opaque typedef；实现见 il2cpp-api-adapters.h/.cpp 的 `AdapterMap<RealT,AdapterT>` 模板：Wrap find-or-create / Unwrap / RemapReal 多 Real→一 Adapter、adapter 只持当前 real、泄漏换稳定）。
+- **推广范式六步**：①api-types.h 加 opaque typedef ②adapters.h 加 struct+接口 ③api-functions.h 改签名 ④api.cpp 定义同步+包/解 ⑤mono-api.cpp 边界同步（注意直调 vm:: 和直解引用结构体字段的点）⑥全库搜调用方。
+- **下一步=Il2CppAssembly**（已预勘，清单见 2026-08-26 日志）；路线图：Assembly → FieldInfo → MethodInfo → Il2CppType/Il2CppClass（内容键，机制不同）。
+- **已知欠账（adapter 够不着的边界，同类记录）**：托管堆内裸指针——Il2CppReflectionModule 持 Il2CppImage*、Il2CppReflectionAssembly 持 Il2CppAssembly*、Il2CppReflectionType 持 Il2CppType*。

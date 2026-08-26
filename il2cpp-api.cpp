@@ -228,9 +228,9 @@ int il2cpp_array_element_size(const Il2CppClass* klass)
 }
 
 // assembly
-const Il2CppImageAdapter* il2cpp_assembly_get_image(const Il2CppAssembly *assembly)
+const Il2CppImageAdapter* il2cpp_assembly_get_image(const Il2CppAssemblyAdapter *assembly)
 {
-    return il2cpp::api::WrapImage(Assembly::GetImage(assembly));
+    return il2cpp::api::WrapImage(Assembly::GetImage(il2cpp::api::UnwrapAssembly(assembly)));
 }
 
 // class
@@ -554,16 +554,16 @@ Il2CppDomain* il2cpp_domain_get()
     return Domain::GetCurrent();
 }
 
-const Il2CppAssembly* il2cpp_domain_assembly_open(Il2CppDomain *domain, const char *name)
+const Il2CppAssemblyAdapter* il2cpp_domain_assembly_open(Il2CppDomain *domain, const char *name)
 {
-    return Assembly::Load(name);
+    return il2cpp::api::WrapAssembly(Assembly::Load(name));
 }
 
-const Il2CppAssembly** il2cpp_domain_get_assemblies(const Il2CppDomain* domain, size_t* size)
+const Il2CppAssemblyAdapter* const* il2cpp_domain_get_assemblies(const Il2CppDomain* domain, size_t* size)
 {
     il2cpp::vm::AssemblyVector* assemblies = Assembly::GetAllAssemblies();
     *size = assemblies->size();
-    return &(*assemblies)[0];
+    return il2cpp::api::WrapAssemblyArray(assemblies->empty() ? NULL : &(*assemblies)[0], *size);
 }
 
 // exception
@@ -1356,9 +1356,9 @@ bool il2cpp_type_is_pointer_type(const Il2CppType *type)
 
 // image
 
-const Il2CppAssembly* il2cpp_image_get_assembly(const Il2CppImageAdapter *image)
+const Il2CppAssemblyAdapter* il2cpp_image_get_assembly(const Il2CppImageAdapter *image)
 {
-    return Image::GetAssembly(il2cpp::api::UnwrapImage(image));
+    return il2cpp::api::WrapAssembly(Image::GetAssembly(il2cpp::api::UnwrapImage(image)));
 }
 
 const char* il2cpp_image_get_name(const Il2CppImageAdapter *image)
