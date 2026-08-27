@@ -14,6 +14,7 @@
 #include "utils/dynamic_array.h"
 #include "vm-utils/VmStringUtils.h"
 #include "vm/Array.h"
+#include "vm/Object.h"
 #include "vm/Class.h"
 #include "vm/ClassInlines.h"
 #include "vm/Field.h"
@@ -737,7 +738,7 @@ namespace System
         // You could think "hey, shouldn't we call the constructor here?" but we don't because this path is only hit for value
         // types, and they cannot have default constructors.  for reference types with constructors, the c# side of CreateInstance()
         // actually takes care of its own business by using reflection to create the object and invoke the constructor.
-        return il2cpp_object_new(typeInfo);
+        return vm::Object::New(typeInfo);
     }
 
     Il2CppObject* RuntimeType::GetCorrespondingInflatedConstructor(Il2CppReflectionRuntimeType* thisPtr, Il2CppObject* generic)
@@ -1080,8 +1081,8 @@ namespace System
         }
 
 
-        *targets = il2cpp_array_new(il2cpp_defaults.method_info_class, numberOfVirtualMethods);
-        *methods = il2cpp_array_new(il2cpp_defaults.method_info_class, numberOfVirtualMethods);
+        *targets = vm::Array::New(il2cpp_defaults.method_info_class, numberOfVirtualMethods);
+        *methods = vm::Array::New(il2cpp_defaults.method_info_class, numberOfVirtualMethods);
 
         if (numberOfVirtualMethods == 0)
             return;

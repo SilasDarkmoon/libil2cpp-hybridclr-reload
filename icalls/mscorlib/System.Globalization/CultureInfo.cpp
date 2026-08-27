@@ -10,6 +10,7 @@
 #include "vm/Array.h"
 #include "vm/Class.h"
 #include "vm/Exception.h"
+#include "vm/Object.h"
 #include "vm/String.h"
 #include "os/Locale.h"
 #include "icalls/mscorlib/System.Globalization/CultureInfo.h"
@@ -203,7 +204,7 @@ namespace Globalization
 
         // Allocate result array.
         Il2CppClass* cultureInfoClass = il2cpp_defaults.culture_info;
-        Il2CppArray* array = il2cpp_array_new(cultureInfoClass, numMatchingCultures);
+        Il2CppArray* array = il2cpp::vm::Array::New(cultureInfoClass, numMatchingCultures);
 
         int index = 0;
 
@@ -219,7 +220,7 @@ namespace Globalization
             if (!IsMatchingCultureInfoEntry(entry, neutral, specific, installed))
                 continue;
 
-            Il2CppCultureInfo* info = reinterpret_cast<Il2CppCultureInfo*>(il2cpp_object_new(cultureInfoClass));
+            Il2CppCultureInfo* info = reinterpret_cast<Il2CppCultureInfo*>(il2cpp::vm::Object::New(cultureInfoClass));
             construct_culture(info, &entry);
 
             il2cpp_array_setref(array, index++, info);

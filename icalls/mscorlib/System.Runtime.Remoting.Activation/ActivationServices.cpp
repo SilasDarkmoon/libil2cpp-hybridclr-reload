@@ -7,6 +7,7 @@
 #include "vm/Image.h"
 #include "vm/Class.h"
 #include "vm/Exception.h"
+#include "vm/Object.h"
 
 namespace il2cpp
 {
@@ -35,7 +36,7 @@ namespace Activation
             return NULL;
 
         il2cpp::vm::Class::Init(typeInfo);
-        return il2cpp_object_new(typeInfo);
+        return il2cpp::vm::Object::New(typeInfo);
     }
 } /* namespace Activation */
 } /* namespace Remoting */
