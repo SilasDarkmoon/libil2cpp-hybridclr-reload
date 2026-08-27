@@ -268,7 +268,7 @@ struct Il2CppMonoJitInfo
 static void initialize_il2cpp_mono_method_signature(Il2CppMonoMethodSignature* signature, MethodInfo* method)
 {
     signature->hasthis = il2cpp::vm::Method::IsInstance(method);
-    signature->ret = (Il2CppType*)il2cpp::vm::Method::GetReturnType(method);
+    signature->ret = (Il2CppType*)il2cpp::api::WrapType(il2cpp::vm::Method::GetReturnType(method));
 
     signature->generic_param_count = 0;
 
@@ -286,7 +286,7 @@ static void initialize_il2cpp_mono_method_signature(Il2CppMonoMethodSignature* s
     }
     signature->param_count = il2cpp::vm::Method::GetParamCount(method);
     for (int i = 0; i < signature->param_count; ++i)
-        signature->params[i] = (Il2CppType*)il2cpp::vm::Method::GetParam(method, i);
+        signature->params[i] = (Il2CppType*)il2cpp::api::WrapType(il2cpp::vm::Method::GetParam(method, i));
 }
 
 // We need to allocate the Il2CppMonoMethodSignature struct with C-style allocators because it is
@@ -421,41 +421,41 @@ MonoAssembly* mono_domain_get_assemblies_iter(MonoAppDomain *domain, void** iter
 
 MonoClass* mono_type_get_class(MonoType *type)
 {
-    return (MonoClass*)il2cpp::api::WrapClass(il2cpp::vm::Type::GetClass((Il2CppType*)type));
+    return (MonoClass*)il2cpp::api::WrapClass(il2cpp::vm::Type::GetClass(il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)type)));
 }
 
 MonoGenericClass* m_type_get_generic_class(MonoType* type)
 {
-    return (MonoGenericClass*)((Il2CppType*)type)->data.generic_class;
+    return (MonoGenericClass*)il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)type)->data.generic_class;
 }
 
 int32_t mono_type_is_struct(MonoType *type)
 {
-    return il2cpp::vm::Type::IsStruct((Il2CppType*)type);
+    return il2cpp::vm::Type::IsStruct(il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)type));
 }
 
 int32_t mono_type_is_reference(MonoType *type)
 {
-    return type && il2cpp::vm::Type::IsReference((Il2CppType*)type);
+    return type && il2cpp::vm::Type::IsReference(il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)type));
 }
 
 int32_t mono_type_generic_inst_is_valuetype(MonoType *monoType)
 {
     static const int kBitIsValueType = 1;
-    Il2CppType *type = (Il2CppType*)monoType;
+    Il2CppType *type = (Il2CppType*)il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)monoType);
     Il2CppMetadataTypeHandle handle = il2cpp::vm::MetadataCache::GetTypeHandleFromType(type->data.generic_class->type);
     return il2cpp::vm::MetadataCache::TypeIsValueType(handle);
 }
 
 char* mono_type_full_name(MonoType* type)
 {
-    std::string name = il2cpp::vm::Type::GetName((Il2CppType*)type, IL2CPP_TYPE_NAME_FORMAT_FULL_NAME);
+    std::string name = il2cpp::vm::Type::GetName(il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)type), IL2CPP_TYPE_NAME_FORMAT_FULL_NAME);
     return il2cpp::utils::StringUtils::StringDuplicate(name.c_str());
 }
 
 char* mono_type_get_name_full(MonoType* type, MonoTypeNameFormat format)
 {
-    std::string name = il2cpp::vm::Type::GetName((Il2CppType*)type, (Il2CppTypeNameFormat)format);
+    std::string name = il2cpp::vm::Type::GetName(il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)type), (Il2CppTypeNameFormat)format);
     return il2cpp::utils::StringUtils::StringDuplicate(name.c_str());
 }
 
@@ -467,22 +467,22 @@ void mono_string_free(const char* str)
 MonoReflectionType* mono_type_get_object_checked(MonoDomain* domain, MonoType* type, MonoError* error)
 {
     error_init(error);
-    return (MonoReflectionType*)il2cpp::vm::Reflection::GetTypeObject((const Il2CppType*)type);
+    return (MonoReflectionType*)il2cpp::vm::Reflection::GetTypeObject(il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)type));
 }
 
 int mono_type_get_type(MonoType* type)
 {
-    return il2cpp_type_get_type((const Il2CppType*)type);
+    return il2cpp_type_get_type((const Il2CppTypeAdapter*)type);
 }
 
 int32_t mono_type_is_byref(MonoType* type)
 {
-    return il2cpp_type_is_byref((const Il2CppType*)type);
+    return il2cpp_type_is_byref((const Il2CppTypeAdapter*)type);
 }
 
 uint32_t mono_type_get_attrs(MonoType* type)
 {
-    return il2cpp_type_get_attrs((const Il2CppType*)type);
+    return il2cpp_type_get_attrs((const Il2CppTypeAdapter*)type);
 }
 
 MonoVTable* mono_class_vtable_checked(MonoDomain *domain, MonoClass *klass, MonoError* error)
@@ -508,7 +508,7 @@ int32_t mono_class_is_assignable_from_internal(MonoClass *klass, MonoClass *okla
 
 MonoClass* mono_class_from_mono_type_internal(MonoType *type)
 {
-    return (MonoClass*)il2cpp::api::WrapClass(il2cpp::vm::Class::FromIl2CppType((Il2CppType*)type));
+    return (MonoClass*)il2cpp::api::WrapClass(il2cpp::vm::Class::FromIl2CppType(il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)type)));
 }
 
 uint32_t mono_class_get_flags(MonoClass * klass)
@@ -847,7 +847,7 @@ uint32_t mono_class_get_type_token(MonoClass * klass)
 
 MonoType* mono_class_get_byref_type(MonoClass *klass)
 {
-    return (MonoType*)il2cpp::vm::Class::GetByrefType(il2cpp::api::UnwrapClass((const Il2CppClassAdapter*)klass));
+    return (MonoType*)il2cpp::api::WrapType(il2cpp::vm::Class::GetByrefType(il2cpp::api::UnwrapClass((const Il2CppClassAdapter*)klass)));
 }
 
 MonoImage* mono_class_get_image(MonoClass * klass)
@@ -1010,7 +1010,7 @@ MonoMethodHeader* mono_method_get_header_checked(MonoMethod *method, MonoError *
     header->code_size = headerInfo->code_size;
     header->num_locals = executionContextInfoCount;
     for (uint32_t i = 0; i < executionContextInfoCount; i++)
-        header->locals[i] = (Il2CppType*)il2cpp::metadata::GenericMetadata::InflateIfNeeded(il2cpp::vm::MetadataCache::GetIl2CppTypeFromIndex(NULL, executionContextInfo[i].typeIndex), (const Il2CppGenericContext *)context, true);
+        header->locals[i] = (Il2CppType*)il2cpp::api::WrapType(il2cpp::metadata::GenericMetadata::InflateIfNeeded(il2cpp::vm::MetadataCache::GetIl2CppTypeFromIndex(NULL, executionContextInfo[i].typeIndex), (const Il2CppGenericContext *)context, true));
 
     return (MonoMethodHeader*)header;
 #else
@@ -1135,7 +1135,7 @@ uint32_t mono_field_get_offset(MonoClassField *field)
 
 MonoType* mono_field_get_type(MonoClassField *field)
 {
-    return (MonoType*)il2cpp::vm::Field::GetType(il2cpp::api::UnwrapField((const FieldInfoAdapter*)field));
+    return (MonoType*)il2cpp::api::WrapType(il2cpp::vm::Field::GetType(il2cpp::api::UnwrapField((const FieldInfoAdapter*)field)));
 }
 
 uint16_t* mono_string_chars(MonoString *monoStr)
@@ -1193,7 +1193,7 @@ MonoObject* mono_object_new_checked(MonoDomain* domain, MonoClass* klass, MonoEr
 
 MonoType* mono_object_get_type(MonoObject* object)
 {
-    return (MonoType*)&(((Il2CppObject*)object)->klass->byval_arg);
+    return (MonoType*)il2cpp::api::WrapType(&(((Il2CppObject*)object)->klass->byval_arg));
 }
 
 MonoMethod* mono_get_method_checked(MonoImage* image, uint32_t token, MonoClass* klass, MonoGenericContext* context, MonoError* error)
@@ -1722,13 +1722,13 @@ MonoClass* mono_get_string_class()
 
 int32_t mono_type_is_generic_parameter(MonoType *type)
 {
-    auto il2cppType = (Il2CppType*)type;
+    auto il2cppType = (Il2CppType*)il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)type);
     return !il2cppType->byref && (il2cppType->type == IL2CPP_TYPE_VAR || il2cppType->type == IL2CPP_TYPE_MVAR);
 }
 
 int mono_type_size(MonoType *t, int* align)
 {
-    auto sizeAndAlignment = il2cpp::metadata::FieldLayout::GetTypeSizeAndAlignment((Il2CppType*)t);
+    auto sizeAndAlignment = il2cpp::metadata::FieldLayout::GetTypeSizeAndAlignment(il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)t));
     *align = sizeAndAlignment.alignment;
 
     // The Mono API requires an int return value, so assert if the value does not fit in an int.
@@ -1815,12 +1815,12 @@ char* mono_debugger_state_str()
 
 MonoType* mono_get_void_type()
 {
-    return (MonoType*)il2cpp::vm::Class::GetType(il2cpp_defaults.void_class);
+    return (MonoType*)il2cpp::api::WrapType(il2cpp::vm::Class::GetType(il2cpp_defaults.void_class));
 }
 
 MonoType* mono_get_object_type()
 {
-    return (MonoType*)il2cpp::vm::Class::GetType(il2cpp_defaults.object_class);
+    return (MonoType*)il2cpp::api::WrapType(il2cpp::vm::Class::GetType(il2cpp_defaults.object_class));
 }
 
 MonoCustomAttrInfo* mono_custom_attrs_from_assembly_checked(MonoAssembly *assembly, int32_t ignore_missing, MonoError *error)

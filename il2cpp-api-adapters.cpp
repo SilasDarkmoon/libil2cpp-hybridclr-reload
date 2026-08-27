@@ -1,5 +1,7 @@
 #include "il2cpp-api-adapters.h"
 
+#include "il2cpp-runtime-metadata.h"
+
 #include <vector>
 
 namespace il2cpp
@@ -255,6 +257,96 @@ namespace api
     {
         if (adapter != NULL)
             adapter->userdata = userdata;
+    }
+
+    // ---- Il2CppType（内容键映射）----
+    // 键 = (type 枚举, byref, attrs, data 裸指针值)。num_mods/pinned 恒 0 忽略；
+    // valuetype 位由 type 枚举推导。同一逻辑类型（即使 Il2CppType 实例地址不同，
+    // 如多次 inflate 的结果）返回同一 adapter。
+
+    namespace
+    {
+        struct TypeContentKey
+        {
+            uint32_t type;
+            uint32_t byref;
+            uint32_t attrs;
+            const void* data;
+
+            bool operator==(const TypeContentKey& other) const
+            {
+                return type == other.type && byref == other.byref && attrs == other.attrs && data == other.data;
+            }
+        };
+
+        struct TypeContentKeyHash
+        {
+            size_t operator()(const TypeContentKey& key) const
+            {
+                // data 裸指针是主身份；type/byref/attrs 混入防碰撞
+                size_t h = std::hash<const void*>()(key.data);
+                h = h * 31 + key.type;
+                h = h * 31 + key.byref;
+                h = h * 31 + key.attrs;
+                return h;
+            }
+        };
+
+        // adapter 与键双索引：键->adapter 供 find-or-create；adapter->键 供 Remap 反查。
+        std::unordered_map<TypeContentKey, Il2CppTypeAdapter*, TypeContentKeyHash> s_TypeByKey;
+        std::unordered_map<const Il2CppTypeAdapter*, TypeContentKey> s_KeyByAdapter;
+        baselib::ReentrantLock s_TypeMapMutex;
+
+        TypeContentKey MakeTypeKey(const Il2CppType* t)
+        {
+            TypeContentKey key;
+            key.type = t->type;
+            key.byref = t->byref;
+            key.attrs = t->attrs;
+            key.data = t->data.dummy; // union 首字段按字节读裸指针值
+            return key;
+        }
+    }
+
+    const Il2CppTypeAdapter* WrapType(const Il2CppType* real)
+    {
+        if (real == NULL)
+            return NULL;
+
+        il2cpp::os::FastAutoLock lock(&s_TypeMapMutex);
+        TypeContentKey key = MakeTypeKey(real);
+        std::unordered_map<TypeContentKey, Il2CppTypeAdapter*, TypeContentKeyHash>::iterator it = s_TypeByKey.find(key);
+        if (it != s_TypeByKey.end())
+            return it->second;
+
+        Il2CppTypeAdapter* adapter = (Il2CppTypeAdapter*)IL2CPP_CALLOC(1, sizeof(Il2CppTypeAdapter));
+        adapter->real = real;
+        s_TypeByKey.insert(std::make_pair(key, adapter));
+        s_KeyByAdapter.insert(std::make_pair(adapter, key));
+        return adapter;
+    }
+
+    const Il2CppType* UnwrapType(const Il2CppTypeAdapter* adapter)
+    {
+        return adapter == NULL ? NULL : adapter->real;
+    }
+
+    void RemapTypeReal(const Il2CppType* oldReal, const Il2CppType* newReal)
+    {
+        if (oldReal == NULL || newReal == NULL || oldReal == newReal)
+            return;
+
+        il2cpp::os::FastAutoLock lock(&s_TypeMapMutex);
+        TypeContentKey oldKey = MakeTypeKey(oldReal);
+        std::unordered_map<TypeContentKey, Il2CppTypeAdapter*, TypeContentKeyHash>::iterator it = s_TypeByKey.find(oldKey);
+        if (it == s_TypeByKey.end())
+            return;
+
+        Il2CppTypeAdapter* adapter = it->second;
+        adapter->real = newReal;
+        s_TypeByKey.erase(it);
+        s_TypeByKey.insert(std::make_pair(MakeTypeKey(newReal), adapter));
+        s_KeyByAdapter[adapter] = MakeTypeKey(newReal);
     }
 }
 }

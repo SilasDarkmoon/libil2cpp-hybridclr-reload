@@ -12,6 +12,10 @@ typedef struct Il2CppClass Il2CppClass;
 // 注意 adapter 含 userdata 槽（Unity 经 il2cpp_class_get_userdata_offset 拿偏移后直读直写）。
 typedef struct Il2CppClassAdapter Il2CppClassAdapter;
 typedef struct Il2CppType Il2CppType;
+// API 边界 Adapter（实验）：type 相关 API 实际收发 Il2CppTypeAdapter*。
+// Il2CppType 按值嵌入（byval_arg/type_argv 等）无独立身份，映射按内容键
+// (type,byref,attrs,data) find-or-create。定义见 il2cpp-api-adapters.h。
+typedef struct Il2CppTypeAdapter Il2CppTypeAdapter;
 typedef struct EventInfo EventInfo;
 // 同 Il2CppImageAdapter：event 相关 API 实际收发 EventInfoAdapter*。定义见 il2cpp-api-adapters.h。
 typedef struct EventInfoAdapter EventInfoAdapter;

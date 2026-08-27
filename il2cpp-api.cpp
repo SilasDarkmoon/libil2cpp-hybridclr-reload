@@ -238,9 +238,9 @@ const Il2CppImageAdapter* il2cpp_assembly_get_image(const Il2CppAssemblyAdapter 
 
 // class
 
-const Il2CppType* il2cpp_class_enum_basetype(Il2CppClassAdapter *klass)
+const Il2CppTypeAdapter* il2cpp_class_enum_basetype(Il2CppClassAdapter *klass)
 {
-    return Class::GetEnumBaseType(il2cpp::api::UnwrapClass(klass));
+    return il2cpp::api::WrapType(Class::GetEnumBaseType(il2cpp::api::UnwrapClass(klass)));
 }
 
 Il2CppClassAdapter* il2cpp_class_from_system_type(Il2CppReflectionType *type)
@@ -278,9 +278,9 @@ bool il2cpp_class_has_parent(Il2CppClassAdapter *klass, Il2CppClassAdapter *klas
     return Class::HasParent(il2cpp::api::UnwrapClass(klass), il2cpp::api::UnwrapClass(klassc));
 }
 
-Il2CppClassAdapter* il2cpp_class_from_il2cpp_type(const Il2CppType* type)
+Il2CppClassAdapter* il2cpp_class_from_il2cpp_type(const Il2CppTypeAdapter* type)
 {
-    return il2cpp::api::WrapClass(Class::FromIl2CppType(type));
+    return il2cpp::api::WrapClass(Class::FromIl2CppType(il2cpp::api::UnwrapType(type)));
 }
 
 Il2CppClassAdapter* il2cpp_class_from_name(const Il2CppImageAdapter* image, const char* namespaze, const char *name)
@@ -403,15 +403,14 @@ int il2cpp_class_array_element_size(const Il2CppClassAdapter *klass)
     return Class::GetArrayElementSize(il2cpp::api::UnwrapClass(klass));
 }
 
-Il2CppClassAdapter* il2cpp_class_from_type(const Il2CppType *type)
+Il2CppClassAdapter* il2cpp_class_from_type(const Il2CppTypeAdapter *type)
 {
-    return il2cpp::api::WrapClass(Class::FromIl2CppType(type));
+    return il2cpp::api::WrapClass(Class::FromIl2CppType(il2cpp::api::UnwrapType(type)));
 }
 
-const Il2CppType* il2cpp_class_get_type(Il2CppClassAdapter *klass)
+const Il2CppTypeAdapter* il2cpp_class_get_type(Il2CppClassAdapter *klass)
 {
-    // 阶段 A 欠账：仍返回真实 &real->byval_arg，阶段 B（TypeAdapter）处理
-    return Class::GetType(il2cpp::api::UnwrapClass(klass));
+    return il2cpp::api::WrapType(Class::GetType(il2cpp::api::UnwrapClass(klass)));
 }
 
 uint32_t il2cpp_class_get_type_token(Il2CppClassAdapter *klass)
@@ -661,9 +660,9 @@ size_t il2cpp_field_get_offset(FieldInfoAdapter *field)
     return Field::GetOffset(il2cpp::api::UnwrapField(field));
 }
 
-const Il2CppType* il2cpp_field_get_type(FieldInfoAdapter *field)
+const Il2CppTypeAdapter* il2cpp_field_get_type(FieldInfoAdapter *field)
 {
-    return Field::GetType(il2cpp::api::UnwrapField(field));
+    return il2cpp::api::WrapType(Field::GetType(il2cpp::api::UnwrapField(field)));
 }
 
 void il2cpp_field_get_value(Il2CppObject *obj, FieldInfoAdapter *field, void *value)
@@ -910,9 +909,9 @@ void il2cpp_unity_liveness_free_struct(void* state)
 
 // method
 
-const Il2CppType* il2cpp_method_get_return_type(const MethodInfoAdapter* method)
+const Il2CppTypeAdapter* il2cpp_method_get_return_type(const MethodInfoAdapter* method)
 {
-    return Method::GetReturnType(il2cpp::api::UnwrapMethod(method));
+    return il2cpp::api::WrapType(Method::GetReturnType(il2cpp::api::UnwrapMethod(method)));
 }
 
 const MethodInfoAdapter* il2cpp_method_get_from_reflection(const Il2CppReflectionMethod *method)
@@ -950,9 +949,9 @@ uint32_t il2cpp_method_get_param_count(const MethodInfoAdapter *method)
     return Method::GetParamCount(il2cpp::api::UnwrapMethod(method));
 }
 
-const Il2CppType* il2cpp_method_get_param(const MethodInfoAdapter *method, uint32_t index)
+const Il2CppTypeAdapter* il2cpp_method_get_param(const MethodInfoAdapter *method, uint32_t index)
 {
-    return Method::GetParam(il2cpp::api::UnwrapMethod(method), index);
+    return il2cpp::api::WrapType(Method::GetParam(il2cpp::api::UnwrapMethod(method), index));
 }
 
 Il2CppClassAdapter* il2cpp_method_get_class(const MethodInfoAdapter *method)
@@ -1390,71 +1389,71 @@ void il2cpp_override_stack_backtrace(Il2CppBacktraceFunc stackBacktraceFunc)
 
 // type
 
-Il2CppObject* il2cpp_type_get_object(const Il2CppType *type)
+Il2CppObject* il2cpp_type_get_object(const Il2CppTypeAdapter *type)
 {
-    return (Il2CppObject*)Reflection::GetTypeObject(type);
+    return (Il2CppObject*)Reflection::GetTypeObject(il2cpp::api::UnwrapType(type));
 }
 
-int il2cpp_type_get_type(const Il2CppType *type)
+int il2cpp_type_get_type(const Il2CppTypeAdapter *type)
 {
-    return Type::GetType(type);
+    return Type::GetType(il2cpp::api::UnwrapType(type));
 }
 
-Il2CppClassAdapter* il2cpp_type_get_class_or_element_class(const Il2CppType *type)
+Il2CppClassAdapter* il2cpp_type_get_class_or_element_class(const Il2CppTypeAdapter *type)
 {
-    return il2cpp::api::WrapClass(Type::GetClassOrElementClass(type));
+    return il2cpp::api::WrapClass(Type::GetClassOrElementClass(il2cpp::api::UnwrapType(type)));
 }
 
-char* il2cpp_type_get_name(const Il2CppType *type)
+char* il2cpp_type_get_name(const Il2CppTypeAdapter *type)
 {
-    std::string name = Type::GetName(type, IL2CPP_TYPE_NAME_FORMAT_IL);
+    std::string name = Type::GetName(il2cpp::api::UnwrapType(type), IL2CPP_TYPE_NAME_FORMAT_IL);
     char* buffer = static_cast<char*>(il2cpp_alloc(name.length() + 1));
     memcpy(buffer, name.c_str(), name.length() + 1);
 
     return buffer;
 }
 
-char* il2cpp_type_get_assembly_qualified_name(const Il2CppType * type)
+char* il2cpp_type_get_assembly_qualified_name(const Il2CppTypeAdapter * type)
 {
-    std::string name = Type::GetName(type, IL2CPP_TYPE_NAME_FORMAT_ASSEMBLY_QUALIFIED);
+    std::string name = Type::GetName(il2cpp::api::UnwrapType(type), IL2CPP_TYPE_NAME_FORMAT_ASSEMBLY_QUALIFIED);
     char* buffer = static_cast<char*>(il2cpp_alloc(name.length() + 1));
     memcpy(buffer, name.c_str(), name.length() + 1);
 
     return buffer;
 }
 
-char* il2cpp_type_get_reflection_name(const Il2CppType *type)
+char* il2cpp_type_get_reflection_name(const Il2CppTypeAdapter *type)
 {
-    std::string name = Type::GetName(type, IL2CPP_TYPE_NAME_FORMAT_REFLECTION);
+    std::string name = Type::GetName(il2cpp::api::UnwrapType(type), IL2CPP_TYPE_NAME_FORMAT_REFLECTION);
     char* buffer = static_cast<char*>(il2cpp_alloc(name.length() + 1));
     memcpy(buffer, name.c_str(), name.length() + 1);
 
     return buffer;
 }
 
-bool il2cpp_type_is_byref(const Il2CppType *type)
+bool il2cpp_type_is_byref(const Il2CppTypeAdapter *type)
 {
-    return type->byref;
+    return il2cpp::api::UnwrapType(type)->byref;
 }
 
-uint32_t il2cpp_type_get_attrs(const Il2CppType *type)
+uint32_t il2cpp_type_get_attrs(const Il2CppTypeAdapter *type)
 {
-    return type->attrs;
+    return il2cpp::api::UnwrapType(type)->attrs;
 }
 
-bool il2cpp_type_equals(const Il2CppType* type, const Il2CppType *otherType)
+bool il2cpp_type_equals(const Il2CppTypeAdapter* type, const Il2CppTypeAdapter *otherType)
 {
-    return Type::IsEqualToType(type, otherType);
+    return Type::IsEqualToType(il2cpp::api::UnwrapType(type), il2cpp::api::UnwrapType(otherType));
 }
 
-bool il2cpp_type_is_static(const Il2CppType *type)
+bool il2cpp_type_is_static(const Il2CppTypeAdapter *type)
 {
-    return (type->attrs & FIELD_ATTRIBUTE_STATIC) != 0;
+    return (il2cpp::api::UnwrapType(type)->attrs & FIELD_ATTRIBUTE_STATIC) != 0;
 }
 
-bool il2cpp_type_is_pointer_type(const Il2CppType *type)
+bool il2cpp_type_is_pointer_type(const Il2CppTypeAdapter *type)
 {
-    return type->type == IL2CPP_TYPE_PTR;
+    return il2cpp::api::UnwrapType(type)->type == IL2CPP_TYPE_PTR;
 }
 
 // image
@@ -1584,9 +1583,9 @@ void il2cpp_custom_attrs_free(Il2CppCustomAttrInfo *ainfo)
     // nothing to free, we cache everything
 }
 
-void il2cpp_type_get_name_chunked(const Il2CppType * type, void(*chunkReportFunc)(void* data, void* userData), void* userData)
+void il2cpp_type_get_name_chunked(const Il2CppTypeAdapter * type, void(*chunkReportFunc)(void* data, void* userData), void* userData)
 {
-    Type::GetNameChunkedRecurse(type, IL2CPP_TYPE_NAME_FORMAT_IL, chunkReportFunc, userData);
+    Type::GetNameChunkedRecurse(il2cpp::api::UnwrapType(type), IL2CPP_TYPE_NAME_FORMAT_IL, chunkReportFunc, userData);
 }
 
 void il2cpp_class_set_userdata(Il2CppClassAdapter* klass, void* userdata)

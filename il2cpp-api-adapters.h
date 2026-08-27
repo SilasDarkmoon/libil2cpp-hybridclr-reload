@@ -30,6 +30,7 @@ struct Il2CppAssembly;
 struct Il2CppDomain;
 struct Il2CppException;
 struct Il2CppClass;
+struct Il2CppType;
 struct FieldInfo;
 struct MethodInfo;
 struct PropertyInfo;
@@ -72,6 +73,15 @@ struct PropertyInfoAdapter
 struct EventInfoAdapter
 {
     const EventInfo* real;
+};
+
+// Il2CppType 的边界适配器。与指针键类型不同：Il2CppType 按值嵌入（byval_arg、
+// type_argv、方法签名等）无独立身份，映射按内容键 (type, byref, attrs, data)
+// find-or-create——同一逻辑类型永远返回同一 adapter。热重载后经 RemapTypeReal
+// 把 real 从旧实例（如 &oldKlass->byval_arg）切到新实例。
+struct Il2CppTypeAdapter
+{
+    const Il2CppType* real;
 };
 
 // Il2CppDomain 的边界适配器，语义同 Il2CppImageAdapter。
@@ -273,5 +283,18 @@ namespace api
     // userdata 槽读写（il2cpp_class_set_userdata / 偏移直读配套）。
     void* GetClassUserdata(const Il2CppClassAdapter* adapter);
     void SetClassUserdata(Il2CppClassAdapter* adapter, void* userdata);
+
+    // ---- Il2CppType 边界接口（内容键映射，机制不同于指针键类型）----
+
+    // 出方向：真实 Il2CppType -> adapter，按内容键 find-or-create。
+    const Il2CppTypeAdapter* WrapType(const Il2CppType* real);
+
+    // 入方向：边界传回的 adapter -> 当前真实 Il2CppType。
+    const Il2CppType* UnwrapType(const Il2CppTypeAdapter* adapter);
+
+    // 热重载归并：real==oldReal 的 adapter 切到 newReal（如 &oldK->byval_arg
+    // -> &newK->byval_arg；泛型实例按 genericClass 配对同理）。O(n) 遍历，
+    // 重载低频可接受。
+    void RemapTypeReal(const Il2CppType* oldReal, const Il2CppType* newReal);
 }
 }
