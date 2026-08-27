@@ -179,7 +179,6 @@ namespace api
     // ---- Il2CppDomain / Il2CppException ----
 
     typedef AdapterMap<Il2CppDomain, Il2CppDomainAdapter> DomainAdapterMap;
-    typedef AdapterMap<Il2CppException, Il2CppExceptionAdapter> ExceptionAdapterMap;
 
     static DomainAdapterMap& GetDomainAdapterMap()
     {
@@ -187,20 +186,9 @@ namespace api
         return s_DomainAdapterMap;
     }
 
-    static ExceptionAdapterMap& GetExceptionAdapterMap()
-    {
-        static ExceptionAdapterMap s_ExceptionAdapterMap;
-        return s_ExceptionAdapterMap;
-    }
-
     Il2CppDomainAdapter* WrapDomain(const Il2CppDomain* real)
     {
         return GetDomainAdapterMap().Wrap(real);
-    }
-
-    Il2CppExceptionAdapter* WrapException(Il2CppException* real)
-    {
-        return GetExceptionAdapterMap().Wrap(real);
     }
 
     const Il2CppDomain* UnwrapDomain(const Il2CppDomainAdapter* adapter)
@@ -208,19 +196,9 @@ namespace api
         return DomainAdapterMap::Unwrap(adapter);
     }
 
-    Il2CppException* UnwrapException(const Il2CppExceptionAdapter* adapter)
-    {
-        return const_cast<Il2CppException*>(ExceptionAdapterMap::Unwrap(adapter));
-    }
-
     void RemapDomainReal(const Il2CppDomain* oldReal, const Il2CppDomain* newReal)
     {
         GetDomainAdapterMap().RemapReal(oldReal, newReal);
-    }
-
-    void RemapExceptionReal(Il2CppException* oldReal, Il2CppException* newReal)
-    {
-        GetExceptionAdapterMap().RemapReal(oldReal, newReal);
     }
 
     // ---- Il2CppClass ----

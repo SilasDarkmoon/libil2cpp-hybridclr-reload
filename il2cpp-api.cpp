@@ -571,42 +571,40 @@ const Il2CppAssemblyAdapter* const* il2cpp_domain_get_assemblies(const Il2CppDom
 
 // exception
 
-void il2cpp_raise_exception(Il2CppExceptionAdapter* exc)
+void il2cpp_raise_exception(Il2CppException* exc)
 {
-    Exception::Raise(il2cpp::api::UnwrapException(exc));
+    Exception::Raise(exc);
 }
 
-Il2CppExceptionAdapter* il2cpp_exception_from_name_msg(const Il2CppImageAdapter* image, const char *name_space, const char *name, const char *msg)
+Il2CppException* il2cpp_exception_from_name_msg(const Il2CppImageAdapter* image, const char *name_space, const char *name, const char *msg)
 {
-    return il2cpp::api::WrapException(Exception::FromNameMsg(il2cpp::api::UnwrapImage(image), name_space, name, msg));
+    return Exception::FromNameMsg(il2cpp::api::UnwrapImage(image), name_space, name, msg);
 }
 
-Il2CppExceptionAdapter* il2cpp_get_exception_argument_null(const char *arg)
+Il2CppException* il2cpp_get_exception_argument_null(const char *arg)
 {
-    return il2cpp::api::WrapException(Exception::GetArgumentNullException(arg));
+    return Exception::GetArgumentNullException(arg);
 }
 
-void il2cpp_format_exception(const Il2CppExceptionAdapter* ex, char* message, int message_size)
+void il2cpp_format_exception(const Il2CppException* ex, char* message, int message_size)
 {
-    strncpy(message, il2cpp::utils::Exception::FormatException(il2cpp::api::UnwrapException(const_cast<Il2CppExceptionAdapter*>(ex))).c_str(), message_size);
+    strncpy(message, il2cpp::utils::Exception::FormatException(const_cast<Il2CppException*>(ex)).c_str(), message_size);
 }
 
-void il2cpp_format_stack_trace(const Il2CppExceptionAdapter* ex, char* output, int output_size)
+void il2cpp_format_stack_trace(const Il2CppException* ex, char* output, int output_size)
 {
-    strncpy(output, il2cpp::utils::Exception::FormatStackTrace(il2cpp::api::UnwrapException(const_cast<Il2CppExceptionAdapter*>(ex))).c_str(), output_size);
+    strncpy(output, il2cpp::utils::Exception::FormatStackTrace(const_cast<Il2CppException*>(ex)).c_str(), output_size);
 }
 
-void il2cpp_unhandled_exception(Il2CppExceptionAdapter* exc)
+void il2cpp_unhandled_exception(Il2CppException* exc)
 {
-    Runtime::UnhandledException(il2cpp::api::UnwrapException(exc));
+    Runtime::UnhandledException(exc);
 }
 
-void il2cpp_native_stack_trace(const Il2CppExceptionAdapter * ex, uintptr_t** addresses, int* numFrames, char** imageUUID, char** imageName)
+void il2cpp_native_stack_trace(const Il2CppException * ex, uintptr_t** addresses, int* numFrames, char** imageUUID, char** imageName)
 {
 #if IL2CPP_ENABLE_NATIVE_INSTRUCTION_POINTER_EMISSION && !IL2CPP_TINY
-    // 边界传回的 ex 实为 adapter，先解包再访问结构体字段
-    const Il2CppException* real = il2cpp::api::UnwrapException(const_cast<Il2CppExceptionAdapter*>(ex));
-    if (real == NULL || real->native_trace_ips == NULL)
+    if (ex == NULL || ex->native_trace_ips == NULL)
     {
         *numFrames = 0;
         *addresses = NULL;
@@ -615,7 +613,7 @@ void il2cpp_native_stack_trace(const Il2CppExceptionAdapter * ex, uintptr_t** ad
         return;
     }
 
-    *numFrames = il2cpp_array_length(real->native_trace_ips);
+    *numFrames = il2cpp_array_length(ex->native_trace_ips);
 
     if (*numFrames <= 0)
     {
@@ -628,7 +626,7 @@ void il2cpp_native_stack_trace(const Il2CppExceptionAdapter * ex, uintptr_t** ad
         *addresses = static_cast<uintptr_t*>(il2cpp_alloc((*numFrames) * sizeof(uintptr_t)));
         for (int i = 0; i < *numFrames; i++)
         {
-            uintptr_t ptrAddr = il2cpp_array_get(real->native_trace_ips, uintptr_t, i);
+            uintptr_t ptrAddr = il2cpp_array_get(ex->native_trace_ips, uintptr_t, i);
             (*addresses)[i] = ptrAddr;
         }
 
@@ -1172,25 +1170,17 @@ bool il2cpp_monitor_try_wait(Il2CppObject* obj, uint32_t timeout)
 
 // runtime
 
-Il2CppObject* il2cpp_runtime_invoke_convert_args(const MethodInfoAdapter *method, void *obj, Il2CppObject **params, int paramCount, Il2CppExceptionAdapter **exc)
+Il2CppObject* il2cpp_runtime_invoke_convert_args(const MethodInfoAdapter *method, void *obj, Il2CppObject **params, int paramCount, Il2CppException **exc)
 {
-    // vm 写入真实异常指针，桥接成 adapter 再交给调用方（后续会传给其他 adapter API）
-    Il2CppException* realExc = NULL;
-    Il2CppObject* result = Runtime::InvokeConvertArgs(il2cpp::api::UnwrapMethod(method), obj, params, paramCount, &realExc);
-    if (exc != NULL)
-        *exc = il2cpp::api::WrapException(realExc);
-    return result;
+    // 异常出参保持真实指针：Unity 侧把异常对象当托管对象使用（写屏障/反射），
+    // 不能是 adapter（见 il2cpp-api-functions.h 该处注释）。
+    return Runtime::InvokeConvertArgs(il2cpp::api::UnwrapMethod(method), obj, params, paramCount, exc);
 }
 
 Il2CppObject* il2cpp_runtime_invoke(const MethodInfoAdapter *method,
-    void *obj, void **params, Il2CppExceptionAdapter **exc)
+    void *obj, void **params, Il2CppException **exc)
 {
-    // 同上：局部真实指针中转 + 出口 wrap
-    Il2CppException* realExc = NULL;
-    Il2CppObject* result = Runtime::Invoke(il2cpp::api::UnwrapMethod(method), obj, params, &realExc);
-    if (exc != NULL)
-        *exc = il2cpp::api::WrapException(realExc);
-    return result;
+    return Runtime::Invoke(il2cpp::api::UnwrapMethod(method), obj, params, exc);
 }
 
 void il2cpp_runtime_class_init(Il2CppClassAdapter* klass)
@@ -1203,12 +1193,9 @@ void il2cpp_runtime_object_init(Il2CppObject *obj)
     Runtime::ObjectInit(obj);
 }
 
-void il2cpp_runtime_object_init_exception(Il2CppObject *obj, Il2CppExceptionAdapter **exc)
+void il2cpp_runtime_object_init_exception(Il2CppObject *obj, Il2CppException **exc)
 {
-    Il2CppException* realExc = NULL;
-    Runtime::ObjectInitException(obj, &realExc);
-    if (exc != NULL)
-        *exc = il2cpp::api::WrapException(realExc);
+    Runtime::ObjectInitException(obj, exc);
 }
 
 void il2cpp_runtime_unhandled_exception_policy_set(Il2CppRuntimeUnhandledExceptionPolicy value)

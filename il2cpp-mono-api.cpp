@@ -1469,13 +1469,9 @@ MonoObject* mono_runtime_try_invoke(MonoMethod* method, void* obj, void** params
 {
     error_init(error);
 
-    // method 实为 adapter 先解包；vm 写入真实异常指针，出口 wrap 成 adapter
-    Il2CppException* realExc = NULL;
-    MonoObject* result = (MonoObject*)il2cpp::vm::Runtime::Invoke(
-        const_cast<MethodInfo*>(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method)), obj, params, &realExc);
-    if (exc != NULL)
-        *exc = (MonoObject*)il2cpp::api::WrapException(realExc);
-    return result;
+    // method 实为 adapter 先解包；异常出参保持真实指针（Unity 当托管对象用）
+    return (MonoObject*)il2cpp::vm::Runtime::Invoke(
+        const_cast<MethodInfo*>(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method)), obj, params, (Il2CppException**)exc);
 }
 
 MonoObject* mono_runtime_invoke_checked(MonoMethod* method, void* obj, void** params, MonoError* error)
