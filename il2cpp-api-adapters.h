@@ -206,8 +206,8 @@ namespace api
     // ---- PropertyInfo / EventInfo 边界接口 ----
 
     // 出方向：真实成员 -> adapter，find-or-create。
-    PropertyInfoAdapter* WrapProperty(PropertyInfo* real);
-    EventInfoAdapter* WrapEvent(EventInfo* real);
+    PropertyInfoAdapter* WrapProperty(const PropertyInfo* real);
+    EventInfoAdapter* WrapEvent(const EventInfo* real);
 
     // 入方向：边界传回的 adapter -> 当前真实成员。
     PropertyInfo* UnwrapProperty(const PropertyInfoAdapter* adapter);

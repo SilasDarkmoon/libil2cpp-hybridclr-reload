@@ -144,12 +144,12 @@ namespace api
         return s_EventAdapterMap;
     }
 
-    PropertyInfoAdapter* WrapProperty(PropertyInfo* real)
+    PropertyInfoAdapter* WrapProperty(const PropertyInfo* real)
     {
         return GetPropertyAdapterMap().Wrap(real);
     }
 
-    EventInfoAdapter* WrapEvent(EventInfo* real)
+    EventInfoAdapter* WrapEvent(const EventInfo* real)
     {
         return GetEventAdapterMap().Wrap(real);
     }
