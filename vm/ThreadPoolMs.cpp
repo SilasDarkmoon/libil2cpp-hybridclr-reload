@@ -44,7 +44,7 @@ namespace vm
         retVal = threadpool_ms_end_invoke(asyncResult, &arrayOutArgs, &exc);
 
         if (exc)
-            il2cpp_raise_exception((Il2CppException*)exc);
+            il2cpp::vm::Exception::Raise((Il2CppException*)exc);
 
         if (out_args)
         {

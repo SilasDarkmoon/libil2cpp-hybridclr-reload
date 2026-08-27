@@ -357,7 +357,7 @@ const char* mono_image_get_name(MonoImage *image)
 
 MonoDomain* mono_get_root_domain(void)
 {
-    return (MonoDomain*)il2cpp::vm::Domain::GetCurrent();
+    return (MonoDomain*)il2cpp::api::WrapDomain(il2cpp::vm::Domain::GetCurrent());
 }
 
 MonoDomain* mono_domain_get(void)
@@ -1229,7 +1229,7 @@ MonoThread* mono_thread_get_main()
 
 MonoThread* mono_thread_attach(MonoDomain* domain)
 {
-    return (MonoThread*)il2cpp::vm::Thread::Attach((Il2CppDomain*)domain);
+    return (MonoThread*)il2cpp::vm::Thread::Attach(const_cast<Il2CppDomain*>(il2cpp::api::UnwrapDomain((const Il2CppDomainAdapter*)domain)));
 }
 
 void mono_thread_detach(MonoThread* thread)
@@ -1467,7 +1467,13 @@ MonoObject* mono_runtime_try_invoke(MonoMethod* method, void* obj, void** params
 {
     error_init(error);
 
-    return (MonoObject*)il2cpp::vm::Runtime::Invoke((MethodInfo*)method, obj, params, (Il2CppException**)exc);
+    // method 实为 adapter 先解包；vm 写入真实异常指针，出口 wrap 成 adapter
+    Il2CppException* realExc = NULL;
+    MonoObject* result = (MonoObject*)il2cpp::vm::Runtime::Invoke(
+        const_cast<MethodInfo*>(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method)), obj, params, &realExc);
+    if (exc != NULL)
+        *exc = (MonoObject*)il2cpp::api::WrapException(realExc);
+    return result;
 }
 
 MonoObject* mono_runtime_invoke_checked(MonoMethod* method, void* obj, void** params, MonoError* error)

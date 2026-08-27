@@ -27,6 +27,8 @@
 
 struct Il2CppImage;
 struct Il2CppAssembly;
+struct Il2CppDomain;
+struct Il2CppException;
 struct FieldInfo;
 struct MethodInfo;
 struct PropertyInfo;
@@ -69,6 +71,20 @@ struct PropertyInfoAdapter
 struct EventInfoAdapter
 {
     const EventInfo* real;
+};
+
+// Il2CppDomain 的边界适配器，语义同 Il2CppImageAdapter。
+struct Il2CppDomainAdapter
+{
+    const Il2CppDomain* real;
+};
+
+// Il2CppException 的边界适配器。注意 Unity 存在异常往返链：
+// exception_from_name_msg 创建 → Unity 持有 → raise_exception 抛出，
+// adapter 地址稳定保证往返一致（同一异常对象永远同一 adapter）。
+struct Il2CppExceptionAdapter
+{
+    const Il2CppException* real;
 };
 
 namespace il2cpp
@@ -217,5 +233,19 @@ namespace api
     // 与 FieldInfo 同：嵌入类体分配，新旧配对须由重载流程按 (parent 类, 成员名) 完成。
     void RemapPropertyReal(PropertyInfo* oldReal, PropertyInfo* newReal);
     void RemapEventReal(EventInfo* oldReal, EventInfo* newReal);
+
+    // ---- Il2CppDomain / Il2CppException 边界接口 ----
+
+    // 出方向：真实对象 -> adapter，find-or-create。
+    const Il2CppDomainAdapter* WrapDomain(const Il2CppDomain* real);
+    Il2CppExceptionAdapter* WrapException(Il2CppException* real);
+
+    // 入方向：边界传回的 adapter -> 当前真实对象。
+    const Il2CppDomain* UnwrapDomain(const Il2CppDomainAdapter* adapter);
+    Il2CppException* UnwrapException(const Il2CppExceptionAdapter* adapter);
+
+    // 热重载归并（domain/exception 通常不换对象，接口备用）。
+    void RemapDomainReal(const Il2CppDomain* oldReal, const Il2CppDomain* newReal);
+    void RemapExceptionReal(Il2CppException* oldReal, Il2CppException* newReal);
 }
 }

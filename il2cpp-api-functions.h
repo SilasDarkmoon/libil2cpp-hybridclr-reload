@@ -93,18 +93,18 @@ DO_API(bool, il2cpp_stats_dump_to_file, (const char *path));
 DO_API(uint64_t, il2cpp_stats_get_value, (Il2CppStat stat));
 
 // domain
-DO_API(Il2CppDomain*, il2cpp_domain_get, ());
-DO_API(const Il2CppAssemblyAdapter*, il2cpp_domain_assembly_open, (Il2CppDomain * domain, const char* name));
-DO_API(const Il2CppAssemblyAdapter* const*, il2cpp_domain_get_assemblies, (const Il2CppDomain * domain, size_t * size));
+DO_API(Il2CppDomainAdapter*, il2cpp_domain_get, ());
+DO_API(const Il2CppAssemblyAdapter*, il2cpp_domain_assembly_open, (Il2CppDomainAdapter * domain, const char* name));
+DO_API(const Il2CppAssemblyAdapter* const*, il2cpp_domain_get_assemblies, (const Il2CppDomainAdapter * domain, size_t * size));
 
 // exception
-DO_API_NO_RETURN(void, il2cpp_raise_exception, (Il2CppException*));
-DO_API(Il2CppException*, il2cpp_exception_from_name_msg, (const Il2CppImageAdapter * image, const char *name_space, const char *name, const char *msg));
-DO_API(Il2CppException*, il2cpp_get_exception_argument_null, (const char *arg));
-DO_API(void, il2cpp_format_exception, (const Il2CppException * ex, char* message, int message_size));
-DO_API(void, il2cpp_format_stack_trace, (const Il2CppException * ex, char* output, int output_size));
-DO_API(void, il2cpp_unhandled_exception, (Il2CppException*));
-DO_API(void, il2cpp_native_stack_trace, (const Il2CppException * ex, uintptr_t** addresses, int* numFrames, char** imageUUID, char** imageName));
+DO_API_NO_RETURN(void, il2cpp_raise_exception, (Il2CppExceptionAdapter*));
+DO_API(Il2CppExceptionAdapter*, il2cpp_exception_from_name_msg, (const Il2CppImageAdapter * image, const char *name_space, const char *name, const char *msg));
+DO_API(Il2CppExceptionAdapter*, il2cpp_get_exception_argument_null, (const char *arg));
+DO_API(void, il2cpp_format_exception, (const Il2CppExceptionAdapter * ex, char* message, int message_size));
+DO_API(void, il2cpp_format_stack_trace, (const Il2CppExceptionAdapter * ex, char* output, int output_size));
+DO_API(void, il2cpp_unhandled_exception, (Il2CppExceptionAdapter*));
+DO_API(void, il2cpp_native_stack_trace, (const Il2CppExceptionAdapter * ex, uintptr_t** addresses, int* numFrames, char** imageUUID, char** imageName));
 
 // field
 DO_API(int, il2cpp_field_get_flags, (FieldInfoAdapter * field));
@@ -219,12 +219,12 @@ DO_API(void, il2cpp_monitor_wait, (Il2CppObject * obj));
 DO_API(bool, il2cpp_monitor_try_wait, (Il2CppObject * obj, uint32_t timeout));
 
 // runtime
-DO_API(Il2CppObject*, il2cpp_runtime_invoke, (const MethodInfoAdapter * method, void *obj, void **params, Il2CppException **exc));
-DO_API(Il2CppObject*, il2cpp_runtime_invoke_convert_args, (const MethodInfoAdapter * method, void *obj, Il2CppObject **params, int paramCount, Il2CppException **exc));
+DO_API(Il2CppObject*, il2cpp_runtime_invoke, (const MethodInfoAdapter * method, void *obj, void **params, Il2CppExceptionAdapter **exc));
+DO_API(Il2CppObject*, il2cpp_runtime_invoke_convert_args, (const MethodInfoAdapter * method, void *obj, Il2CppObject **params, int paramCount, Il2CppExceptionAdapter **exc));
 DO_API(void, il2cpp_runtime_class_init, (Il2CppClass * klass));
 DO_API(void, il2cpp_runtime_object_init, (Il2CppObject * obj));
 
-DO_API(void, il2cpp_runtime_object_init_exception, (Il2CppObject * obj, Il2CppException** exc));
+DO_API(void, il2cpp_runtime_object_init_exception, (Il2CppObject * obj, Il2CppExceptionAdapter** exc));
 
 DO_API(void, il2cpp_runtime_unhandled_exception_policy_set, (Il2CppRuntimeUnhandledExceptionPolicy value));
 
@@ -240,7 +240,7 @@ DO_API(Il2CppString*, il2cpp_string_is_interned, (Il2CppString * str));
 
 // thread
 DO_API(Il2CppThread*, il2cpp_thread_current, ());
-DO_API(Il2CppThread*, il2cpp_thread_attach, (Il2CppDomain * domain));
+DO_API(Il2CppThread*, il2cpp_thread_attach, (Il2CppDomainAdapter * domain));
 DO_API(void, il2cpp_thread_detach, (Il2CppThread * thread));
 
 DO_API(Il2CppThread**, il2cpp_thread_get_all_attached_threads, (size_t * size));
