@@ -7,6 +7,7 @@
 #include "il2cpp-class-internals.h"
 #include "il2cpp-mono-api.h"
 #include "il2cpp-api-debugger.h"
+#include "il2cpp-api-adapters.h"
 
 #include "gc/GarbageCollector.h"
 #include "gc/WriteBarrier.h"
@@ -49,17 +50,17 @@ static void error_init(MonoError* error)
 extern "C" {
     void* il2cpp_domain_get_agent_info(MonoAppDomain* domain)
     {
-        return ((Il2CppDomain*)domain)->agent_info;
+        return const_cast<Il2CppDomain*>(il2cpp::api::UnwrapDomain((const Il2CppDomainAdapter*)domain))->agent_info;
     }
 
     void il2cpp_domain_set_agent_info(MonoAppDomain* domain, void* agentInfo)
     {
-        il2cpp::gc::WriteBarrier::GenericStore(&((Il2CppDomain*)domain)->agent_info, agentInfo);
+        il2cpp::gc::WriteBarrier::GenericStore(&const_cast<Il2CppDomain*>(il2cpp::api::UnwrapDomain((const Il2CppDomainAdapter*)domain))->agent_info, agentInfo);
     }
 
     const char* il2cpp_domain_get_friendly_name(MonoAppDomain* domain)
     {
-        return ((Il2CppDomain*)domain)->friendly_name;
+        return il2cpp::api::UnwrapDomain((const Il2CppDomainAdapter*)domain)->friendly_name;
     }
 
     void il2cpp_start_debugger_thread()
@@ -71,7 +72,7 @@ extern "C" {
 
     const char* il2cpp_domain_get_name(MonoDomain* domain)
     {
-        return ((Il2CppDomain*)domain)->friendly_name;
+        return il2cpp::api::UnwrapDomain((const Il2CppDomainAdapter*)domain)->friendly_name;
     }
 
     Il2CppSequencePoint* il2cpp_get_method_sequence_points(MonoMethod* method, void* *iter)
@@ -80,7 +81,7 @@ extern "C" {
         if (method == NULL)
             return il2cpp::utils::Debugger::GetAllSequencePoints(iter);
         else
-            return (Il2CppSequencePoint*)il2cpp::utils::Debugger::GetSequencePoints((const MethodInfo*)method, iter);
+            return (Il2CppSequencePoint*)il2cpp::utils::Debugger::GetSequencePoints(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method), iter);
 #else
         return NULL;
 #endif
@@ -89,7 +90,7 @@ extern "C" {
     Il2CppCatchPoint* il2cpp_get_method_catch_points(MonoMethod* method, void* *iter)
     {
 #if IL2CPP_MONO_DEBUGGER
-        return (Il2CppCatchPoint*)il2cpp::utils::Debugger::GetCatchPoints((const MethodInfo*)method, iter);
+        return (Il2CppCatchPoint*)il2cpp::utils::Debugger::GetCatchPoints(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method), iter);
 #else
         return NULL;
 #endif
@@ -106,8 +107,8 @@ extern "C" {
 
     int32_t il2cpp_mono_methods_match(MonoMethod* left, MonoMethod* right)
     {
-        MethodInfo* leftMethod = (MethodInfo*)left;
-        MethodInfo* rightMethod = (MethodInfo*)right;
+        MethodInfo* leftMethod = (MethodInfo*)il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)left);
+        MethodInfo* rightMethod = (MethodInfo*)il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)right);
 
         if (rightMethod == leftMethod)
             return 1;
@@ -121,54 +122,54 @@ extern "C" {
 
     MonoClass* il2cpp_defaults_object_class()
     {
-        return (MonoClass*)il2cpp_defaults.object_class;
+        return (MonoClass*)il2cpp::api::WrapClass(il2cpp_defaults.object_class);
     }
 
     const char* il2cpp_image_name(MonoImage *monoImage)
     {
-        Il2CppImage *image = (Il2CppImage*)monoImage;
+        const Il2CppImage *image = il2cpp::api::UnwrapImage((const Il2CppImageAdapter*)monoImage);
         return image->name;
     }
 
     uint8_t* il2cpp_field_get_address(MonoObject *obj, MonoClassField *monoField)
     {
-        FieldInfo *field = (FieldInfo*)monoField;
+        FieldInfo *field = il2cpp::api::UnwrapField((const FieldInfoAdapter*)monoField);
         return (uint8_t*)obj + field->offset;
     }
 
     MonoClass* il2cpp_defaults_exception_class()
     {
-        return (MonoClass*)il2cpp_defaults.exception_class;
+        return (MonoClass*)il2cpp::api::WrapClass(il2cpp_defaults.exception_class);
     }
 
     MonoImage* il2cpp_defaults_corlib_image()
     {
-        return (MonoImage*)il2cpp_defaults.corlib;
+        return (MonoImage*)il2cpp::api::WrapImage(il2cpp_defaults.corlib);
     }
 
     MonoClass* il2cpp_defaults_runtimetype_class()
     {
-        return (MonoClass*)il2cpp_defaults.runtimetype_class;
+        return (MonoClass*)il2cpp::api::WrapClass(il2cpp_defaults.runtimetype_class);
     }
 
     bool il2cpp_method_is_string_ctor(const MonoMethod * method)
     {
-        MethodInfo* methodInfo = (MethodInfo*)method;
+        MethodInfo* methodInfo = (MethodInfo*)il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method);
         return methodInfo->klass == il2cpp_defaults.string_class && !strcmp(methodInfo->name, ".ctor");
     }
 
     MonoClass* il2cpp_defaults_void_class()
     {
-        return (MonoClass*)il2cpp_defaults.void_class;
+        return (MonoClass*)il2cpp::api::WrapClass(il2cpp_defaults.void_class);
     }
 
     MonoMethod* il2cpp_get_interface_method(MonoClass* klass, MonoClass* itf, int slot)
     {
-        const VirtualInvokeData* data = il2cpp::vm::ClassInlines::GetInterfaceInvokeDataFromVTable((Il2CppClass*)klass, (Il2CppClass*)itf, slot);
+        const VirtualInvokeData* data = il2cpp::vm::ClassInlines::GetInterfaceInvokeDataFromVTable(il2cpp::api::UnwrapClass((const Il2CppClassAdapter*)klass), il2cpp::api::UnwrapClass((const Il2CppClassAdapter*)itf), slot);
         if (!data)
             return NULL;
 
-        return (MonoMethod*)data->method;
+        return (MonoMethod*)il2cpp::api::WrapMethod(data->method);
     }
 
     struct TypeIterState
@@ -194,7 +195,7 @@ extern "C" {
             il2cpp::vm::Image::GetTypes(state->image, false, &state->types);
             state->type = state->types.begin();
             *iter = state;
-            return (MonoClass*)*state->type;
+            return (MonoClass*)il2cpp::api::WrapClass(*state->type);
         }
 
         TypeIterState *state = (TypeIterState*)*iter;
@@ -215,13 +216,13 @@ extern "C" {
             state->type = state->types.begin();
         }
 
-        return (MonoClass*)*state->type;
+        return (MonoClass*)il2cpp::api::WrapClass(*state->type);
     }
 
     const char** il2cpp_get_source_files_for_type(MonoClass *klass, int *count)
     {
 #if IL2CPP_MONO_DEBUGGER
-        return il2cpp::utils::Debugger::GetTypeSourceFiles((Il2CppClass*)klass, *count);
+        return il2cpp::utils::Debugger::GetTypeSourceFiles(il2cpp::api::UnwrapClass((const Il2CppClassAdapter*)klass), *count);
 #else
         return NULL;
 #endif
@@ -229,17 +230,17 @@ extern "C" {
 
     MonoMethod* il2cpp_method_get_generic_definition(MonoMethodInflated *imethod)
     {
-        MethodInfo *method = (MethodInfo*)imethod;
+        MethodInfo *method = (MethodInfo*)il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)imethod);
 
         if (!method->is_inflated || method->is_generic)
             return NULL;
 
-        return (MonoMethod*)((MethodInfo*)imethod)->genericMethod->methodDefinition;
+        return (MonoMethod*)il2cpp::api::WrapMethod(method->genericMethod->methodDefinition);
     }
 
     MonoGenericInst* il2cpp_method_get_generic_class_inst(MonoMethodInflated *imethod)
     {
-        MethodInfo *method = (MethodInfo*)imethod;
+        MethodInfo *method = (MethodInfo*)il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)imethod);
 
         if (!method->is_inflated || method->is_generic)
             return NULL;
@@ -249,13 +250,13 @@ extern "C" {
 
     MonoClass* il2cpp_generic_class_get_container_class(MonoGenericClass *gclass)
     {
-        return (MonoClass*)il2cpp::vm::GenericClass::GetTypeDefinition((Il2CppGenericClass*)gclass);
+        return (MonoClass*)il2cpp::api::WrapClass(il2cpp::vm::GenericClass::GetTypeDefinition((Il2CppGenericClass*)gclass));
     }
 
     Il2CppSequencePoint* il2cpp_get_sequence_point(MonoImage* image, int id)
     {
 #if IL2CPP_MONO_DEBUGGER
-        return il2cpp::utils::Debugger::GetSequencePoint((const Il2CppImage*)image, id);
+        return il2cpp::utils::Debugger::GetSequencePoint(il2cpp::api::UnwrapImage((const Il2CppImageAdapter*)image), id);
 #else
         return NULL;
 #endif
@@ -263,14 +264,14 @@ extern "C" {
 
     char* il2cpp_assembly_get_full_name(MonoAssembly *assembly)
     {
-        std::string s = il2cpp::vm::AssemblyName::AssemblyNameToString(((Il2CppAssembly*)assembly)->aname);
+        std::string s = il2cpp::vm::AssemblyName::AssemblyNameToString(il2cpp::api::UnwrapAssembly((const Il2CppAssemblyAdapter*)assembly)->aname);
         return il2cpp::utils::StringUtils::StringDuplicate(s.c_str());
     }
 
     const MonoMethod* il2cpp_get_seq_point_method(Il2CppSequencePoint *seqPoint)
     {
 #if IL2CPP_MONO_DEBUGGER
-        return (const MonoMethod*)il2cpp::utils::Debugger::GetSequencePointMethod(NULL, seqPoint);
+        return (const MonoMethod*)il2cpp::api::WrapMethod(il2cpp::utils::Debugger::GetSequencePointMethod(NULL, seqPoint));
 #else
         return NULL;
 #endif
@@ -281,18 +282,18 @@ extern "C" {
         if (index < 0)
             return NULL;
 
-        return (const MonoClass*)il2cpp::vm::MetadataCache::GetTypeInfoFromTypeIndex(NULL, index);
+        return (const MonoClass*)il2cpp::api::WrapClass(il2cpp::vm::MetadataCache::GetTypeInfoFromTypeIndex(NULL, index));
     }
 
     const MonoType* il2cpp_type_inflate(MonoType* type, const MonoGenericContext* context)
     {
-        return (MonoType*)il2cpp::metadata::GenericMetadata::InflateIfNeeded((Il2CppType*)type, (const Il2CppGenericContext*)context, true);
+        return (MonoType*)il2cpp::api::WrapType(il2cpp::metadata::GenericMetadata::InflateIfNeeded(il2cpp::api::UnwrapType((const Il2CppTypeAdapter*)type), (const Il2CppGenericContext*)context, true));
     }
 
     void il2cpp_debugger_get_method_execution_context_and_header_info(const MonoMethod* method, uint32_t* executionContextInfoCount, const Il2CppMethodExecutionContextInfo **executionContextInfo, const Il2CppMethodHeaderInfo **headerInfo, const Il2CppMethodScope **scopes)
     {
 #if IL2CPP_MONO_DEBUGGER
-        il2cpp::utils::Debugger::GetMethodExecutionContextInfo((const MethodInfo*)method, executionContextInfoCount, executionContextInfo, headerInfo, scopes);
+        il2cpp::utils::Debugger::GetMethodExecutionContextInfo(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method), executionContextInfoCount, executionContextInfo, headerInfo, scopes);
 #endif
     }
 
@@ -307,17 +308,17 @@ extern "C" {
 
     Il2CppSequencePointSourceFile* il2cpp_debug_get_source_file(MonoImage* image, int index)
     {
-        return ((Il2CppImage*)image)->codeGenModule->debuggerMetadata->sequencePointSourceFiles + index;
+        return il2cpp::api::UnwrapImage((const Il2CppImageAdapter*)image)->codeGenModule->debuggerMetadata->sequencePointSourceFiles + index;
     }
 
     MonoMethod* il2cpp_get_generic_method_definition(MonoMethod* method)
     {
-        return (MonoMethod*)((MethodInfo*)method)->genericMethod->methodDefinition;
+        return (MonoMethod*)il2cpp::api::WrapMethod(il2cpp::api::UnwrapMethod((const MethodInfoAdapter*)method)->genericMethod->methodDefinition);
     }
 
     bool il2cpp_class_is_initialized(MonoClass* klass)
     {
-        return ((Il2CppClass*)klass)->initialized_and_no_error;
+        return il2cpp::api::UnwrapClass((const Il2CppClassAdapter*)klass)->initialized_and_no_error;
     }
 
     int il2cpp_generic_inst_get_argc(MonoGenericInst* inst)
@@ -327,17 +328,17 @@ extern "C" {
 
     MonoType* il2cpp_generic_inst_get_argv(MonoGenericInst* inst, int index)
     {
-        return (MonoType*)((Il2CppGenericInst*)inst)->type_argv[index];
+        return (MonoType*)il2cpp::api::WrapType(((Il2CppGenericInst*)inst)->type_argv[index]);
     }
 
     MonoObject* il2cpp_assembly_get_object(MonoDomain* domain, MonoAssembly* assembly, MonoError* error)
     {
-        return (MonoObject*)il2cpp::vm::Reflection::GetAssemblyObject((const Il2CppAssembly *)assembly);
+        return (MonoObject*)il2cpp::vm::Reflection::GetAssemblyObject(il2cpp::api::UnwrapAssembly((const Il2CppAssemblyAdapter*)assembly));
     }
 
     const MonoType* il2cpp_get_type_from_index(int index)
     {
-        return (const MonoType*)il2cpp::vm::MetadataCache::GetIl2CppTypeFromIndex(NULL, index);
+        return (const MonoType*)il2cpp::api::WrapType(il2cpp::vm::MetadataCache::GetIl2CppTypeFromIndex(NULL, index));
     }
 
     void il2cpp_thread_info_safe_suspend_and_run(size_t /*Really MonoNativeThreadId*/ id, int32_t interrupt_kernel, MonoSuspendThreadCallback callback, void* user_data)
@@ -353,13 +354,13 @@ extern "C" {
     void il2cpp_field_static_get_value_checked(MonoVTable* vt, MonoClassField* field, void* value, MonoError* error)
     {
         error_init(error);
-        il2cpp::vm::Field::StaticGetValue((FieldInfo*)field, value);
+        il2cpp::vm::Field::StaticGetValue(il2cpp::api::UnwrapField((const FieldInfoAdapter*)field), value);
     }
 
     void il2cpp_field_static_get_value_for_thread(MonoInternalThread* thread, MonoVTable* vt, MonoClassField* field, void* value, MonoError* error)
     {
         error_init(error);
-        il2cpp::vm::Field::StaticGetValueForThread((FieldInfo*)field, value, (Il2CppInternalThread*)thread);
+        il2cpp::vm::Field::StaticGetValueForThread(il2cpp::api::UnwrapField((const FieldInfoAdapter*)field), value, (Il2CppInternalThread*)thread);
     }
 
     static bool IsFixedBufferAttribute(const MethodInfo* ctor)
@@ -389,7 +390,7 @@ extern "C" {
 
     int32_t il2cpp_field_get_fixed_array_size(MonoClassField* field)
     {
-        FieldInfo* il2cppField = (FieldInfo*)field;
+        FieldInfo* il2cppField = il2cpp::api::UnwrapField((const FieldInfoAdapter*)field);
 
         Il2CppMetadataCustomAttributeHandle attributeHandle = il2cpp::vm::MetadataCache::GetCustomAttributeTypeToken(il2cppField->parent->image, il2cppField->token);
         if (attributeHandle == NULL)

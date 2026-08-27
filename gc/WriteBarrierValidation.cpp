@@ -7,6 +7,8 @@
 #include "gc/GarbageCollector.h"
 #include "os/Mutex.h"
 #include "vm/StackTrace.h"
+#include "vm/Class.h"
+#include "vm/Method.h"
 #include <algorithm>
 #include <functional>
 #include <map>
@@ -223,12 +225,13 @@ namespace gc
         std::string str;
         for (StackFrames::const_iterator i = stackTrace.begin(); i != stackTrace.end(); i++)
         {
-            Il2CppClass* parent = il2cpp_method_get_declaring_type(i->method);
-            str += il2cpp_class_get_namespace(parent);
+            // 内部栈帧的 method 是真实 MethodInfo*，直调 vm（不经 adapter 边界）
+            Il2CppClass* parent = il2cpp::vm::Method::GetDeclaringType(i->method);
+            str += il2cpp::vm::Class::GetNamespace(parent);
             str += '.';
-            str += il2cpp_class_get_name(parent);
+            str += il2cpp::vm::Class::GetName(parent);
             str += ':';
-            str += il2cpp_method_get_name(i->method);
+            str += il2cpp::vm::Method::GetName(i->method);
             str += '\n';
         }
         return str;
