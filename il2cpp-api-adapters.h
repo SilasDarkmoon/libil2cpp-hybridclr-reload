@@ -237,7 +237,7 @@ namespace api
     // ---- Il2CppDomain / Il2CppException 边界接口 ----
 
     // 出方向：真实对象 -> adapter，find-or-create。
-    const Il2CppDomainAdapter* WrapDomain(const Il2CppDomain* real);
+    Il2CppDomainAdapter* WrapDomain(const Il2CppDomain* real);
     Il2CppExceptionAdapter* WrapException(Il2CppException* real);
 
     // 入方向：边界传回的 adapter -> 当前真实对象。

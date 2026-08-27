@@ -191,7 +191,7 @@ namespace api
         return s_ExceptionAdapterMap;
     }
 
-    const Il2CppDomainAdapter* WrapDomain(const Il2CppDomain* real)
+    Il2CppDomainAdapter* WrapDomain(const Il2CppDomain* real)
     {
         return GetDomainAdapterMap().Wrap(real);
     }
