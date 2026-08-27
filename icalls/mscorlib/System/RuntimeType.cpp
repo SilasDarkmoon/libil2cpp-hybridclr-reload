@@ -867,7 +867,7 @@ namespace System
         if (rank == 0) //single dimentional array
             arrayClass = vm::Class::GetArrayClass(klass, 1);
         else
-            arrayClass = il2cpp_bounded_array_class_get(klass, rank, true);
+            arrayClass = vm::Class::GetBoundedArrayClass(klass, rank, true);
 
         return arrayClass != NULL ? vm::Reflection::GetTypeObject(&arrayClass->byval_arg) : NULL;
     }
