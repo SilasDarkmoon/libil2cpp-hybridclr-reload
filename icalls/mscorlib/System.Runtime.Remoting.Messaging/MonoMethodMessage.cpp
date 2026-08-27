@@ -57,11 +57,11 @@ namespace Messaging
 
         IL2CPP_OBJECT_SETREF(this_obj, method, method);
 
-        arr = il2cpp_array_new_specific(object_array_klass, method->method->parameters_count);
+        arr = il2cpp::vm::Array::NewSpecific(object_array_klass, method->method->parameters_count);
 
         IL2CPP_OBJECT_SETREF(this_obj, args, arr);
 
-        arr = il2cpp_array_new_specific(byte_array_klass, method->method->parameters_count);
+        arr = il2cpp::vm::Array::NewSpecific(byte_array_klass, method->method->parameters_count);
 
         IL2CPP_OBJECT_SETREF(this_obj, arg_types, arr);
 
@@ -73,7 +73,7 @@ namespace Messaging
         for (int i = 0; i < method->method->parameters_count; ++i)
             names[i] = vm::Method::GetParamName(method->method, i);
 
-        arr = il2cpp_array_new_specific(string_array_klass, method->method->parameters_count);
+        arr = il2cpp::vm::Array::NewSpecific(string_array_klass, method->method->parameters_count);
 
         IL2CPP_OBJECT_SETREF(this_obj, names, arr);
 
