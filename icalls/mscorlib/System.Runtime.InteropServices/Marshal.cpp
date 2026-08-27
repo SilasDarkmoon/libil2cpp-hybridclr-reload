@@ -61,13 +61,13 @@ namespace InteropServices
 
     void Marshal::copy_from_unmanaged(intptr_t source, int startIndex, Il2CppArray * destination, int length)
     {
-        uint32_t element_size = (uint32_t)il2cpp_array_element_size(destination->klass);
+        uint32_t element_size = (uint32_t)il2cpp::vm::Array::GetElementSize(destination->klass);
         memcpy(il2cpp_array_addr_with_size(destination, element_size, startIndex), reinterpret_cast<void*>(source), length * element_size);
     }
 
     void Marshal::copy_to_unmanaged(Il2CppArray * source, int32_t startIndex, intptr_t destination, int32_t length)
     {
-        uint32_t element_size = (uint32_t)il2cpp_array_element_size(source->klass);
+        uint32_t element_size = (uint32_t)il2cpp::vm::Array::GetElementSize(source->klass);
         memcpy(reinterpret_cast<void*>(destination), il2cpp_array_addr_with_size(source, element_size, startIndex), length * element_size);
     }
 
@@ -666,7 +666,7 @@ namespace InteropServices
 
     intptr_t Marshal::UnsafeAddrOfPinnedArrayElement(Il2CppArray* arr, int32_t index)
     {
-        return reinterpret_cast<intptr_t>(il2cpp_array_addr_with_size(arr, il2cpp_array_element_size(arr->klass), index));
+        return reinterpret_cast<intptr_t>(il2cpp_array_addr_with_size(arr, il2cpp::vm::Array::GetElementSize(arr->klass), index));
     }
 
     intptr_t Marshal::BufferToBSTR(Il2CppChar* ptr, int32_t slen)
@@ -704,13 +704,13 @@ namespace InteropServices
 
     void Marshal::copy_from_unmanaged_fixed(intptr_t source, int32_t startIndex, Il2CppArray* destination, int32_t length, void* fixed_destination_element)
     {
-        uint32_t element_size = (uint32_t)il2cpp_array_element_size(destination->klass);
+        uint32_t element_size = (uint32_t)il2cpp::vm::Array::GetElementSize(destination->klass);
         memcpy(il2cpp_array_addr_with_size(destination, element_size, startIndex), reinterpret_cast<void*>(source), length * element_size);
     }
 
     void Marshal::copy_to_unmanaged_fixed(Il2CppArray* source, int32_t startIndex, intptr_t destination, int32_t length, void* fixed_source_element)
     {
-        uint32_t element_size = (uint32_t)il2cpp_array_element_size(source->klass);
+        uint32_t element_size = (uint32_t)il2cpp::vm::Array::GetElementSize(source->klass);
         memcpy(reinterpret_cast<void*>(destination), il2cpp_array_addr_with_size(source, element_size, startIndex), length * element_size);
     }
 } /* namespace InteropServices */

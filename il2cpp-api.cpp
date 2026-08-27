@@ -222,6 +222,9 @@ Il2CppClassAdapter* il2cpp_bounded_array_class_get(Il2CppClassAdapter *element_c
     return il2cpp::api::WrapClass(Class::GetBoundedArrayClass(il2cpp::api::UnwrapClass(element_class), rank, bounded));
 }
 
+// il2cpp_array_element_size：唯一定义在本文件（API 边界收 adapter）。
+// 历史上 vm/Array.cpp 曾有第二个定义（LIBIL2CPP_CODEGEN_API 版，C++ 修饰符号），
+// 已删除；内部调用者一律走 vm::Array::GetElementSize 直调。
 int il2cpp_array_element_size(const Il2CppClassAdapter* klass)
 {
     return Array::GetElementSize(il2cpp::api::UnwrapClass(klass));
@@ -1595,7 +1598,7 @@ int il2cpp_class_get_userdata_offset()
 {
     // Unity 拿到偏移后按偏移直读直写 adapter 内的 userdata 槽
     // （GetComponent 优化路径，GetComponent.cpp:219）。
-    return offsetof(il2cpp::api::Il2CppClassAdapter, userdata);
+    return offsetof(Il2CppClassAdapter, userdata);
 }
 
 // class_for_each 桥接：vm 遍历产生真实 Il2CppClass*，桥接处 wrap 成 adapter

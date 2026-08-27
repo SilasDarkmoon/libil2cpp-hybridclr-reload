@@ -115,7 +115,7 @@ namespace System
                     return false;
             }
 
-            element_size = il2cpp_array_element_size(dest->klass);
+            element_size = il2cpp::vm::Array::GetElementSize(dest->klass);
             void *baseAddr = il2cpp_array_addr_with_size(dest, element_size, dest_idx);
 
             size_t byte_len = (size_t)length * element_size;
@@ -158,9 +158,9 @@ namespace System
             IL2CPP_ASSERT(vm::Type::IsReference(&dest_class->byval_arg));
         }
 
-        element_size = il2cpp_array_element_size(dest->klass);
+        element_size = il2cpp::vm::Array::GetElementSize(dest->klass);
 
-        IL2CPP_ASSERT(element_size == il2cpp_array_element_size(source->klass));
+        IL2CPP_ASSERT(element_size == il2cpp::vm::Array::GetElementSize(source->klass));
 
         size_t byte_len = (size_t)length * element_size;
 
@@ -266,7 +266,7 @@ namespace System
 
     void Array::ClearInternal(Il2CppArray* arr, int32_t index, int32_t count)
     {
-        int sz = il2cpp_array_element_size(arr->klass);
+        int sz = il2cpp::vm::Array::GetElementSize(arr->klass);
         memset(il2cpp_array_addr_with_size(arr, sz, index), 0, count * sz);
     }
 

@@ -36,11 +36,6 @@ namespace vm
 } /* namespace vm */
 } /* namespace il2cpp */
 
-extern "C"
-{
-    IL2CPP_EXPORT int il2cpp_array_element_size(const Il2CppClass *ac);
-}
-
 #define il2cpp_array_setwithsize(array, elementSize, index, value)  \
     do {    \
         void*__p = (void*) il2cpp_array_addr_with_size ((array), elementSize, (index)); \

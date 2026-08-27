@@ -6,6 +6,7 @@
 #include "vm/Exception.h"
 #include "vm/Object.h"
 #include "vm/Profiler.h"
+#include "il2cpp-api-adapters.h"
 #include "il2cpp-class-internals.h"
 #include "il2cpp-object-internals.h"
 #include <memory>
@@ -112,7 +113,7 @@ namespace vm
             return NULL;
         }
 
-        elem_size = il2cpp_array_element_size(klass);
+        elem_size = il2cpp::vm::Array::GetElementSize(klass);
         //if (CHECK_MUL_OVERFLOW_UN (n, elem_size)) {
         //  mono_gc_out_of_memory (MONO_ARRAY_MAX_SIZE);
         //  return NULL;
@@ -175,7 +176,7 @@ namespace vm
         IL2CPP_NOT_IMPLEMENTED_NO_ASSERT(Array::NewFull, "IGNORING non-zero based arrays!");
         IL2CPP_NOT_IMPLEMENTED_NO_ASSERT(Array::NewFull, "Handle allocations with a GC descriptor");
 
-        byte_len = il2cpp_array_element_size(array_class);
+        byte_len = il2cpp::vm::Array::GetElementSize(array_class);
         len = 1;
 
         /* A single dimensional array with a 0 lower bound is the same as an szarray */
@@ -288,9 +289,3 @@ namespace vm
     }
 } /* namespace vm */
 } /* namespace il2cpp */
-
-LIBIL2CPP_CODEGEN_API int32_t
-il2cpp_array_element_size(Il2CppClass *ac)
-{
-    return il2cpp::vm::Array::GetElementSize(ac);
-}
