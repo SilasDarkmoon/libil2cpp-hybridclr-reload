@@ -29,6 +29,8 @@ struct Il2CppImage;
 struct Il2CppAssembly;
 struct FieldInfo;
 struct MethodInfo;
+struct PropertyInfo;
+struct EventInfo;
 
 // Il2CppImage 的边界适配器。交给 Unity 的 "const Il2CppImage*" 实际上是本结构体的地址。
 struct Il2CppImageAdapter
@@ -55,6 +57,18 @@ struct FieldInfoAdapter
 struct MethodInfoAdapter
 {
     const MethodInfo* real;
+};
+
+// PropertyInfo / EventInfo 的边界适配器，语义同 FieldInfoAdapter（嵌入类体分配，
+// 热重载归并需按 (parent 类, 成员名) 配对）。
+struct PropertyInfoAdapter
+{
+    const PropertyInfo* real;
+};
+
+struct EventInfoAdapter
+{
+    const EventInfo* real;
 };
 
 namespace il2cpp
@@ -188,5 +202,20 @@ namespace api
     // 仅 API 出口经本函数转换成 adapter 版再投递给 Unity。
 
     void WrapStackFrameInfo(const Il2CppStackFrameInfo& from, Il2CppStackFrameInfoAdapter& to);
+
+    // ---- PropertyInfo / EventInfo 边界接口 ----
+
+    // 出方向：真实成员 -> adapter，find-or-create。
+    PropertyInfoAdapter* WrapProperty(PropertyInfo* real);
+    EventInfoAdapter* WrapEvent(EventInfo* real);
+
+    // 入方向：边界传回的 adapter -> 当前真实成员。
+    PropertyInfo* UnwrapProperty(const PropertyInfoAdapter* adapter);
+    EventInfo* UnwrapEvent(const EventInfoAdapter* adapter);
+
+    // 热重载归并：oldReal/newReal 共用 adapter，adapter 当前 real 切到 newReal。
+    // 与 FieldInfo 同：嵌入类体分配，新旧配对须由重载流程按 (parent 类, 成员名) 完成。
+    void RemapPropertyReal(PropertyInfo* oldReal, PropertyInfo* newReal);
+    void RemapEventReal(EventInfo* oldReal, EventInfo* newReal);
 }
 }

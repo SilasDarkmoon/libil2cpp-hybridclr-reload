@@ -290,9 +290,9 @@ Il2CppClass* il2cpp_class_get_element_class(Il2CppClass *klass)
     return Class::GetElementClass(klass);
 }
 
-const EventInfo* il2cpp_class_get_events(Il2CppClass *klass, void* *iter)
+const EventInfoAdapter* il2cpp_class_get_events(Il2CppClass *klass, void* *iter)
 {
-    return Class::GetEvents(klass, iter);
+    return il2cpp::api::WrapEvent(Class::GetEvents(klass, iter));
 }
 
 FieldInfoAdapter* il2cpp_class_get_fields(Il2CppClass *klass, void* *iter)
@@ -310,14 +310,14 @@ Il2CppClass* il2cpp_class_get_interfaces(Il2CppClass *klass, void* *iter)
     return Class::GetInterfaces(klass, iter);
 }
 
-const PropertyInfo* il2cpp_class_get_properties(Il2CppClass *klass, void* *iter)
+const PropertyInfoAdapter* il2cpp_class_get_properties(Il2CppClass *klass, void* *iter)
 {
-    return Class::GetProperties(klass, iter);
+    return il2cpp::api::WrapProperty(Class::GetProperties(klass, iter));
 }
 
-const PropertyInfo* il2cpp_class_get_property_from_name(Il2CppClass *klass, const char *name)
+const PropertyInfoAdapter* il2cpp_class_get_property_from_name(Il2CppClass *klass, const char *name)
 {
-    return Class::GetPropertyFromName(klass, name);
+    return il2cpp::api::WrapProperty(Class::GetPropertyFromName(klass, name));
 }
 
 FieldInfoAdapter* il2cpp_class_get_field_from_name(Il2CppClass* klass, const char *name)
@@ -1049,29 +1049,29 @@ void il2cpp_profiler_install_thread(Il2CppProfileThreadFunc start, Il2CppProfile
 
 // property
 
-const char* il2cpp_property_get_name(PropertyInfo *prop)
+const char* il2cpp_property_get_name(PropertyInfoAdapter *prop)
 {
-    return Property::GetName(prop);
+    return Property::GetName(il2cpp::api::UnwrapProperty(prop));
 }
 
-const MethodInfoAdapter* il2cpp_property_get_get_method(PropertyInfo *prop)
+const MethodInfoAdapter* il2cpp_property_get_get_method(PropertyInfoAdapter *prop)
 {
-    return il2cpp::api::WrapMethod(Property::GetGetMethod(prop));
+    return il2cpp::api::WrapMethod(Property::GetGetMethod(il2cpp::api::UnwrapProperty(prop)));
 }
 
-const MethodInfoAdapter* il2cpp_property_get_set_method(PropertyInfo *prop)
+const MethodInfoAdapter* il2cpp_property_get_set_method(PropertyInfoAdapter *prop)
 {
-    return il2cpp::api::WrapMethod(Property::GetSetMethod(prop));
+    return il2cpp::api::WrapMethod(Property::GetSetMethod(il2cpp::api::UnwrapProperty(prop)));
 }
 
-Il2CppClass* il2cpp_property_get_parent(PropertyInfo *prop)
+Il2CppClass* il2cpp_property_get_parent(PropertyInfoAdapter *prop)
 {
-    return Property::GetParent(prop);
+    return Property::GetParent(il2cpp::api::UnwrapProperty(prop));
 }
 
-uint32_t il2cpp_property_get_flags(PropertyInfo *prop)
+uint32_t il2cpp_property_get_flags(PropertyInfoAdapter *prop)
 {
-    return Property::GetFlags(prop);
+    return Property::GetFlags(il2cpp::api::UnwrapProperty(prop));
 }
 
 // object

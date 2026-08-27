@@ -126,5 +126,52 @@ namespace api
         to.ilOffset = from.ilOffset;
         to.filePath = from.filePath;
     }
+
+    // ---- PropertyInfo / EventInfo ----
+
+    typedef AdapterMap<PropertyInfo, PropertyInfoAdapter> PropertyAdapterMap;
+    typedef AdapterMap<EventInfo, EventInfoAdapter> EventAdapterMap;
+
+    static PropertyAdapterMap& GetPropertyAdapterMap()
+    {
+        static PropertyAdapterMap s_PropertyAdapterMap;
+        return s_PropertyAdapterMap;
+    }
+
+    static EventAdapterMap& GetEventAdapterMap()
+    {
+        static EventAdapterMap s_EventAdapterMap;
+        return s_EventAdapterMap;
+    }
+
+    PropertyInfoAdapter* WrapProperty(PropertyInfo* real)
+    {
+        return GetPropertyAdapterMap().Wrap(real);
+    }
+
+    EventInfoAdapter* WrapEvent(EventInfo* real)
+    {
+        return GetEventAdapterMap().Wrap(real);
+    }
+
+    PropertyInfo* UnwrapProperty(const PropertyInfoAdapter* adapter)
+    {
+        return const_cast<PropertyInfo*>(PropertyAdapterMap::Unwrap(adapter));
+    }
+
+    EventInfo* UnwrapEvent(const EventInfoAdapter* adapter)
+    {
+        return const_cast<EventInfo*>(EventAdapterMap::Unwrap(adapter));
+    }
+
+    void RemapPropertyReal(PropertyInfo* oldReal, PropertyInfo* newReal)
+    {
+        GetPropertyAdapterMap().RemapReal(oldReal, newReal);
+    }
+
+    void RemapEventReal(EventInfo* oldReal, EventInfo* newReal)
+    {
+        GetEventAdapterMap().RemapReal(oldReal, newReal);
+    }
 }
 }

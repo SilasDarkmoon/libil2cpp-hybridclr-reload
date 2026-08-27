@@ -543,7 +543,7 @@ MonoMethod* mono_class_get_methods(MonoClass* klass, void* *iter)
 
 MonoProperty* mono_class_get_properties(MonoClass* klass, void* *iter)
 {
-    return (MonoProperty*)il2cpp::vm::Class::GetProperties((Il2CppClass*)klass, iter);
+    return (MonoProperty*)il2cpp::api::WrapProperty(il2cpp::vm::Class::GetProperties((Il2CppClass*)klass, iter));
 }
 
 MonoClass* mono_class_get_nested_types(MonoClass *monoClass, void* *iter)
@@ -1305,22 +1305,22 @@ int32_t mono_thread_state_init_from_monoctx(MonoThreadUnwindState* ctx, MonoCont
 
 const char* mono_property_get_name(MonoProperty *prop)
 {
-    return il2cpp::vm::Property::GetName((PropertyInfo*)prop);
+    return il2cpp::vm::Property::GetName(il2cpp::api::UnwrapProperty((const PropertyInfoAdapter*)prop));
 }
 
 MonoMethod* mono_property_get_get_method(MonoProperty *prop)
 {
-    return (MonoMethod*)il2cpp::vm::Property::GetGetMethod((PropertyInfo*)prop);
+    return (MonoMethod*)il2cpp::api::WrapMethod(il2cpp::vm::Property::GetGetMethod(il2cpp::api::UnwrapProperty((const PropertyInfoAdapter*)prop)));
 }
 
 MonoMethod* mono_property_get_set_method(MonoProperty *prop)
 {
-    return (MonoMethod*)il2cpp::vm::Property::GetSetMethod((PropertyInfo*)prop);
+    return (MonoMethod*)il2cpp::api::WrapMethod(il2cpp::vm::Property::GetSetMethod(il2cpp::api::UnwrapProperty((const PropertyInfoAdapter*)prop)));
 }
 
 MonoClass* mono_property_get_parent(MonoProperty *prop)
 {
-    return (MonoClass*)il2cpp::vm::Property::GetParent((PropertyInfo*)prop);
+    return (MonoClass*)il2cpp::vm::Property::GetParent(il2cpp::api::UnwrapProperty((const PropertyInfoAdapter*)prop));
 }
 
 void mono_loader_lock()
@@ -1836,7 +1836,8 @@ MonoCustomAttrInfo* mono_custom_attrs_from_method_checked(MonoMethod *method, Mo
 
 MonoCustomAttrInfo* mono_custom_attrs_from_property_checked(MonoClass *klass, MonoProperty *property, MonoError *error)
 {
-    return (MonoCustomAttrInfo*)il2cpp::vm::MetadataCache::GetCustomAttributeTypeToken(((Il2CppClass*)klass)->image, ((PropertyInfo*)property)->token);
+    // property 实为 adapter，先解包再读 token 字段（klass 暂未 adapter 化，保持原样）
+    return (MonoCustomAttrInfo*)il2cpp::vm::MetadataCache::GetCustomAttributeTypeToken(((Il2CppClass*)klass)->image, il2cpp::api::UnwrapProperty((const PropertyInfoAdapter*)property)->token);
 }
 
 MonoCustomAttrInfo* mono_custom_attrs_from_field_checked(MonoClass *klass, MonoClassField *field, MonoError *error)

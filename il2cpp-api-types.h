@@ -10,6 +10,8 @@
 typedef struct Il2CppClass Il2CppClass;
 typedef struct Il2CppType Il2CppType;
 typedef struct EventInfo EventInfo;
+// 同 Il2CppImageAdapter：event 相关 API 实际收发 EventInfoAdapter*。定义见 il2cpp-api-adapters.h。
+typedef struct EventInfoAdapter EventInfoAdapter;
 typedef struct MethodInfo MethodInfo;
 // 同 Il2CppImageAdapter：method 相关 API 实际收发 MethodInfoAdapter*。定义见 il2cpp-api-adapters.h。
 typedef struct MethodInfoAdapter MethodInfoAdapter;
@@ -17,6 +19,8 @@ typedef struct FieldInfo FieldInfo;
 // 同 Il2CppImageAdapter：field 相关 API 实际收发 FieldInfoAdapter*。定义见 il2cpp-api-adapters.h。
 typedef struct FieldInfoAdapter FieldInfoAdapter;
 typedef struct PropertyInfo PropertyInfo;
+// 同 Il2CppImageAdapter：property 相关 API 实际收发 PropertyInfoAdapter*。定义见 il2cpp-api-adapters.h。
+typedef struct PropertyInfoAdapter PropertyInfoAdapter;
 
 typedef struct Il2CppAssembly Il2CppAssembly;
 // 同 Il2CppImageAdapter：assembly 相关 API 实际收发 Il2CppAssemblyAdapter*。定义见 il2cpp-api-adapters.h。

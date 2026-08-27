@@ -49,12 +49,12 @@ DO_API(Il2CppClass*, il2cpp_class_from_il2cpp_type, (const Il2CppType * type));
 DO_API(Il2CppClass*, il2cpp_class_from_name, (const Il2CppImageAdapter * image, const char* namespaze, const char *name));
 DO_API(Il2CppClass*, il2cpp_class_from_system_type, (Il2CppReflectionType * type));
 DO_API(Il2CppClass*, il2cpp_class_get_element_class, (Il2CppClass * klass));
-DO_API(const EventInfo*, il2cpp_class_get_events, (Il2CppClass * klass, void* *iter));
+DO_API(const EventInfoAdapter*, il2cpp_class_get_events, (Il2CppClass * klass, void* *iter));
 DO_API(FieldInfoAdapter*, il2cpp_class_get_fields, (Il2CppClass * klass, void* *iter));
 DO_API(Il2CppClass*, il2cpp_class_get_nested_types, (Il2CppClass * klass, void* *iter));
 DO_API(Il2CppClass*, il2cpp_class_get_interfaces, (Il2CppClass * klass, void* *iter));
-DO_API(const PropertyInfo*, il2cpp_class_get_properties, (Il2CppClass * klass, void* *iter));
-DO_API(const PropertyInfo*, il2cpp_class_get_property_from_name, (Il2CppClass * klass, const char *name));
+DO_API(const PropertyInfoAdapter*, il2cpp_class_get_properties, (Il2CppClass * klass, void* *iter));
+DO_API(const PropertyInfoAdapter*, il2cpp_class_get_property_from_name, (Il2CppClass * klass, const char *name));
 DO_API(FieldInfoAdapter*, il2cpp_class_get_field_from_name, (Il2CppClass * klass, const char *name));
 DO_API(const MethodInfoAdapter*, il2cpp_class_get_methods, (Il2CppClass * klass, void* *iter));
 DO_API(const MethodInfoAdapter*, il2cpp_class_get_method_from_name, (Il2CppClass * klass, const char* name, int argsCount));
@@ -194,11 +194,11 @@ DO_API(void, il2cpp_profiler_install_thread, (Il2CppProfileThreadFunc start, Il2
 #endif
 
 // property
-DO_API(uint32_t, il2cpp_property_get_flags, (PropertyInfo * prop));
-DO_API(const MethodInfoAdapter*, il2cpp_property_get_get_method, (PropertyInfo * prop));
-DO_API(const MethodInfoAdapter*, il2cpp_property_get_set_method, (PropertyInfo * prop));
-DO_API(const char*, il2cpp_property_get_name, (PropertyInfo * prop));
-DO_API(Il2CppClass*, il2cpp_property_get_parent, (PropertyInfo * prop));
+DO_API(uint32_t, il2cpp_property_get_flags, (PropertyInfoAdapter * prop));
+DO_API(const MethodInfoAdapter*, il2cpp_property_get_get_method, (PropertyInfoAdapter * prop));
+DO_API(const MethodInfoAdapter*, il2cpp_property_get_set_method, (PropertyInfoAdapter * prop));
+DO_API(const char*, il2cpp_property_get_name, (PropertyInfoAdapter * prop));
+DO_API(Il2CppClass*, il2cpp_property_get_parent, (PropertyInfoAdapter * prop));
 
 // object
 DO_API(Il2CppClass*, il2cpp_object_get_class, (Il2CppObject * obj));
