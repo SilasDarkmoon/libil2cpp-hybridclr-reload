@@ -29,7 +29,7 @@ namespace Reflection
         }
         else
         {
-            klass = il2cpp_class_from_il2cpp_type(type);
+            klass = il2cpp::vm::Class::FromIl2CppType(type);
 
             bool found = klass == handle->parent || il2cpp::vm::Class::HasParent(klass, handle->parent);
             if (!found)

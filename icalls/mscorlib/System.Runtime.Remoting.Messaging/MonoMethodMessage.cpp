@@ -7,6 +7,7 @@
 #include "gc/WriteBarrier.h"
 #include "os/Atomic.h"
 #include "vm/Array.h"
+#include "vm/Class.h"
 #include "vm/Exception.h"
 #include "vm/Method.h"
 #include "vm/String.h"
@@ -40,15 +41,15 @@ namespace Messaging
         {
             Il2CppClass *klass;
 
-            klass = il2cpp_array_class_get(il2cpp_defaults.byte_class, 1);
+            klass = il2cpp::vm::Class::GetArrayClass(il2cpp_defaults.byte_class, 1);
             IL2CPP_ASSERT(klass);
             byte_array_klass = klass;
 
-            klass = il2cpp_array_class_get(il2cpp_defaults.string_class, 1);
+            klass = il2cpp::vm::Class::GetArrayClass(il2cpp_defaults.string_class, 1);
             IL2CPP_ASSERT(klass);
             string_array_klass = klass;
 
-            klass = il2cpp_array_class_get(il2cpp_defaults.object_class, 1);
+            klass = il2cpp::vm::Class::GetArrayClass(il2cpp_defaults.object_class, 1);
             IL2CPP_ASSERT(klass);
 
             il2cpp::os::Atomic::ExchangePointer(&object_array_klass, klass);

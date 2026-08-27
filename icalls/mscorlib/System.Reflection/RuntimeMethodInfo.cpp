@@ -247,7 +247,7 @@ namespace Reflection
         const MethodInfo *method = (const MethodInfo*)method_handle;
         if (type_handle && genericCheck)
         {
-            klass = il2cpp_class_from_il2cpp_type((Il2CppType*)type_handle);
+            klass = vm::Class::FromIl2CppType((Il2CppType*)type_handle);
             if (il2cpp_class_get_generic_type_definition(method->klass) != il2cpp_class_get_generic_type_definition(klass))
                 return NULL;
 
@@ -259,7 +259,7 @@ namespace Reflection
             }
         }
         else if (type_handle)
-            klass = il2cpp_class_from_il2cpp_type((Il2CppType*)type_handle);
+            klass = vm::Class::FromIl2CppType((Il2CppType*)type_handle);
         else
             klass = method->klass;
 

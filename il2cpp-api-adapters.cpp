@@ -220,5 +220,41 @@ namespace api
     {
         GetExceptionAdapterMap().RemapReal(oldReal, newReal);
     }
+
+    // ---- Il2CppClass ----
+
+    typedef AdapterMap<Il2CppClass, Il2CppClassAdapter> ClassAdapterMap;
+
+    static ClassAdapterMap& GetClassAdapterMap()
+    {
+        static ClassAdapterMap s_ClassAdapterMap;
+        return s_ClassAdapterMap;
+    }
+
+    Il2CppClassAdapter* WrapClass(const Il2CppClass* real)
+    {
+        return GetClassAdapterMap().Wrap(real);
+    }
+
+    Il2CppClass* UnwrapClass(const Il2CppClassAdapter* adapter)
+    {
+        return const_cast<Il2CppClass*>(ClassAdapterMap::Unwrap(adapter));
+    }
+
+    void RemapClassReal(const Il2CppClass* oldReal, const Il2CppClass* newReal)
+    {
+        GetClassAdapterMap().RemapReal(oldReal, newReal);
+    }
+
+    void* GetClassUserdata(const Il2CppClassAdapter* adapter)
+    {
+        return adapter == NULL ? NULL : adapter->userdata;
+    }
+
+    void SetClassUserdata(Il2CppClassAdapter* adapter, void* userdata)
+    {
+        if (adapter != NULL)
+            adapter->userdata = userdata;
+    }
 }
 }

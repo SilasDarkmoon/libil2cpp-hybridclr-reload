@@ -8,6 +8,7 @@
 #include "utils/Memory.h"
 #include "utils/StringUtils.h"
 #include "vm/Array.h"
+#include "vm/Class.h"
 #include "vm/Exception.h"
 #include "vm/String.h"
 #include "os/Locale.h"
@@ -103,7 +104,7 @@ namespace Globalization
             len++;
         }
 
-        Il2CppArray* ret = il2cpp_array_new_specific(il2cpp_array_class_get(il2cpp_defaults.string_class, 1), len);
+        Il2CppArray* ret = il2cpp::vm::Array::NewSpecific(il2cpp::vm::Class::GetArrayClass(il2cpp_defaults.string_class, 1), len);
 
         for (int i = 0; i < len; i++)
             il2cpp_array_setref(ret, i, il2cpp_string_new(dtidx2string(names[i])));

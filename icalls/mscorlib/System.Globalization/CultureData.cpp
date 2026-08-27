@@ -6,6 +6,7 @@
 #include <icalls/mscorlib/System.Globalization/CultureInfoTables.h>
 #include "gc/WriteBarrier.h"
 #include <vm/Array.h>
+#include <vm/Class.h>
 
 namespace il2cpp
 {
@@ -30,7 +31,7 @@ namespace Globalization
             len++;
         }
 
-        Il2CppArray* ret = il2cpp_array_new_specific(il2cpp_array_class_get(il2cpp_defaults.string_class, 1), len);
+        Il2CppArray* ret = il2cpp::vm::Array::NewSpecific(il2cpp::vm::Class::GetArrayClass(il2cpp_defaults.string_class, 1), len);
 
         for (int i = 0; i < len; i++)
             il2cpp_array_setref(ret, i, il2cpp_string_new(strings_array + names[i]));
@@ -49,7 +50,7 @@ namespace Globalization
             len++;
         }
 
-        Il2CppArray* ret = il2cpp_array_new_specific(il2cpp_array_class_get(il2cpp_defaults.int32_class, 1), len);
+        Il2CppArray* ret = il2cpp::vm::Array::NewSpecific(il2cpp::vm::Class::GetArrayClass(il2cpp_defaults.int32_class, 1), len);
 
         for (i = 0; i < len; i++)
             il2cpp_array_set(ret, int32_t, i, gs[i]);

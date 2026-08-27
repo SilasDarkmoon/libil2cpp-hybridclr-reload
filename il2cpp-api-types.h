@@ -8,6 +8,9 @@
 #endif // !__cplusplus
 
 typedef struct Il2CppClass Il2CppClass;
+// 同 Il2CppImageAdapter：class 相关 API 实际收发 Il2CppClassAdapter*。
+// 注意 adapter 含 userdata 槽（Unity 经 il2cpp_class_get_userdata_offset 拿偏移后直读直写）。
+typedef struct Il2CppClassAdapter Il2CppClassAdapter;
 typedef struct Il2CppType Il2CppType;
 typedef struct EventInfo EventInfo;
 // 同 Il2CppImageAdapter：event 相关 API 实际收发 EventInfoAdapter*。定义见 il2cpp-api-adapters.h。
@@ -217,6 +220,8 @@ typedef void (*Il2CppProfileMethodFunc) (Il2CppProfiler* prof, const MethodInfo 
 // Il2CppProfileMethodFunc 保持原样供 vm 内部使用（回调由 API 层桥接）。
 typedef void (*Il2CppProfileMethodFuncAdapter) (Il2CppProfiler* prof, const MethodInfoAdapter *method);
 typedef void (*Il2CppProfileAllocFunc) (Il2CppProfiler* prof, Il2CppObject *obj, Il2CppClass *klass);
+// API 边界版 alloc 回调：klass 为 Il2CppClassAdapter*（由 API 层桥接，旧类型保持供 vm 使用）。
+typedef void (*Il2CppProfileAllocFuncAdapter) (Il2CppProfiler* prof, Il2CppObject *obj, Il2CppClassAdapter *klass);
 typedef void (*Il2CppProfileGCFunc) (Il2CppProfiler* prof, Il2CppGCEvent event, int generation);
 typedef void (*Il2CppProfileGCResizeFunc) (Il2CppProfiler* prof, int64_t new_size);
 typedef void (*Il2CppProfileFileIOFunc) (Il2CppProfiler* prof, Il2CppProfileFileIOKind kind, int count);

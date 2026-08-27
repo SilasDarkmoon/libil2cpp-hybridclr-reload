@@ -862,9 +862,9 @@ namespace System
 
         Il2CppClass* arrayClass;
 
-        Il2CppClass* klass = il2cpp_class_from_il2cpp_type(_type->type.type);
+        Il2CppClass* klass = vm::Class::FromIl2CppType(_type->type.type);
         if (rank == 0) //single dimentional array
-            arrayClass = il2cpp_array_class_get(klass, 1);
+            arrayClass = vm::Class::GetArrayClass(klass, 1);
         else
             arrayClass = il2cpp_bounded_array_class_get(klass, rank, true);
 
@@ -1065,8 +1065,8 @@ namespace System
 
     void RuntimeType::GetInterfaceMapData(Il2CppReflectionType* type, Il2CppReflectionType* iface, Il2CppArray** targets, Il2CppArray** methods)
     {
-        Il2CppClass* klass = il2cpp_class_from_il2cpp_type(type->type);
-        Il2CppClass* iklass = il2cpp_class_from_il2cpp_type(iface->type);
+        Il2CppClass* klass = vm::Class::FromIl2CppType(type->type);
+        Il2CppClass* iklass = vm::Class::FromIl2CppType(iface->type);
 
         void* iter = NULL;
 

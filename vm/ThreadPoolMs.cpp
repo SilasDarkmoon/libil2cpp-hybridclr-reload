@@ -60,7 +60,7 @@ namespace vm
                 if (!paramType->byref)
                     continue;
                 IL2CPP_ASSERT(arrayOutArgsIndex < arrayOutArgs->max_length);
-                Il2CppClass *paramClass = il2cpp_class_from_type(paramType);
+                Il2CppClass *paramClass = il2cpp::vm::Class::FromIl2CppType(paramType);
 
                 if (paramClass->byval_arg.valuetype)
                 {
@@ -101,7 +101,7 @@ namespace vm
         {
             Il2CppClass *klass;
 
-            klass = il2cpp_array_class_get(il2cpp_defaults.object_class, 1);
+            klass = il2cpp::vm::Class::GetArrayClass(il2cpp_defaults.object_class, 1);
             IL2CPP_ASSERT(klass);
 
             os::Atomic::FullMemoryBarrier();

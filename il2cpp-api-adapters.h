@@ -29,6 +29,7 @@ struct Il2CppImage;
 struct Il2CppAssembly;
 struct Il2CppDomain;
 struct Il2CppException;
+struct Il2CppClass;
 struct FieldInfo;
 struct MethodInfo;
 struct PropertyInfo;
@@ -85,6 +86,15 @@ struct Il2CppDomainAdapter
 struct Il2CppExceptionAdapter
 {
     const Il2CppException* real;
+};
+
+// Il2CppClass 的边界适配器。除 real 外含 userdata 槽：Unity 经
+// il2cpp_class_get_userdata_offset() 取偏移后按偏移直读直写（GetComponent 优化），
+// 该槽存 Unity::Type*（引擎侧对象），热重载 RemapReal 换 real 时槽保留不动。
+struct Il2CppClassAdapter
+{
+    const Il2CppClass* real;
+    void* userdata;
 };
 
 namespace il2cpp
@@ -247,5 +257,21 @@ namespace api
     // 热重载归并（domain/exception 通常不换对象，接口备用）。
     void RemapDomainReal(const Il2CppDomain* oldReal, const Il2CppDomain* newReal);
     void RemapExceptionReal(Il2CppException* oldReal, Il2CppException* newReal);
+
+    // ---- Il2CppClass 边界接口 ----
+
+    // 出方向：真实类 -> adapter，find-or-create。
+    Il2CppClassAdapter* WrapClass(const Il2CppClass* real);
+
+    // 入方向：边界传回的 adapter -> 当前真实类（可变指针，API 签名多为 Il2CppClass*）。
+    Il2CppClass* UnwrapClass(const Il2CppClassAdapter* adapter);
+
+    // 热重载归并：oldReal/newReal 共用 adapter，adapter 当前 real 切到 newReal。
+    // userdata 槽不动（Unity::Type* 跨重载保留）。
+    void RemapClassReal(const Il2CppClass* oldReal, const Il2CppClass* newReal);
+
+    // userdata 槽读写（il2cpp_class_set_userdata / 偏移直读配套）。
+    void* GetClassUserdata(const Il2CppClassAdapter* adapter);
+    void SetClassUserdata(Il2CppClassAdapter* adapter, void* userdata);
 }
 }
