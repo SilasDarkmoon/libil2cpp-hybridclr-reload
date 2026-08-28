@@ -150,6 +150,24 @@ namespace vm
         ++s_assemblyVersion;
     }
 
+    void Assembly::ReplaceAssembly(const Il2CppAssembly* oldAssembly, const Il2CppAssembly* newAssembly)
+    {
+        os::FastAutoLock lock(&s_assemblyLock);
+
+        for (size_t i = 0; i < s_Assemblies.size(); i++)
+        {
+            if (s_Assemblies[i] == oldAssembly)
+            {
+                s_Assemblies[i] = newAssembly;
+                ++s_assemblyVersion; // 触发快照重建（WrapAssemblyArray 每次重建 adapter 数组）
+                return;
+            }
+        }
+        // old 不在列表（异常路径）：直接注册 new
+        s_Assemblies.push_back(newAssembly);
+        ++s_assemblyVersion;
+    }
+
     void Assembly::InvalidateAssemblyList()
     {
         os::FastAutoLock lock(&s_assemblyLock);

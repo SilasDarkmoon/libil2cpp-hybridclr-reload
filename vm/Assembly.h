@@ -27,6 +27,8 @@ namespace vm
         static const Il2CppAssembly* GetLoadedAssembly(const char* name);
         static const Il2CppAssembly* Load(const char* name);
         static void Register(const Il2CppAssembly* assembly);
+        // 热重载：s_Assemblies 中原地替换条目（索引稳定，快照失效经版本号触发）
+        static void ReplaceAssembly(const Il2CppAssembly* oldAssembly, const Il2CppAssembly* newAssembly);
         static void InvalidateAssemblyList();
         static void ClearAllAssemblies();
         static void Initialize();

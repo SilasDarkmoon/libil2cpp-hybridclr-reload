@@ -40,12 +40,14 @@ struct EventInfo;
 struct Il2CppImageAdapter
 {
     const Il2CppImage* real;
+    bool stale; // 热重载 old 标志：real 属旧版本且尚未配对成功（安全网，见 AdapterMap）
 };
 
 // Il2CppAssembly 的边界适配器，语义同 Il2CppImageAdapter。
 struct Il2CppAssemblyAdapter
 {
     const Il2CppAssembly* real;
+    bool stale;
 };
 
 // FieldInfo 的边界适配器，语义同上。注意 FieldInfo 嵌入在 Il2CppClass::fields
@@ -55,12 +57,14 @@ struct Il2CppAssemblyAdapter
 struct FieldInfoAdapter
 {
     const FieldInfo* real;
+    bool stale;
 };
 
 // MethodInfo 的边界适配器，语义同上。
 struct MethodInfoAdapter
 {
     const MethodInfo* real;
+    bool stale;
 };
 
 // PropertyInfo / EventInfo 的边界适配器，语义同 FieldInfoAdapter（嵌入类体分配，
@@ -68,11 +72,13 @@ struct MethodInfoAdapter
 struct PropertyInfoAdapter
 {
     const PropertyInfo* real;
+    bool stale;
 };
 
 struct EventInfoAdapter
 {
     const EventInfo* real;
+    bool stale;
 };
 
 // Il2CppType 的边界适配器。与指针键类型不同：Il2CppType 按值嵌入（byval_arg、
@@ -90,6 +96,7 @@ struct Il2CppTypeAdapter
 struct Il2CppDomainAdapter
 {
     const Il2CppDomain* real;
+    bool stale;
 };
 
 // Il2CppClass 的边界适配器。除 real 外含 userdata 槽：Unity 经
@@ -99,6 +106,7 @@ struct Il2CppClassAdapter
 {
     const Il2CppClass* real;
     void* userdata;
+    bool stale;
 };
 
 namespace il2cpp
@@ -144,6 +152,73 @@ namespace api
                 return;
 
             il2cpp::os::FastAutoLock lock(&m_Mutex);
+            RemapRealLocked(oldReal, newReal);
+        }
+
+        // 热重载批量重绑（单次持锁）：遍历所有 real 满足 filter 的条目，调
+        // pairFn(oldReal) 求配对结果——非 NULL 则重绑到该 newReal（内部走
+        // RemapRealLocked 语义），NULL 则跳过。返回成功重绑条数。
+        // userData 透传给两个回调；回调不得再进入本 map 的锁。
+        typedef bool(*RealFilterFn)(const RealT* real, void* userData);
+        typedef const RealT*(*RealPairFn)(const RealT* oldReal, void* userData);
+        size_t RemapRealsWhere(RealFilterFn filter, RealPairFn pairFn, void* userData)
+        {
+            size_t rebound = 0;
+            il2cpp::os::FastAutoLock lock(&m_Mutex);
+            // 收集待处理项：回调期间修改 map 会失效迭代器
+            std::vector<const RealT*> pending;
+            for (typename RealToAdapterMap::iterator it = m_RealToAdapter.begin(); it != m_RealToAdapter.end(); ++it)
+            {
+                if (it->second->real == it->first && filter(it->first, userData))
+                    pending.push_back(it->first);
+            }
+            for (size_t i = 0; i < pending.size(); i++)
+            {
+                const RealT* newReal = pairFn(pending[i], userData);
+                if (newReal != NULL)
+                {
+                    RemapRealLocked(pending[i], newReal);
+                    rebound++;
+                }
+            }
+            return rebound;
+        }
+
+        // old 标志安全网：pass 开始前给属于旧 image 的 adapter 打标（MarkRealsWhere），
+        // 配对成功即清除；pass 后仍带标的 adapter 的 real 指向保活的旧对象（新版本中
+        // 已删除的类型），GetStaleReals 输出清单供日志/降级。
+        void MarkRealsWhere(RealFilterFn filter, void* userData)
+        {
+            il2cpp::os::FastAutoLock lock(&m_Mutex);
+            for (typename RealToAdapterMap::iterator it = m_RealToAdapter.begin(); it != m_RealToAdapter.end(); ++it)
+            {
+                if (it->second->real == it->first && filter(it->first, userData))
+                    it->second->stale = true;
+            }
+        }
+
+        void ClearStaleMark(const RealT* real)
+        {
+            il2cpp::os::FastAutoLock lock(&m_Mutex);
+            typename RealToAdapterMap::iterator it = m_RealToAdapter.find(real);
+            if (it != m_RealToAdapter.end())
+                it->second->stale = false;
+        }
+
+        void GetStaleReals(std::vector<const RealT*>& out) const
+        {
+            il2cpp::os::FastAutoLock lock(const_cast<baselib::ReentrantLock*>(&m_Mutex));
+            for (typename RealToAdapterMap::const_iterator it = m_RealToAdapter.begin(); it != m_RealToAdapter.end(); ++it)
+            {
+                if (it->second->stale)
+                    out.push_back(it->first);
+            }
+        }
+
+    private:
+        // 调用方须已持有 m_Mutex
+        void RemapRealLocked(const RealT* oldReal, const RealT* newReal)
+        {
             typename RealToAdapterMap::iterator oldIt = m_RealToAdapter.find(oldReal);
             typename RealToAdapterMap::iterator newIt = m_RealToAdapter.find(newReal);
 
@@ -151,6 +226,7 @@ namespace api
             {
                 AdapterT* adapter = oldIt->second;
                 adapter->real = newReal;
+                adapter->stale = false; // 重绑成功清除 old 标志
                 m_RealToAdapter[newReal] = adapter;
                 // 若 newReal 此前已被单独包装过（newIt != end 且 adapter 不同），
                 // 那个 adapter 可能已被 Unity 持有，不能释放；其 real 本就是 newReal，
@@ -158,6 +234,7 @@ namespace api
             }
             else if (newIt != m_RealToAdapter.end())
             {
+                newIt->second->stale = false;
                 m_RealToAdapter[oldReal] = newIt->second;
             }
             else
@@ -169,7 +246,6 @@ namespace api
             }
         }
 
-    private:
         typedef std::unordered_map<const RealT*, AdapterT*> RealToAdapterMap;
         RealToAdapterMap m_RealToAdapter;
         baselib::ReentrantLock m_Mutex;
@@ -232,6 +308,13 @@ namespace api
     // 仅 API 出口经本函数转换成 adapter 版再投递给 Unity。
 
     void WrapStackFrameInfo(const Il2CppStackFrameInfo& from, Il2CppStackFrameInfoAdapter& to);
+
+    // ---- 热重载协调器 ----
+    // 程序集 fresh 载入并原地替换注册表后调用（hybridclr Assembly::Create 内）。
+    // 职责：按全名配对旧/新 image 的类型，批量重绑 Class/Field/Method/Property/
+    // Event/Type 的 adapter；old 标志校验输出未配对清单。泛型实例 pass 由
+    // ReloadGenericInstances 单独触发（后续接入）。
+    void OnInterpreterAssemblyReloaded(const Il2CppAssembly* oldAssembly, const Il2CppAssembly* newAssembly);
 
     // ---- PropertyInfo / EventInfo 边界接口 ----
 

@@ -19,6 +19,7 @@
 #include "MetadataUtil.h"
 #include "ConsistentAOTHomologousImage.h"
 #include "SuperSetAOTHomologousImage.h"
+#include "il2cpp-api-adapters.h"
 
 namespace hybridclr
 {
@@ -146,15 +147,24 @@ namespace metadata
 
         Il2CppAssembly* ass;
         Il2CppImage* image2;
+        Il2CppAssembly* replaceOldAss = nullptr; // 非空 = 热重载：fresh 创建后原地替换
         if ((ass = FindPlaceHolderAssembly(nameNoExt)) != nullptr)
         {
             if (ass->token)
             {
-                RaiseExecutionEngineException("reloading placeholder assembly is not supported!");
+                // 热重载：不再复用旧对象（指针稳定性由 API 边界 Adapter 层承担），
+                // fresh 创建新 assembly/image，载入完毕后原地替换注册表条目，
+                // 随后由重载流程做 Adapter 重绑定（按类全名配对）。
+                replaceOldAss = ass;
+                ass = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppAssembly))) Il2CppAssembly;
+                image2 = new (HYBRIDCLR_MALLOC_ZERO(sizeof(Il2CppImage))) Il2CppImage;
             }
-            image2 = ass->image;
-            HYBRIDCLR_FREE((void*)ass->image->name);
-            HYBRIDCLR_FREE((void*)ass->image->nameNoExt);
+            else
+            {
+                image2 = ass->image;
+                HYBRIDCLR_FREE((void*)ass->image->name);
+                HYBRIDCLR_FREE((void*)ass->image->nameNoExt);
+            }
         }
         else
         {
@@ -173,7 +183,29 @@ namespace metadata
 
         image->InitRuntimeMetadatas();
 
-        il2cpp::vm::MetadataCache::RegisterInterpreterAssembly(ass);
+        if (replaceOldAss != nullptr)
+        {
+            // 原地替换两个注册表条目（s_cliAssemblies / vm::Assembly::s_Assemblies），
+            // 索引稳定；s_placeHolderAssembies 同步指向新壳，后续重载仍可识别。
+            il2cpp::vm::MetadataCache::ReplaceInterpreterAssembly(replaceOldAss, ass);
+            for (Il2CppAssembly*& ph : s_placeHolderAssembies)
+            {
+                if (ph == replaceOldAss)
+                {
+                    ph = ass;
+                    break;
+                }
+            }
+            // Adapter 重绑定入口：assembly/image 立即重绑；类/成员/Type 由
+            // ReloadCoordinator 按全名配对批量处理（见 il2cpp-api-adapters）。
+            il2cpp::api::RemapAssemblyReal(replaceOldAss, ass);
+            il2cpp::api::RemapImageReal(replaceOldAss->image, ass->image);
+            il2cpp::api::OnInterpreterAssemblyReloaded(replaceOldAss, ass);
+        }
+        else
+        {
+            il2cpp::vm::MetadataCache::RegisterInterpreterAssembly(ass);
+        }
         return ass;
     }
 

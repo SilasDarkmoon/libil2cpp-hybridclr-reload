@@ -200,6 +200,9 @@ namespace vm
         static Il2CppMetadataTypeHandle GetTypeHandleFromIndex(const Il2CppImage* image, TypeDefinitionIndex typeIndex);
 
         static void RegisterInterpreterAssembly(Il2CppAssembly* assembly);
+        // 热重载：在 s_cliAssemblies 中用 newAssembly 原地替换 oldAssembly（索引稳定，
+        // Unity 侧经 Adapter 拿到的列表天然指向新程序集）。找不到 old 时退化为注册。
+        static void ReplaceInterpreterAssembly(Il2CppAssembly* oldAssembly, Il2CppAssembly* newAssembly);
         static const Il2CppAssembly* LoadAssemblyFromBytes(const char* assemblyBytes, size_t length, const char* rawSymbolStoreBytes, size_t rawSymbolStoreLength);
         static const Il2CppGenericMethod* FindGenericMethod(std::function<bool(const Il2CppGenericMethod*)> predic);
         static void FixThreadLocalStaticOffsetForFieldLocked(FieldInfo* field, int32_t offset, const il2cpp::os::FastAutoLock& lock);

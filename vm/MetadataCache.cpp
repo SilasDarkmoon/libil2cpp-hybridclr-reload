@@ -1012,6 +1012,23 @@ void il2cpp::vm::MetadataCache::RegisterInterpreterAssembly(Il2CppAssembly* asse
     s_cliAssemblies.push_back(assembly);
 }
 
+void il2cpp::vm::MetadataCache::ReplaceInterpreterAssembly(Il2CppAssembly* oldAssembly, Il2CppAssembly* newAssembly)
+{
+    // 热重载原地替换：s_cliAssemblies 与 vm::Assembly 列表都把 old 换成 new，
+    // 索引不变（GetAssemblies 快照/迭代器不失效），Adapter 层随后 Remap。
+    for (size_t i = 0; i < s_cliAssemblies.size(); i++)
+    {
+        if (s_cliAssemblies[i] == oldAssembly)
+        {
+            s_cliAssemblies[i] = newAssembly;
+            il2cpp::vm::Assembly::ReplaceAssembly(oldAssembly, newAssembly);
+            return;
+        }
+    }
+    // 没找到（异常路径）：退化为普通注册，保证 newAssembly 可见
+    RegisterInterpreterAssembly(newAssembly);
+}
+
 const Il2CppAssembly* il2cpp::vm::MetadataCache::LoadAssemblyFromBytes(const char* assemblyBytes, size_t length, const char* rawSymbolStoreBytes, size_t rawSymbolStoreLength)
 {
     Il2CppAssembly* newAssembly = hybridclr::metadata::Assembly::LoadFromBytes(assemblyBytes, length, rawSymbolStoreBytes, rawSymbolStoreLength);

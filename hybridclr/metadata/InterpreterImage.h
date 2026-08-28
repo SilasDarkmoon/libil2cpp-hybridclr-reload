@@ -627,6 +627,13 @@ namespace metadata
 
 		Il2CppClass* GetTypeInfoFromTypeDefinitionRawIndex(uint32_t index);
 
+		// 热重载 Adapter 重绑定：已实例化 klass 列表（含 NULL 槽位），供协调器
+		// 枚举旧 image 的类型做按名配对。只读，不改列表。
+		const std::vector<Il2CppClass*>& GetLoadedClassList() const { return _classList; }
+
+		// 热重载 Adapter 重绑定：类型定义表（嵌套链向上遍历用），只读。
+		const std::vector<Il2CppTypeDefinition>& GetTypeDefines() const { return _typesDefines; }
+
 		const Il2CppType* GetInterfaceFromGlobalOffset(TypeInterfaceIndex offset);
 		const Il2CppType* GetInterfaceFromIndex(const Il2CppClass* klass, TypeInterfaceIndex index);
 		const Il2CppType* GetInterfaceFromOffset(const Il2CppClass* klass, TypeInterfaceIndex offset);

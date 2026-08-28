@@ -1,7 +1,11 @@
 #include "il2cpp-api-adapters.h"
 
 #include "il2cpp-runtime-metadata.h"
+#include "vm/GlobalMetadataFileInternals.h"
+#include "hybridclr/metadata/InterpreterImage.h"
+#include "hybridclr/metadata/MetadataUtil.h"
 
+#include <string>
 #include <vector>
 
 namespace il2cpp
@@ -226,6 +230,12 @@ namespace api
         GetClassAdapterMap().RemapReal(oldReal, newReal);
     }
 
+    // 热重载协调器专用：暴露 class map 供批量重绑（文件内使用）
+    AdapterMap<Il2CppClass, Il2CppClassAdapter>& GetClassAdapterMapForReload()
+    {
+        return GetClassAdapterMap();
+    }
+
     void* GetClassUserdata(const Il2CppClassAdapter* adapter)
     {
         return adapter == NULL ? NULL : adapter->userdata;
@@ -325,6 +335,151 @@ namespace api
         s_TypeByKey.erase(it);
         s_TypeByKey.insert(std::make_pair(MakeTypeKey(newReal), adapter));
         s_KeyByAdapter[adapter] = MakeTypeKey(newReal);
+    }
+
+    // ---- 热重载协调器 ----
+    // 前置：新程序集已 fresh 载入并原地替换注册表条目；assembly/image 的 adapter
+    // 已 Remap。本函数按全名配对旧/新 image 的类型并批量重绑成员/Type adapter。
+
+    namespace
+    {
+        // 读 typeDef 元数据构造全名 "Ns.Outer/Inner"（不触发类加载）。
+        // klass->typeMetadataHandle 指向 InterpreterImage 的 Il2CppTypeDefinition。
+        void BuildClassFullName(const Il2CppClass* klass, std::string& out)
+        {
+            out.clear();
+            const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)klass->typeMetadataHandle;
+            if (typeDef == NULL)
+                return;
+            // image 反查：klass->image 的 imageIndex 编码在 byval_arg 的 klassIndex
+            const Il2CppImage* klassImage = klass->image;
+            if (klassImage == NULL)
+                return;
+            hybridclr::metadata::InterpreterImage* image = (hybridclr::metadata::InterpreterImage*)hybridclr::metadata::MetadataModule::GetImage(klassImage);
+            if (image == NULL)
+                return;
+            // 沿嵌套链向上（declaringTypeIndex），命名空间只取最外层
+            const Il2CppTypeDefinition* defs[32];
+            int depth = 0;
+            const Il2CppTypeDefinition* cur = typeDef;
+            while (cur != NULL && depth < 32)
+            {
+                defs[depth++] = cur;
+                TypeIndex declIdx = cur->declaringTypeIndex;
+                if (hybridclr::metadata::DecodeImageIndex(declIdx) != 0)
+                    break; // 防御：非本 image 编码
+                const std::vector<Il2CppTypeDefinition>& defs2 = image->GetTypeDefines();
+                int32_t rawIdx = hybridclr::metadata::DecodeMetadataIndex(declIdx);
+                if (rawIdx < 0 || (size_t)rawIdx >= defs2.size())
+                    break;
+                cur = &defs2[(size_t)rawIdx];
+                if (cur == typeDef) // 防御环
+                    break;
+            }
+            if (depth == 0)
+                return;
+            // 最外层的命名空间 + 逐层 /Name
+            const Il2CppTypeDefinition* outermost = defs[depth - 1];
+            const char* ns = image->GetStringFromRawIndex(outermost->namespaceIndex);
+            if (ns != NULL && *ns != '\0')
+            {
+                out += ns;
+                out += '.';
+            }
+            for (int i = depth - 1; i >= 0; i--)
+            {
+                out += image->GetStringFromRawIndex(defs[i]->nameIndex);
+                if (i > 0)
+                    out += '/';
+            }
+        }
+
+        struct ReloadPairContext
+        {
+            hybridclr::metadata::InterpreterImage* oldImage;
+            hybridclr::metadata::InterpreterImage* newImage;
+            const Il2CppImage* oldIl2Image;
+            std::unordered_map<std::string, Il2CppClass*>* nameIndex; // 新 image 全名索引（惰性构建）
+        };
+
+        bool ClassBelongsToOldImage(const Il2CppClass* real, void* userData)
+        {
+            return real->image == ((ReloadPairContext*)userData)->oldIl2Image;
+        }
+
+        // 新 image 全名索引：只收已实例化的类（未实例化的没有 adapter，无需配对）
+        std::unordered_map<std::string, Il2CppClass*>& GetNewClassNameIndex(ReloadPairContext& ctx)
+        {
+            if (ctx.nameIndex == NULL)
+            {
+                ctx.nameIndex = new std::unordered_map<std::string, Il2CppClass*>();
+                const std::vector<Il2CppClass*>& classList = ctx.newImage->GetLoadedClassList();
+                for (size_t i = 0; i < classList.size(); i++)
+                {
+                    Il2CppClass* klass = classList[i];
+                    if (klass == NULL)
+                        continue;
+                    std::string name;
+                    BuildClassFullName(klass, name);
+                    if (!name.empty())
+                        (*ctx.nameIndex)[name] = klass;
+                }
+            }
+            return *ctx.nameIndex;
+        }
+
+        // 类配对：oldKlass 全名 -> 新 image 同名已实例化类
+        const Il2CppClass* PairClassByName(const Il2CppClass* oldReal, void* userData)
+        {
+            ReloadPairContext& ctx = *(ReloadPairContext*)userData;
+            std::string fullName;
+            BuildClassFullName(oldReal, fullName);
+            if (fullName.empty())
+                return NULL;
+            std::unordered_map<std::string, Il2CppClass*>& index = GetNewClassNameIndex(ctx);
+            std::unordered_map<std::string, Il2CppClass*>::iterator it = index.find(fullName);
+            return it != index.end() ? it->second : NULL;
+        }
+    }
+
+    void OnInterpreterAssemblyReloaded(const Il2CppAssembly* oldAssembly, const Il2CppAssembly* newAssembly)
+    {
+        if (oldAssembly == NULL || newAssembly == NULL)
+            return;
+        if (!hybridclr::metadata::IsInterpreterImage(oldAssembly->image) || !hybridclr::metadata::IsInterpreterImage(newAssembly->image))
+            return;
+
+        hybridclr::metadata::InterpreterImage* oldImage = (hybridclr::metadata::InterpreterImage*)hybridclr::metadata::MetadataModule::GetImage(oldAssembly->image);
+        hybridclr::metadata::InterpreterImage* newImage = (hybridclr::metadata::InterpreterImage*)hybridclr::metadata::MetadataModule::GetImage(newAssembly->image);
+        if (oldImage == NULL || newImage == NULL)
+            return;
+
+        ReloadPairContext ctx = { oldImage, newImage, oldAssembly->image, NULL };
+
+        // 1. old 标志：给 real 属旧 image 的类 adapter 打标（安全网）
+        GetClassAdapterMapForReload().MarkRealsWhere(ClassBelongsToOldImage, &ctx);
+
+        // 2. 类批量重绑（按全名配对；RemapRealLocked 内清除 old 标志）
+        GetClassAdapterMapForReload().RemapRealsWhere(ClassBelongsToOldImage, PairClassByName, &ctx);
+
+        // 3. Type 重绑：配对成功的类，byval_arg 内容键切换（oldK->byval_arg ->
+        //    newK->byval_arg；未配对的 Type 留待旧对象保活兜底）
+        // 4. 成员重绑：字段/方法/属性/事件按 (parent 配对结果, 名字) 配对
+        //    ——这两步依赖类配对结果，实现于 RemapMembersAndTypesForReload
+        //    （见下；当前版本先完成类级，成员/Type 在下个迭代接入）
+
+        // 5. 校验：仍带 old 标志的类 = 新版本中删除/改名，real 指向保活旧对象
+        std::vector<const Il2CppClass*> staleClasses;
+        GetClassAdapterMapForReload().GetStaleReals(staleClasses);
+        for (size_t i = 0; i < staleClasses.size(); i++)
+        {
+            std::string name;
+            BuildClassFullName(staleClasses[i], name);
+            // TODO: 接日志输出未配对清单（stale adapter 优雅降级，real 保活）
+            (void)name;
+        }
+
+        delete ctx.nameIndex;
     }
 }
 }
