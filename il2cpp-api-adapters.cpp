@@ -344,52 +344,50 @@ namespace api
 
     namespace
     {
-        // 读 typeDef 元数据构造全名 "Ns.Outer/Inner"（不触发类加载）。
-        // klass->typeMetadataHandle 指向 InterpreterImage 的 Il2CppTypeDefinition。
+        // 读元数据构造全名 "Ns.Outer/Inner"（不触发类加载）。
+        // 嵌套链用 klass->declaringType（Class::FromName 构建时已解析好，无索引歧义；
+        // typeDef.declaringTypeIndex 实际存的是 byvalTypeIndex，不能直接当 typeDef 索引用）。
         void BuildClassFullName(const Il2CppClass* klass, std::string& out)
         {
             out.clear();
-            const Il2CppTypeDefinition* typeDef = (const Il2CppTypeDefinition*)klass->typeMetadataHandle;
-            if (typeDef == NULL)
+            if (klass == NULL)
                 return;
-            // image 反查：klass->image 的 imageIndex 编码在 byval_arg 的 klassIndex
             const Il2CppImage* klassImage = klass->image;
             if (klassImage == NULL)
                 return;
             hybridclr::metadata::InterpreterImage* image = (hybridclr::metadata::InterpreterImage*)hybridclr::metadata::MetadataModule::GetImage(klassImage);
             if (image == NULL)
                 return;
-            // 沿嵌套链向上（declaringTypeIndex），命名空间只取最外层
-            const Il2CppTypeDefinition* defs[32];
+
+            // 沿 klass->declaringType 向上收集（最多 32 层防御）
+            const Il2CppClass* chain[32];
             int depth = 0;
-            const Il2CppTypeDefinition* cur = typeDef;
+            const Il2CppClass* cur = klass;
             while (cur != NULL && depth < 32)
             {
-                defs[depth++] = cur;
-                TypeIndex declIdx = cur->declaringTypeIndex;
-                if (hybridclr::metadata::DecodeImageIndex(declIdx) != 0)
-                    break; // 防御：非本 image 编码
-                const std::vector<Il2CppTypeDefinition>& defs2 = image->GetTypeDefines();
-                int32_t rawIdx = hybridclr::metadata::DecodeMetadataIndex(declIdx);
-                if (rawIdx < 0 || (size_t)rawIdx >= defs2.size())
-                    break;
-                cur = &defs2[(size_t)rawIdx];
-                if (cur == typeDef) // 防御环
-                    break;
+                chain[depth++] = cur;
+                cur = cur->declaringType;
             }
             if (depth == 0)
                 return;
-            // 最外层的命名空间 + 逐层 /Name
-            const Il2CppTypeDefinition* outermost = defs[depth - 1];
-            const char* ns = image->GetStringFromRawIndex(outermost->namespaceIndex);
-            if (ns != NULL && *ns != '\0')
+
+            // 最外层命名空间（读其 typeDef 的 namespaceIndex，编码索引须 Decode）
+            const Il2CppClass* outermost = chain[depth - 1];
+            const Il2CppTypeDefinition* outerDef = (const Il2CppTypeDefinition*)outermost->typeMetadataHandle;
+            if (outerDef != NULL)
             {
-                out += ns;
-                out += '.';
+                const char* ns = image->GetStringFromRawIndex(
+                    (StringIndex)hybridclr::metadata::DecodeMetadataIndex(outerDef->namespaceIndex));
+                if (ns != NULL && *ns != '\0')
+                {
+                    out += ns;
+                    out += '.';
+                }
             }
+            // 逐层 /Name（klass->name 已是解析后的名字指针）
             for (int i = depth - 1; i >= 0; i--)
             {
-                out += image->GetStringFromRawIndex(defs[i]->nameIndex);
+                out += chain[i]->name != NULL ? chain[i]->name : "";
                 if (i > 0)
                     out += '/';
             }
