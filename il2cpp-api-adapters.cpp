@@ -3,6 +3,7 @@
 #include "il2cpp-runtime-metadata.h"
 #include "vm/GlobalMetadataFileInternals.h"
 #include "hybridclr/metadata/InterpreterImage.h"
+#include "hybridclr/metadata/MetadataModule.h"
 #include "hybridclr/metadata/MetadataUtil.h"
 
 #include <string>
