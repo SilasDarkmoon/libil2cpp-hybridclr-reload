@@ -215,6 +215,17 @@ namespace api
             }
         }
 
+        // 查询某 real 当前映射到的 real（含重绑后的）：无 adapter 或未重绑时返回自身。
+        // 热重载成员配对用它查"旧 parent 类配对到的新类"。
+        const RealT* ResolveCurrentReal(const RealT* real) const
+        {
+            il2cpp::os::FastAutoLock lock(const_cast<baselib::ReentrantLock*>(&m_Mutex));
+            typename RealToAdapterMap::const_iterator it = m_RealToAdapter.find(real);
+            if (it != m_RealToAdapter.end())
+                return it->second->real;
+            return real;
+        }
+
     private:
         // 调用方须已持有 m_Mutex
         void RemapRealLocked(const RealT* oldReal, const RealT* newReal)

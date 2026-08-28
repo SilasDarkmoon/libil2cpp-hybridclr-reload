@@ -2,10 +2,12 @@
 
 #include "il2cpp-runtime-metadata.h"
 #include "vm/GlobalMetadataFileInternals.h"
+#include "vm/Class.h"
 #include "hybridclr/metadata/InterpreterImage.h"
 #include "hybridclr/metadata/MetadataModule.h"
 #include "hybridclr/metadata/MetadataUtil.h"
 
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -237,6 +239,26 @@ namespace api
         return GetClassAdapterMap();
     }
 
+    AdapterMap<FieldInfo, FieldInfoAdapter>& GetFieldAdapterMapForReload()
+    {
+        return GetFieldAdapterMap();
+    }
+
+    AdapterMap<MethodInfo, MethodInfoAdapter>& GetMethodAdapterMapForReload()
+    {
+        return GetMethodAdapterMap();
+    }
+
+    AdapterMap<PropertyInfo, PropertyInfoAdapter>& GetPropertyAdapterMapForReload()
+    {
+        return GetPropertyAdapterMap();
+    }
+
+    AdapterMap<EventInfo, EventInfoAdapter>& GetEventAdapterMapForReload()
+    {
+        return GetEventAdapterMap();
+    }
+
     void* GetClassUserdata(const Il2CppClassAdapter* adapter)
     {
         return adapter == NULL ? NULL : adapter->userdata;
@@ -439,6 +461,144 @@ namespace api
             std::unordered_map<std::string, Il2CppClass*>::iterator it = index.find(fullName);
             return it != index.end() ? it->second : NULL;
         }
+
+        // ---- 成员配对（filter = parent 类属旧 image；pair = 新类内按名/签名找）----
+
+        bool FieldBelongsToOldImage(const FieldInfo* real, void* userData)
+        {
+            return real->parent != NULL && real->parent->image == ((ReloadPairContext*)userData)->oldIl2Image;
+        }
+
+        bool MethodBelongsToOldImage(const MethodInfo* real, void* userData)
+        {
+            return real->klass != NULL && real->klass->image == ((ReloadPairContext*)userData)->oldIl2Image;
+        }
+
+        bool PropertyBelongsToOldImage(const PropertyInfo* real, void* userData)
+        {
+            return real->parent != NULL && real->parent->image == ((ReloadPairContext*)userData)->oldIl2Image;
+        }
+
+        bool EventBelongsToOldImage(const EventInfo* real, void* userData)
+        {
+            return real->parent != NULL && real->parent->image == ((ReloadPairContext*)userData)->oldIl2Image;
+        }
+
+        // 类配对结果查询：oldK -> newK（类 map 已重绑，oldK 的 adapter->real 即 newK）
+        const Il2CppClass* ResolvePairedClass(const Il2CppClass* oldK)
+        {
+            return GetClassAdapterMapForReload().ResolveCurrentReal(oldK);
+        }
+
+        const FieldInfo* PairFieldByName(const FieldInfo* oldReal, void* userData)
+        {
+            const Il2CppClass* newParent = ResolvePairedClass(oldReal->parent);
+            if (newParent == NULL)
+                return NULL;
+            // 新类可能尚未 SetupFields：触发惰性构建（重载流程可接受）
+            Il2CppClass* newParentMutable = const_cast<Il2CppClass*>(newParent);
+            il2cpp::vm::Class::SetupFields(newParentMutable);
+            for (uint16_t i = 0; i < newParentMutable->field_count; i++)
+            {
+                if (std::strcmp(newParentMutable->fields[i].name, oldReal->name) == 0)
+                    return &newParentMutable->fields[i];
+            }
+            return NULL;
+        }
+
+        const MethodInfo* PairMethodByNameAndSignature(const MethodInfo* oldReal, void* userData)
+        {
+            const Il2CppClass* newParent = ResolvePairedClass(oldReal->klass);
+            if (newParent == NULL)
+                return NULL;
+            Il2CppClass* newParentMutable = const_cast<Il2CppClass*>(newParent);
+            il2cpp::vm::Class::SetupMethods(newParentMutable);
+            // 先按 名字+参数个数 粗筛（同名重载场景），再按参数/返回类型内容比对
+            const MethodInfo* candidates[16];
+            size_t candidateCount = 0;
+            for (uint16_t i = 0; i < newParentMutable->method_count; i++)
+            {
+                const MethodInfo* m = newParentMutable->methods[i];
+                if (m == NULL || std::strcmp(m->name, oldReal->name) != 0)
+                    continue;
+                if (m->parameters_count != oldReal->parameters_count)
+                    continue;
+                if (candidateCount < 16)
+                    candidates[candidateCount++] = m;
+            }
+            if (candidateCount == 0)
+                return NULL;
+            if (candidateCount == 1)
+                return candidates[0];
+            // 同名同参数个数重载：按参数/返回类型内容比对（Il2CppType 内容等价 =
+            // type 枚举 + data 指针指向同一 klass/genericClass——跨新旧 image 的
+            // 类型指针不同，故仅比对 type 枚举与递归元素，指针不同的返回 NULL 保守跳过）
+            for (size_t c = 0; c < candidateCount; c++)
+            {
+                const MethodInfo* m = candidates[c];
+                bool match = true;
+                for (uint8_t p = 0; p < oldReal->parameters_count && match; p++)
+                {
+                    const Il2CppType* a = oldReal->parameters[p];
+                    const Il2CppType* b = m->parameters[p];
+                    if (a->type != b->type || a->byref != b->byref)
+                    {
+                        match = false;
+                        break;
+                    }
+                    // CLASS/VALUETYPE/GENERICINST 的 data 指针跨新旧不同——
+                    // 解析到类后按全名比对（递归一层，成本可接受）
+                    if (a->type == IL2CPP_TYPE_CLASS || a->type == IL2CPP_TYPE_VALUETYPE || a->type == IL2CPP_TYPE_GENERICINST)
+                    {
+                        const Il2CppClass* ka = il2cpp::vm::Class::FromIl2CppType(a);
+                        const Il2CppClass* kb = il2cpp::vm::Class::FromIl2CppType(b);
+                        if (ka == NULL || kb == NULL || ka == kb)
+                        {
+                            match = (ka == kb);
+                            continue;
+                        }
+                        std::string nameA, nameB;
+                        BuildClassFullName(ka, nameA);
+                        BuildClassFullName(kb, nameB);
+                        if (nameA != nameB)
+                            match = false;
+                    }
+                }
+                if (match)
+                    return m;
+            }
+            return NULL;
+        }
+
+        const PropertyInfo* PairPropertyByName(const PropertyInfo* oldReal, void* userData)
+        {
+            const Il2CppClass* newParent = ResolvePairedClass(oldReal->parent);
+            if (newParent == NULL)
+                return NULL;
+            Il2CppClass* newParentMutable = const_cast<Il2CppClass*>(newParent);
+            il2cpp::vm::Class::SetupProperties(newParentMutable);
+            for (uint16_t i = 0; i < newParentMutable->property_count; i++)
+            {
+                if (std::strcmp(newParentMutable->properties[i].name, oldReal->name) == 0)
+                    return &newParentMutable->properties[i];
+            }
+            return NULL;
+        }
+
+        const EventInfo* PairEventByName(const EventInfo* oldReal, void* userData)
+        {
+            const Il2CppClass* newParent = ResolvePairedClass(oldReal->parent);
+            if (newParent == NULL)
+                return NULL;
+            Il2CppClass* newParentMutable = const_cast<Il2CppClass*>(newParent);
+            il2cpp::vm::Class::SetupEvents(newParentMutable);
+            for (uint16_t i = 0; i < newParentMutable->event_count; i++)
+            {
+                if (std::strcmp(newParentMutable->events[i].name, oldReal->name) == 0)
+                    return &newParentMutable->events[i];
+            }
+            return NULL;
+        }
     }
 
     void OnInterpreterAssemblyReloaded(const Il2CppAssembly* oldAssembly, const Il2CppAssembly* newAssembly)
@@ -461,11 +621,11 @@ namespace api
         // 2. 类批量重绑（按全名配对；RemapRealLocked 内清除 old 标志）
         GetClassAdapterMapForReload().RemapRealsWhere(ClassBelongsToOldImage, PairClassByName, &ctx);
 
-        // 3. Type 重绑：配对成功的类，byval_arg 内容键切换（oldK->byval_arg ->
-        //    newK->byval_arg；未配对的 Type 留待旧对象保活兜底）
-        // 4. 成员重绑：字段/方法/属性/事件按 (parent 配对结果, 名字) 配对
-        //    ——这两步依赖类配对结果，实现于 RemapMembersAndTypesForReload
-        //    （见下；当前版本先完成类级，成员/Type 在下个迭代接入）
+        // 3. 成员重绑：字段/方法/属性/事件按 (parent 配对结果, 名字) 配对
+        RemapMembersForReloadedClasses(ctx);
+
+        // 4. Type 重绑：配对成功的类，byval_arg 内容键切换
+        RemapTypesForReloadedClasses(ctx);
 
         // 5. 校验：仍带 old 标志的类 = 新版本中删除/改名，real 指向保活旧对象
         std::vector<const Il2CppClass*> staleClasses;
@@ -479,6 +639,32 @@ namespace api
         }
 
         delete ctx.nameIndex;
+    }
+
+    // 成员重绑：四个成员 map 各自批量（filter=parent 属旧 image；pair=新类内按名/签名）
+    void RemapMembersForReloadedClasses(ReloadPairContext& ctx)
+    {
+        GetFieldAdapterMapForReload().RemapRealsWhere(FieldBelongsToOldImage, PairFieldByName, &ctx);
+        GetMethodAdapterMapForReload().RemapRealsWhere(MethodBelongsToOldImage, PairMethodByNameAndSignature, &ctx);
+        GetPropertyAdapterMapForReload().RemapRealsWhere(PropertyBelongsToOldImage, PairPropertyByName, &ctx);
+        GetEventAdapterMapForReload().RemapRealsWhere(EventBelongsToOldImage, PairEventByName, &ctx);
+    }
+
+    // Type 重绑：遍历旧 image 已实例化类，配对成功即切 byval_arg 内容键。
+    // （Type map 是内容键，无法用 filter/pairFn 模式——旧 byval_arg 的 data 指针
+    // 指旧 klass，直接按配对结果逐个 RemapTypeReal。）
+    void RemapTypesForReloadedClasses(ReloadPairContext& ctx)
+    {
+        const std::vector<Il2CppClass*>& classList = ctx.oldImage->GetLoadedClassList();
+        for (size_t i = 0; i < classList.size(); i++)
+        {
+            Il2CppClass* oldK = classList[i];
+            if (oldK == NULL)
+                continue;
+            const Il2CppClass* newK = ResolvePairedClass(oldK);
+            if (newK != NULL && newK != oldK)
+                RemapTypeReal(&oldK->byval_arg, &newK->byval_arg);
+        }
     }
 }
 }
