@@ -601,6 +601,10 @@ namespace api
         }
     }
 
+    // 前置声明（定义在下方）：成员/Type 重绑
+    void RemapMembersForReloadedClasses(ReloadPairContext& ctx);
+    void RemapTypesForReloadedClasses(ReloadPairContext& ctx);
+
     void OnInterpreterAssemblyReloaded(const Il2CppAssembly* oldAssembly, const Il2CppAssembly* newAssembly)
     {
         if (oldAssembly == NULL || newAssembly == NULL)
