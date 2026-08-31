@@ -1,6 +1,7 @@
 #include "il2cpp-api-adapters.h"
 
 #include "il2cpp-runtime-metadata.h"
+#include "gc/WriteBarrier.h"
 #include "vm/GlobalMetadataFileInternals.h"
 #include "vm/Class.h"
 #include "hybridclr/metadata/InterpreterImage.h"
@@ -428,16 +429,20 @@ namespace api
             return real->image == ((ReloadPairContext*)userData)->oldIl2Image;
         }
 
-        // 新 image 全名索引：只收已实例化的类（未实例化的没有 adapter，无需配对）
+        // 新 image 全名索引：遍历全部类型定义并**主动实例化**（GetTypeInfoFrom-
+        // DefinitionRawIndex 触发构建）。关键：必须实例化全部新类，否则配对失败时
+        // 新代码 typeof(T) 会 Wrap 出新 adapter（地址不同于引擎 MonoScript 缓存的
+        // 旧 adapter）→ AddComponent 查不到 MonoScript 返回 null。
         std::unordered_map<std::string, Il2CppClass*>& GetNewClassNameIndex(ReloadPairContext& ctx)
         {
             if (ctx.nameIndex == NULL)
             {
                 ctx.nameIndex = new std::unordered_map<std::string, Il2CppClass*>();
-                const std::vector<Il2CppClass*>& classList = ctx.newImage->GetLoadedClassList();
-                for (size_t i = 0; i < classList.size(); i++)
+                const std::vector<Il2CppTypeDefinition>& typeDefs = ctx.newImage->GetTypeDefines();
+                for (size_t i = 0; i < typeDefs.size(); i++)
                 {
-                    Il2CppClass* klass = classList[i];
+                    // 主动实例化（幂等：已实例化的直接返回）
+                    Il2CppClass* klass = ctx.newImage->GetTypeInfoFromTypeDefinitionRawIndex((uint32_t)i);
                     if (klass == NULL)
                         continue;
                     std::string name;
